@@ -2,6 +2,7 @@ import Record from "../../models/Record.js";
 import User from "../../models/User.js";
 import { createNotification } from "./notificationController.js";
 import { createCounselorNotification, createNotificationForAllCounselors } from "../counselorNotificationController.js";
+import { logLockAction } from "./recordLockController.js";
 
 // Helper to get user info from request
 const getUserInfo = (req) => {
@@ -9,6 +10,7 @@ const getUserInfo = (req) => {
     userId: req.admin?._id || req.user?._id,
     userName: req.admin?.name || req.user?.name || req.admin?.email || req.user?.email || "System",
     userRole: req.admin?.role || req.user?.role || "admin",
+    userEmail: req.admin?.email || req.user?.email || "unknown@example.com",
   };
 };
 
@@ -146,7 +148,7 @@ export const getRecordById = async (req, res) => {
   }
 };
 
-// ✏️ Update record
+// ✏️ Update record (STRICT 2PL: Lock ownership validated by middleware)
 export const updateRecord = async (req, res) => {
   try {
     const { id } = req.params;
@@ -155,6 +157,58 @@ export const updateRecord = async (req, res) => {
     const record = await Record.findById(id);
     if (!record) {
       return res.status(404).json({ message: "Record not found" });
+    }
+
+    // STRICT 2PL: Additional lock ownership validation (defense in depth)
+    const RecordLock = (await import("../../models/RecordLock.js")).default;
+    const { cleanupExpiredLocks } = await import("./recordLockController.js");
+    await cleanupExpiredLocks();
+
+    const now = new Date();
+    const lock = await RecordLock.findOne({
+      recordId: id,
+      isActive: true,
+      expiresAt: { $gte: now },
+    });
+
+    if (lock) {
+      const isLockOwner = lock.lockedBy.userId.toString() === userInfo.userId.toString();
+      if (!isLockOwner) {
+        return res.status(423).json({
+          success: false,
+          message: `Record is locked by ${lock.lockedBy.userName}. Only the lock owner can update.`,
+          lockedBy: {
+            userId: lock.lockedBy.userId,
+            userName: lock.lockedBy.userName,
+            userRole: lock.lockedBy.userRole,
+          },
+        });
+      }
+      // Lock ownership validated - lock persists (growing phase of 2PL)
+    } else {
+      // STRICT 2PL: Record must be locked before editing (but allow if lock was just acquired)
+      // Give a small grace period for lock acquisition
+      await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+      const lockAfterWait = await RecordLock.findOne({
+        recordId: id,
+        isActive: true,
+        expiresAt: { $gte: new Date() },
+      });
+      
+      if (!lockAfterWait) {
+        return res.status(423).json({
+          success: false,
+          message: "Record must be locked before editing. Please lock the record first.",
+        });
+      }
+      
+      const isLockOwner = lockAfterWait.lockedBy.userId.toString() === userInfo.userId.toString();
+      if (!isLockOwner) {
+        return res.status(423).json({
+          success: false,
+          message: `Record is locked by ${lockAfterWait.lockedBy.userName}. Only the lock owner can update.`,
+        });
+      }
     }
 
     // Track changes for audit trail
@@ -177,10 +231,24 @@ export const updateRecord = async (req, res) => {
     // Update record
     Object.assign(record, updateData);
 
-    // Update audit trail
-    record.auditTrail.lastModifiedBy = userInfo;
-    record.auditTrail.lastModifiedAt = new Date();
+    // Update audit trail (ensure it exists)
+    if (!record.auditTrail) {
+      record.auditTrail = {
+        createdBy: userInfo,
+        createdAt: record.createdAt || new Date(),
+        lastModifiedBy: userInfo,
+        lastModifiedAt: new Date(),
+        modificationHistory: [],
+      };
+    } else {
+      record.auditTrail.lastModifiedBy = userInfo;
+      record.auditTrail.lastModifiedAt = new Date();
+    }
+    
     if (changes.length > 0) {
+      if (!record.auditTrail.modificationHistory) {
+        record.auditTrail.modificationHistory = [];
+      }
       record.auditTrail.modificationHistory.push(...changes);
     }
 
@@ -189,7 +257,40 @@ export const updateRecord = async (req, res) => {
     const newCounselorName = updateData.counselor || record.counselor;
     const oldCounselorName = record.counselor;
 
-    await record.save();
+    // Validate and save record
+    try {
+      await record.save();
+    } catch (saveError) {
+      console.error("❌ Error saving record:", saveError);
+      console.error("❌ Validation errors:", saveError.errors);
+      throw new Error(`Failed to save record: ${saveError.message}`);
+    }
+
+    // Log UPDATE action
+    try {
+      const RecordLock = (await import("../../models/RecordLock.js")).default;
+      const currentLock = await RecordLock.findOne({
+        recordId: id,
+        isActive: true,
+        expiresAt: { $gte: new Date() },
+      });
+      
+      await logLockAction(
+        id,
+        "UPDATE",
+        userInfo,
+        currentLock?.lockedBy || null,
+        `Record updated by ${userInfo.userName} (${userInfo.userRole})`,
+        {
+          changedFields: changes.map((c) => c.field),
+          changeCount: changes.length,
+          clientName: record.clientName,
+          sessionNumber: record.sessionNumber,
+        }
+      );
+    } catch (logError) {
+      console.error("⚠️ Failed to log UPDATE action (non-critical):", logError);
+    }
 
     // Create notification for admins
     try {
@@ -286,7 +387,25 @@ export const updateRecord = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error updating record:", error);
-    res.status(500).json({ message: "Failed to update record", error: error.message });
+    console.error("❌ Error stack:", error.stack);
+    console.error("❌ Error details:", {
+      recordId: req.params.id,
+      userInfo: req.admin || req.user,
+      errorMessage: error.message,
+      errorName: error.name,
+    });
+    
+    // Return more detailed error in development
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? error.message 
+      : "Failed to update record";
+    
+    res.status(500).json({ 
+      success: false,
+      message: errorMessage, 
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    });
   }
 };
 

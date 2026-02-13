@@ -1,0 +1,25 @@
+﻿import { useEffect, useState } from "react";
+import axios from "axios";
+import { jsPDF } from "jspdf";
+import "jspdf-autotable";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import Swal from "sweetalert2";
+import { NotificationBadgeBadge } from "../components/NotificationBadge";
+import CounselorSidebar from "../components/CounselorSidebar";
+import { initializeTheme } from "../utils/themeUtils";
+import { useDocumentTitle } from "../hooks/useDocumentTitle";
+
+const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/records`;
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+// Helper function to get full image URL from backend
+const getImageUrl = (imagePath) => {
+  if (!imagePath) return null;
+  if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
+    return imagePath;
+  }
+  if (imagePath.startsWith("data:")) {
+    return imagePath;
+  }
+

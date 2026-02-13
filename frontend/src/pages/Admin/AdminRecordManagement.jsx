@@ -65,9 +65,15 @@ export default function AdminRecordManagement() {
   const [showLockLogs, setShowLockLogs] = useState(false);
   const [lockLogs, setLockLogs] = useState([]);
   const [selectedRecordForLogs, setSelectedRecordForLogs] = useState(null);
+  const [allLockLogs, setAllLockLogs] = useState([]); // All lock/unlock logs for the card
+  const [lockLogFilter, setLockLogFilter] = useState("all"); // Filter: "all", "LOCK", "UNLOCK", "UPDATE"
+  const [showLockLogsCard, setShowLockLogsCard] = useState(true); // Toggle to show/hide the lock logs card
   
   // Dropdown menu state
   const [openDropdownId, setOpenDropdownId] = useState(null);
+  
+  // Toggle to show/hide action buttons
+  const [showActions, setShowActions] = useState(true);
 
   // Initialize theme on mount
   useEffect(() => {
@@ -107,11 +113,19 @@ export default function AdminRecordManagement() {
         }
         setAdmin(res.data);
         fetchRecords();
+        fetchAllLockLogs();
       })
       .catch(() => {
         navigate("/adminlogin");
       });
   }, [navigate]);
+
+  // Refresh all lock logs when records are updated
+  useEffect(() => {
+    if (records.length > 0) {
+      fetchAllLockLogs();
+    }
+  }, [records]);
 
   // Fetch records with current filters and pagination
   const fetchRecords = async () => {
@@ -201,6 +215,41 @@ export default function AdminRecordManagement() {
       return [];
     }
   };
+
+  // Fetch all lock/unlock logs
+  const fetchAllLockLogs = async () => {
+    try {
+      const token = localStorage.getItem("adminToken");
+      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const params = { limit: 50 }; // Get more logs to allow filtering
+      if (lockLogFilter !== "all") {
+        params.action = lockLogFilter;
+      }
+      const response = await axios.get(`${baseUrl}/api/admin/lock-logs/all`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params,
+      });
+      console.log("All lock logs response:", response.data);
+      if (response.data && response.data.success) {
+        setAllLockLogs(response.data.logs || []);
+      } else {
+        console.warn("Unexpected response format:", response.data);
+        setAllLockLogs([]);
+      }
+    } catch (error) {
+      console.error("Error fetching all lock logs:", error);
+      console.error("Error details:", error.response?.data);
+      setAllLockLogs([]);
+    }
+  };
+
+  // Refetch logs when filter changes
+  useEffect(() => {
+    if (lockLogFilter) {
+      fetchAllLockLogs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockLogFilter]);
 
   // Lock a record
   const handleLockRecord = async (record) => {
@@ -299,42 +348,81 @@ export default function AdminRecordManagement() {
     setShowDetailModal(true);
   };
 
-  // Edit record - check lock status first
+  // Edit record - Auto-lock when clicking Edit button
   const handleEditRecord = async (record) => {
-    // Fetch latest lock status
-    const lockStatus = await fetchLockStatus(record._id);
-    
-    // Check if record is locked by someone else
-    if (lockStatus.locked && !lockStatus.isLockOwner) {
-      Swal.fire({
-        icon: "warning",
-        title: "Record Locked",
-        text: `This record is locked by ${lockStatus.lockedBy?.userName || "another user"}. You cannot edit it.`,
-      });
-      return;
-    }
+    try {
+      const token = localStorage.getItem("adminToken");
+      
+      // STRICT 2PL: Auto-lock record atomically when clicking Edit button
+      try {
+        const lockResponse = await axios.post(`${API_URL}/${record._id}/start-editing`, {}, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-    setSelectedRecord(record);
-    setEditForm({
-      clientName: record.clientName || "",
-      date: record.date ? new Date(record.date).toISOString().split("T")[0] : "",
-      sessionType: record.sessionType || "",
-      sessionNumber: record.sessionNumber || "",
-      status: record.status || "Ongoing",
-      notes: record.notes || "",
-      outcomes: record.outcomes || "",
-    });
-    setShowEditModal(true);
+        if (!lockResponse.data.success) {
+          throw new Error("Failed to acquire lock");
+        }
+
+        // Lock acquired successfully - open edit modal immediately
+        setSelectedRecord(record);
+        setEditForm({
+          clientName: record.clientName || "",
+          date: record.date ? new Date(record.date).toISOString().split("T")[0] : "",
+          sessionType: record.sessionType || "",
+          sessionNumber: record.sessionNumber || "",
+          status: record.status || "Ongoing",
+          notes: record.notes || "",
+          outcomes: record.outcomes || "",
+        });
+        setShowEditModal(true);
+        // Refresh lock status in the background (non-blocking)
+        fetchLockStatus(record._id);
+      } catch (lockError) {
+        // Lock acquisition failed
+        console.error("Lock acquisition error:", lockError);
+        if (lockError.response?.status === 423) {
+          const lockOwner = lockError.response?.data?.lockedBy;
+          Swal.fire({
+            icon: "warning",
+            title: "Record Locked",
+            text: `This record is locked by ${lockOwner?.userName || "another user"}. Only one user can edit at a time.`,
+          });
+          await fetchLockStatus(record._id);
+          return;
+        }
+        // If lock acquisition fails for other reasons, show error
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: lockError.response?.data?.message || "Failed to acquire lock. Please try again.",
+        });
+      }
+    } catch (err) {
+      console.error("Error acquiring lock:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.message || "Failed to start editing session.",
+      });
+    }
   };
 
-  // Save edited record
+  // Save edited record (lock should already be acquired when Edit was clicked)
   const handleSaveEdit = async () => {
     try {
       setSaving(true);
       const token = localStorage.getItem("adminToken");
-      await axios.put(`${API_URL}/${selectedRecord._id}`, editForm, {
+      
+      // Update the record (lock should already be acquired when Edit was clicked)
+      console.log("🔍 Updating record with data:", editForm);
+      const updateResponse = await axios.put(`${API_URL}/${selectedRecord._id}`, editForm, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      console.log("✅ Update response:", updateResponse.data);
+
+      // Refresh lock status
+      await fetchLockStatus(selectedRecord._id);
+      
       Swal.fire({
         icon: "success",
         title: "Success",
@@ -346,6 +434,10 @@ export default function AdminRecordManagement() {
       fetchRecords();
     } catch (error) {
       console.error("Error updating record:", error);
+      console.error("Error response:", error.response?.data);
+      console.error("Error response status:", error.response?.status);
+      console.error("Full error:", error);
+      
       // Handle 423 Locked status
       if (error.response?.status === 423) {
         Swal.fire({
@@ -354,12 +446,26 @@ export default function AdminRecordManagement() {
           text: error.response?.data?.message || "This record is locked by another user. You cannot edit it.",
         });
         await fetchLockStatus(selectedRecord._id);
-        setShowEditModal(false);
+      } else if (error.response?.status === 404) {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Record not found.",
+        });
+      } else if (error.response?.status === 500) {
+        // Show the actual error message from backend
+        const errorMsg = error.response?.data?.error || error.response?.data?.message || "Failed to update record";
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: errorMsg,
+          footer: process.env.NODE_ENV === 'development' ? error.response?.data?.stack : undefined,
+        });
       } else {
         Swal.fire({
           icon: "error",
           title: "Error",
-          text: "Failed to update record",
+          text: error.response?.data?.message || error.message || "Failed to update record. Please try again.",
         });
       }
     } finally {
@@ -447,11 +553,25 @@ export default function AdminRecordManagement() {
           animate={{ opacity: 1, y: 0 }}
           className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm"
         >
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">Record Management</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1.5">
-              Manage all counseling records.
-            </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">Record Management</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1.5">
+                Manage all counseling records.
+              </p>
+            </div>
+            {!showActions && (
+              <button
+                onClick={() => setShowActions(true)}
+                className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-semibold text-sm cursor-pointer transition-colors flex items-center gap-2"
+                title="Show action buttons"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                </svg>
+                <span>Show Actions</span>
+              </button>
+            )}
           </div>
         </motion.div>
 
@@ -685,7 +805,22 @@ export default function AdminRecordManagement() {
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Status</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Counselor</th>
                     <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Lock Status</th>
-                    <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400">Actions</th>
+                      {showActions && (
+                        <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400">
+                          <div className="flex items-center justify-center gap-2">
+                            <span>Actions</span>
+                            <button
+                              onClick={() => setShowActions(false)}
+                              className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                              title="Hide actions"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </th>
+                      )}
                   </tr>
                 </thead>
                 <tbody>
@@ -740,8 +875,9 @@ export default function AdminRecordManagement() {
                           );
                         })()}
                       </td>
-                      <td className="px-3 py-3 text-center">
-                        <div className="relative dropdown-container">
+                      {showActions && (
+                        <td className="px-3 py-3 text-center">
+                          <div className="relative dropdown-container">
                           <button
                             onClick={() => setOpenDropdownId(openDropdownId === record._id ? null : record._id)}
                             className="px-3 py-1.5 rounded-lg bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-semibold text-xs cursor-pointer transition-colors flex items-center gap-1"
@@ -800,44 +936,6 @@ export default function AdminRecordManagement() {
                                         >
                                           <span>Edit</span>
                                         </button>
-                                        {!isLocked || isLockOwner ? (
-                                          !isLocked ? (
-                                            <button
-                                              onClick={() => {
-                                                handleLockRecord(record);
-                                                setOpenDropdownId(null);
-                                              }}
-                                              disabled={lockingRecordId === record._id}
-                                              className="px-4 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white font-semibold text-xs cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-2"
-                                            >
-                                              <span>🔒</span>
-                                              <span>{lockingRecordId === record._id ? "Locking..." : "Lock"}</span>
-                                            </button>
-                                          ) : (
-                                            <button
-                                              onClick={() => {
-                                                handleUnlockRecord(record);
-                                                setOpenDropdownId(null);
-                                              }}
-                                              disabled={unlockingRecordId === record._id}
-                                              className="px-4 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white font-semibold text-xs cursor-pointer transition-colors disabled:opacity-50 flex items-center gap-2"
-                                            >
-                                              <span>🔓</span>
-                                              <span>{unlockingRecordId === record._id ? "Unlocking..." : "Unlock"}</span>
-                                            </button>
-                                          )
-                                        ) : null}
-                                        <button
-                                          onClick={() => {
-                                            handleViewLockLogs(record);
-                                            setOpenDropdownId(null);
-                                          }}
-                                          className="px-4 py-2.5 bg-purple-500 hover:bg-purple-600 text-white font-semibold text-xs cursor-pointer transition-colors flex items-center gap-2"
-                                          title="View lock history"
-                                        >
-                                          <span>📋</span>
-                                          <span>Logs</span>
-                                        </button>
                                       </>
                                     );
                                   })()}
@@ -847,12 +945,134 @@ export default function AdminRecordManagement() {
                           </AnimatePresence>
                         </div>
                       </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
+        </motion.div>
+
+        {/* Lock/Unlock Activity Logs Card - Separate Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm"
+        >
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                  Lock/Unlock Activity Logs
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Recent lock and unlock activities across all records
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowLockLogsCard(!showLockLogsCard)}
+                  className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
+                  title={showLockLogsCard ? "Hide logs" : "Show logs"}
+                >
+                  <svg 
+                    className={`w-4 h-4 transition-transform ${showLockLogsCard ? 'rotate-180' : ''}`}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                  {showLockLogsCard ? "Hide" : "Show"}
+                </button>
+                <select
+                  value={lockLogFilter}
+                  onChange={(e) => setLockLogFilter(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 cursor-pointer"
+                >
+                  <option value="all">All Actions</option>
+                  <option value="LOCK">Lock Only</option>
+                  <option value="UNLOCK">Unlock Only</option>
+                  <option value="UPDATE">Update Only</option>
+                </select>
+                <button
+                  onClick={fetchAllLockLogs}
+                  className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-semibold text-sm cursor-pointer transition-colors flex items-center gap-2"
+                  title="Refresh logs"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            <AnimatePresence>
+              {showLockLogsCard && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                  style={{ overflow: "hidden" }}
+                >
+                  {(() => {
+                    // Filter logs based on lockLogFilter
+                    const filteredLogs = lockLogFilter === "all" 
+                      ? allLockLogs 
+                      : allLockLogs.filter(log => log.action === lockLogFilter);
+                    
+                    return filteredLogs.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                        No lock/unlock activities found.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {filteredLogs.map((log, index) => (
+                        <div
+                          key={index}
+                          className="border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <div className="flex justify-between items-center gap-2">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span
+                                className={`px-2 py-0.5 rounded text-xs font-semibold whitespace-nowrap ${
+                                  log.action === "LOCK"
+                                    ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                    : log.action === "UNLOCK"
+                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                                    : log.action === "UPDATE"
+                                    ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                }`}
+                              >
+                                {log.action}
+                              </span>
+                              <span className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
+                                {log.performedBy.userName} <span className="text-gray-500 dark:text-gray-400">({log.performedBy.userRole})</span>
+                              </span>
+                              {log.record && (
+                                <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                                  {log.record.clientName} - Session #{log.record.sessionNumber}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                              {log.timestamp ? new Date(log.timestamp).toLocaleString() : log.createdAt ? new Date(log.createdAt).toLocaleString() : "N/A"}
+                            </span>
+                          </div>
+                          {log.reason && log.reason !== "Auto-locked when editing started" && (
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{log.reason}</p>
+                          )}
+                        </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </motion.div>
+              )}
+            </AnimatePresence>
 
           {/* Pagination */}
           {totalPages > 1 && (
@@ -1170,19 +1390,19 @@ export default function AdminRecordManagement() {
                       <input
                         type="text"
                         value={editForm.clientName}
-                        disabled
-                        readOnly
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      border: "1px solid #e2e8f0",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      backgroundColor: "#f7fafc",
-                      color: "#718096",
-                      cursor: "not-allowed",
-                    }}
-                  />
+                        onChange={(e) => setEditForm({ ...editForm, clientName: e.target.value })}
+                        disabled={isReadOnly}
+                        style={{
+                          width: "100%",
+                          padding: "10px",
+                          border: "1px solid #e2e8f0",
+                          borderRadius: "8px",
+                          fontSize: "14px",
+                          backgroundColor: isReadOnly ? "#f7fafc" : "white",
+                          color: isReadOnly ? "#718096" : "#1a202c",
+                          cursor: isReadOnly ? "not-allowed" : "text",
+                        }}
+                      />
                 </div>
 
                 <div>
@@ -1192,17 +1412,17 @@ export default function AdminRecordManagement() {
                   <input
                     type="date"
                     value={editForm.date}
-                    disabled
-                    readOnly
+                    onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
+                    disabled={isReadOnly}
                     style={{
                       width: "100%",
                       padding: "10px",
                       border: "1px solid #e2e8f0",
                       borderRadius: "8px",
                       fontSize: "14px",
-                      backgroundColor: "#f7fafc",
-                      color: "#718096",
-                      cursor: "not-allowed",
+                      backgroundColor: isReadOnly ? "#f7fafc" : "white",
+                      color: isReadOnly ? "#718096" : "#1a202c",
+                      cursor: isReadOnly ? "not-allowed" : "text",
                     }}
                   />
                 </div>
@@ -1214,17 +1434,17 @@ export default function AdminRecordManagement() {
                   <input
                     type="text"
                     value={editForm.sessionType}
-                    disabled
-                    readOnly
+                    onChange={(e) => setEditForm({ ...editForm, sessionType: e.target.value })}
+                    disabled={isReadOnly}
                     style={{
                       width: "100%",
                       padding: "10px",
                       border: "1px solid #e2e8f0",
                       borderRadius: "8px",
                       fontSize: "14px",
-                      backgroundColor: "#f7fafc",
-                      color: "#718096",
-                      cursor: "not-allowed",
+                      backgroundColor: isReadOnly ? "#f7fafc" : "white",
+                      color: isReadOnly ? "#718096" : "#1a202c",
+                      cursor: isReadOnly ? "not-allowed" : "text",
                     }}
                   />
                 </div>
@@ -1236,17 +1456,17 @@ export default function AdminRecordManagement() {
                   <input
                     type="number"
                     value={editForm.sessionNumber}
-                    disabled
-                    readOnly
+                    onChange={(e) => setEditForm({ ...editForm, sessionNumber: e.target.value })}
+                    disabled={isReadOnly}
                     style={{
                       width: "100%",
                       padding: "10px",
                       border: "1px solid #e2e8f0",
                       borderRadius: "8px",
                       fontSize: "14px",
-                      backgroundColor: "#f7fafc",
-                      color: "#718096",
-                      cursor: "not-allowed",
+                      backgroundColor: isReadOnly ? "#f7fafc" : "white",
+                      color: isReadOnly ? "#718096" : "#1a202c",
+                      cursor: isReadOnly ? "not-allowed" : "text",
                     }}
                   />
                 </div>
@@ -1257,16 +1477,17 @@ export default function AdminRecordManagement() {
                   </label>
                   <select
                     value={editForm.status}
-                    disabled
+                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    disabled={isReadOnly}
                     style={{
                       width: "100%",
                       padding: "10px",
                       border: "1px solid #e2e8f0",
                       borderRadius: "8px",
                       fontSize: "14px",
-                      backgroundColor: "#f7fafc",
-                      color: "#718096",
-                      cursor: "not-allowed",
+                      backgroundColor: isReadOnly ? "#f7fafc" : "white",
+                      color: isReadOnly ? "#718096" : "#1a202c",
+                      cursor: isReadOnly ? "not-allowed" : "pointer",
                     }}
                   >
                     <option value="Ongoing">Ongoing</option>
@@ -1282,10 +1503,7 @@ export default function AdminRecordManagement() {
                   <textarea
                     value={editForm.notes}
                     onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                    disabled={(() => {
-                      const lockStatus = lockStatuses[selectedRecord?._id];
-                      return lockStatus?.locked && !lockStatus?.isLockOwner;
-                    })()}
+                    disabled={isReadOnly}
                     rows={4}
                     className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
                     style={{ resize: "vertical" }}
@@ -1306,10 +1524,7 @@ export default function AdminRecordManagement() {
                   <textarea
                     value={editForm.outcomes}
                     onChange={(e) => setEditForm({ ...editForm, outcomes: e.target.value })}
-                    disabled={(() => {
-                      const lockStatus = lockStatuses[selectedRecord?._id];
-                      return lockStatus?.locked && !lockStatus?.isLockOwner;
-                    })()}
+                    disabled={isReadOnly}
                     rows={4}
                     className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
                     style={{ resize: "vertical" }}
@@ -1327,6 +1542,38 @@ export default function AdminRecordManagement() {
               })()}
 
               <div style={{ display: "flex", gap: "10px", marginTop: "20px", justifyContent: "flex-end" }}>
+                {/* STRICT 2PL: Show unlock button only if user owns the lock */}
+                {(() => {
+                  const lockStatus = lockStatuses[selectedRecord?._id];
+                  const isLocked = lockStatus?.locked;
+                  const isLockOwner = lockStatus?.isLockOwner;
+                  
+                  if (isLocked && isLockOwner) {
+                    return (
+                      <button
+                        onClick={async () => {
+                          await handleUnlockRecord(selectedRecord);
+                          setShowEditModal(false);
+                        }}
+                        disabled={unlockingRecordId === selectedRecord?._id}
+                        style={{
+                          padding: "10px 20px",
+                          background: "#f59e0b",
+                          color: "white",
+                          border: "none",
+                          borderRadius: "8px",
+                          cursor: unlockingRecordId === selectedRecord?._id ? "not-allowed" : "pointer",
+                          fontWeight: "600",
+                          opacity: unlockingRecordId === selectedRecord?._id ? 0.5 : 1,
+                        }}
+                        title="Unlock record after finishing editing"
+                      >
+                        {unlockingRecordId === selectedRecord?._id ? "Unlocking..." : "🔓 Unlock"}
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
                 <button
                   onClick={() => setShowEditModal(false)}
                   style={{
@@ -1519,6 +1766,8 @@ export default function AdminRecordManagement() {
                                 ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
                                 : log.action === "UNLOCK"
                                 ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                                : log.action === "UPDATE"
+                                ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
                                 : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
                             }`}
                           >
@@ -1534,6 +1783,11 @@ export default function AdminRecordManagement() {
                       </div>
                       {log.reason && (
                         <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{log.reason}</p>
+                      )}
+                      {log.metadata && log.metadata.changedFields && log.metadata.changedFields.length > 0 && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Changed fields: {log.metadata.changedFields.join(", ")}
+                        </p>
                       )}
                       {log.lockOwner && log.lockOwner.userName !== log.performedBy.userName && (
                         <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">

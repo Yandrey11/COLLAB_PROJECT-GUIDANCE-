@@ -10,7 +10,7 @@ const lockAuditLogSchema = new mongoose.Schema(
     },
     action: {
       type: String,
-      enum: ["LOCK", "UNLOCK", "LOCK_ATTEMPT_BLOCKED", "EDIT_ATTEMPT_BLOCKED", "LOCK_EXPIRED"],
+      enum: ["LOCK", "UNLOCK", "UPDATE", "LOCK_ATTEMPT_BLOCKED", "EDIT_ATTEMPT_BLOCKED", "LOCK_EXPIRED"],
       required: true,
     },
     performedBy: {

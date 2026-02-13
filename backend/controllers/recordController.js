@@ -6,6 +6,7 @@ import path from "path";
 import { google } from "googleapis";
 import { createNotification } from "./admin/notificationController.js";
 import { createCounselorNotification } from "./counselorNotificationController.js";
+import { logLockAction } from "./admin/recordLockController.js";
 
 // Helper to get user info from request
 const getUserInfo = (req) => {
@@ -13,6 +14,7 @@ const getUserInfo = (req) => {
     userId: req.user?._id || req.admin?._id,
     userName: req.user?.name || req.user?.email || req.admin?.name || req.admin?.email || "Unknown User",
     userRole: req.user?.role || req.admin?.role || "counselor",
+    userEmail: req.user?.email || req.admin?.email || "unknown@example.com",
   };
 };
 
@@ -37,7 +39,7 @@ export const getRecords = async (req, res) => {
   }
 };
 
-// ✏️ 2️⃣ Update a record
+// ✏️ 2️⃣ Update a record (STRICT 2PL: Lock ownership validated by middleware)
 export const updateRecord = async (req, res) => {
   try {
     const userInfo = getUserInfo(req);
@@ -45,6 +47,40 @@ export const updateRecord = async (req, res) => {
     
     if (!record) {
       return res.status(404).json({ message: "Record not found" });
+    }
+
+    // STRICT 2PL: Additional lock ownership validation (defense in depth)
+    const RecordLock = (await import("../models/RecordLock.js")).default;
+    const { cleanupExpiredLocks } = await import("./admin/recordLockController.js");
+    await cleanupExpiredLocks();
+
+    const now = new Date();
+    const lock = await RecordLock.findOne({
+      recordId: req.params.id,
+      isActive: true,
+      expiresAt: { $gte: now },
+    });
+
+    if (lock) {
+      const isLockOwner = lock.lockedBy.userId.toString() === userInfo.userId.toString();
+      if (!isLockOwner) {
+        return res.status(423).json({
+          success: false,
+          message: `Record is locked by ${lock.lockedBy.userName}. Only the lock owner can update.`,
+          lockedBy: {
+            userId: lock.lockedBy.userId,
+            userName: lock.lockedBy.userName,
+            userRole: lock.lockedBy.userRole,
+          },
+        });
+      }
+      // Lock ownership validated - lock persists (growing phase of 2PL)
+    } else {
+      // STRICT 2PL: Record must be locked before editing
+      return res.status(423).json({
+        success: false,
+        message: "Record must be locked before editing. Please lock the record first.",
+      });
     }
 
     // Track changes for audit trail
@@ -89,6 +125,32 @@ export const updateRecord = async (req, res) => {
     }
 
     await record.save();
+
+    // Log UPDATE action
+    try {
+      const RecordLock = (await import("../models/RecordLock.js")).default;
+      const currentLock = await RecordLock.findOne({
+        recordId: req.params.id,
+        isActive: true,
+        expiresAt: { $gte: new Date() },
+      });
+      
+      await logLockAction(
+        req.params.id,
+        "UPDATE",
+        userInfo,
+        currentLock?.lockedBy || null,
+        `Record updated by ${userInfo.userName} (${userInfo.userRole})`,
+        {
+          changedFields: changes.map((c) => c.field),
+          changeCount: changes.length,
+          clientName: record.clientName,
+          sessionNumber: record.sessionNumber,
+        }
+      );
+    } catch (logError) {
+      console.error("⚠️ Failed to log UPDATE action (non-critical):", logError);
+    }
 
     // ✅ Create notification for admins
     try {

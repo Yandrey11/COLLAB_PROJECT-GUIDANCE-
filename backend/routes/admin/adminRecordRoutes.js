@@ -10,7 +10,9 @@ import {
   unlockRecord,
   getLockStatus,
   getLockLogs,
+  getAllLockLogs,
   checkLockBeforeUpdate,
+  startEditing,
 } from "../../controllers/admin/recordLockController.js";
 import { protectAdmin } from "../../middleware/admin/adminMiddleware.js";
 
@@ -28,8 +30,10 @@ router.get("/records/:id", getRecordById);
 // Lock/Unlock routes
 router.post("/records/:id/lock", lockRecord);
 router.post("/records/:id/unlock", unlockRecord);
+router.post("/records/:id/start-editing", startEditing); // Auto-lock when editing starts
 router.get("/records/:id/lock-status", getLockStatus);
 router.get("/records/:id/lock-logs", getLockLogs);
+router.get("/lock-logs/all", getAllLockLogs); // Get all recent lock/unlock logs
 
 // Update record (with lock check)
 router.put("/records/:id", checkLockBeforeUpdate, updateRecord);

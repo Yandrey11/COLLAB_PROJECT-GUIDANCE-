@@ -87,6 +87,12 @@ const RecordsPage = () => {
   const [lockStatuses, setLockStatuses] = useState({}); // { recordId: { locked, lockedBy, canLock, canUnlock, isLockOwner } }
   const [lockingRecordId, setLockingRecordId] = useState(null);
   const [unlockingRecordId, setUnlockingRecordId] = useState(null);
+  const [showLockLogs, setShowLockLogs] = useState(false);
+  const [lockLogs, setLockLogs] = useState([]);
+  const [selectedRecordForLogs, setSelectedRecordForLogs] = useState(null);
+  const [allLockLogs, setAllLockLogs] = useState([]); // All lock/unlock logs for the card
+  const [lockLogFilter, setLockLogFilter] = useState("all"); // Filter: "all", "LOCK", "UNLOCK", "UPDATE"
+  const [showLockLogsCard, setShowLockLogsCard] = useState(true); // Toggle to show/hide the lock logs card
 
   const generateTrackingNumber = () => {
     const timestamp = Date.now();
@@ -315,6 +321,9 @@ const RecordsPage = () => {
           fetchLockStatus(record._id);
         });
       }
+      
+      // Fetch all lock logs
+      fetchAllLockLogs();
     } catch (err) {
       console.error("Error fetching records:", err);
       
@@ -366,6 +375,68 @@ const RecordsPage = () => {
       return { locked: false, canLock: true, canUnlock: false, isLockOwner: false };
     }
   };
+
+  // Fetch lock logs for a record
+  const fetchLockLogs = async (recordId) => {
+    try {
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      if (!token) return [];
+      
+      const response = await axios.get(`${API_URL}/${recordId}/lock-logs`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setLockLogs(response.data.logs || []);
+      return response.data.logs || [];
+    } catch (error) {
+      console.error("Error fetching lock logs:", error);
+      setLockLogs([]);
+      return [];
+    }
+  };
+
+  // Handle viewing lock logs
+  const handleViewLockLogs = async (record) => {
+    setSelectedRecordForLogs(record);
+    setShowLockLogs(true);
+    await fetchLockLogs(record._id);
+  };
+
+  // Fetch all lock/unlock logs
+  const fetchAllLockLogs = async () => {
+    try {
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      if (!token) return;
+      
+      const params = { limit: 50 }; // Get more logs to allow filtering
+      if (lockLogFilter !== "all") {
+        params.action = lockLogFilter;
+      }
+      
+      const response = await axios.get(`${API_URL}/lock-logs/all`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params,
+      });
+      console.log("All lock logs response:", response.data);
+      if (response.data && response.data.success) {
+        setAllLockLogs(response.data.logs || []);
+      } else {
+        console.warn("Unexpected response format:", response.data);
+        setAllLockLogs([]);
+      }
+    } catch (error) {
+      console.error("Error fetching all lock logs:", error);
+      console.error("Error details:", error.response?.data);
+      setAllLockLogs([]);
+    }
+  };
+
+  // Refetch logs when filter changes
+  useEffect(() => {
+    if (lockLogFilter) {
+      fetchAllLockLogs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockLogFilter]);
 
   // Lock a record (counselor can only lock their own records)
   const handleLockRecord = async (record) => {
@@ -630,24 +701,65 @@ const RecordsPage = () => {
     }
   };
 
+  // Handle Edit button click - Auto-lock when clicking Edit
+  const handleEditClick = async (record) => {
+    try {
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      
+      // STRICT 2PL: Auto-lock record atomically when clicking Edit button
+      try {
+        const lockResponse = await axios.post(`${API_URL}/${record._id}/start-editing`, {}, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+
+        if (!lockResponse.data.success) {
+          throw new Error("Failed to acquire lock");
+        }
+
+        // Lock acquired successfully - open edit modal immediately
+        setSelectedRecord(record);
+        // Refresh lock status in the background (non-blocking)
+        fetchLockStatus(record._id);
+      } catch (lockError) {
+        // Lock acquisition failed
+        if (lockError.response?.status === 423) {
+          const lockOwner = lockError.response?.data?.lockedBy;
+          Swal.fire({
+            icon: "warning",
+            title: "Record Locked",
+            text: `This record is locked by ${lockOwner?.userName || "another user"}. Only one user can edit at a time.`,
+          });
+          await fetchLockStatus(record._id);
+          return;
+        }
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: lockError.response?.data?.message || "Failed to acquire lock. Please try again.",
+        });
+      }
+    } catch (err) {
+      console.error("Error acquiring lock:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.message || "Failed to start editing session.",
+      });
+    }
+  };
+
   const handleSave = async () => {
     try {
-      // Check lock status before saving
-      const lockStatus = await fetchLockStatus(selectedRecord._id);
-      
-      if (lockStatus.locked && !lockStatus.isLockOwner) {
-        Swal.fire({
-          icon: "warning",
-          title: "Record Locked",
-          text: `This record is locked by ${lockStatus.lockedBy?.userName || "another user"}. You cannot edit it.`,
-        });
-        return;
-      }
-
       const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      
+      // Update the record (lock should already be acquired when Edit was clicked)
       await axios.put(`${API_URL}/${selectedRecord._id}`, selectedRecord, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
+
+      // Refresh lock status
+      await fetchLockStatus(selectedRecord._id);
+      
       Swal.fire({
         icon: "success",
         title: "Success",
@@ -672,7 +784,7 @@ const RecordsPage = () => {
         Swal.fire({
           icon: "error",
           title: "Error",
-          text: "Failed to update record",
+          text: err.response?.data?.message || "Failed to update record",
         });
       }
     }
@@ -1367,10 +1479,10 @@ const RecordsPage = () => {
                         Counselor
                       </th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                        Drive Link
+                        Lock Status
                       </th>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                        Lock Status
+                        Drive Link
                       </th>
                       <th className="px-3 py-3 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Actions
@@ -1485,19 +1597,7 @@ const RecordsPage = () => {
                                       <motion.button
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
-                                        onClick={async () => {
-                                          // Check lock status before opening edit modal
-                                          const currentLockStatus = await fetchLockStatus(record._id);
-                                          if (currentLockStatus.locked && !currentLockStatus.isLockOwner) {
-                                            Swal.fire({
-                                              icon: "warning",
-                                              title: "Record Locked",
-                                              text: `This record is locked by ${currentLockStatus.lockedBy?.userName || "another user"}. You cannot edit it.`,
-                                            });
-                                            return;
-                                          }
-                                          setSelectedRecord(record);
-                                        }}
+                                        onClick={() => handleEditClick(record)}
                                         style={{
                                           background: "#4f46e5",
                                           color: "white",
@@ -1513,69 +1613,9 @@ const RecordsPage = () => {
                                         Edit
                                       </motion.button>
                                     )}
-                                    {!isLocked || isLockOwner ? (
-                                      !isLocked ? (
-                                        <motion.button
-                                          whileHover={{ scale: 1.05 }}
-                                          whileTap={{ scale: 0.95 }}
-                                          onClick={() => handleLockRecord(record)}
-                                          disabled={lockingRecordId === record._id}
-                                          style={{
-                                            background: lockingRecordId === record._id ? "#9ca3af" : "#10b981",
-                                            color: "white",
-                                            padding: "6px 12px",
-                                            borderRadius: 8,
-                                            border: "none",
-                                            cursor: lockingRecordId === record._id ? "not-allowed" : "pointer",
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            opacity: lockingRecordId === record._id ? 0.6 : 1,
-                                          }}
-                                        >
-                                          {lockingRecordId === record._id ? "Locking..." : "🔒 Lock"}
-                                        </motion.button>
-                                      ) : (
-                                        <motion.button
-                                          whileHover={{ scale: 1.05 }}
-                                          whileTap={{ scale: 0.95 }}
-                                          onClick={() => handleUnlockRecord(record)}
-                                          disabled={unlockingRecordId === record._id}
-                                          style={{
-                                            background: unlockingRecordId === record._id ? "#9ca3af" : "#f59e0b",
-                                            color: "white",
-                                            padding: "6px 12px",
-                                            borderRadius: 8,
-                                            border: "none",
-                                            cursor: unlockingRecordId === record._id ? "not-allowed" : "pointer",
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            opacity: unlockingRecordId === record._id ? 0.6 : 1,
-                                          }}
-                                        >
-                                          {unlockingRecordId === record._id ? "Unlocking..." : "🔓 Unlock"}
-                                        </motion.button>
-                                      )
-                                    ) : null}
                                   </>
                                 );
                               })()}
-                              <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => handleDelete(record)}
-                                style={{
-                                  background: "#ef4444",
-                                  color: "white",
-                                  padding: "6px 12px",
-                                  borderRadius: 8,
-                                  border: "none",
-                                  cursor: "pointer",
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                }}
-                              >
-                                Delete
-                              </motion.button>
                             </div>
                           </td>
                         </motion.tr>
@@ -1704,19 +1744,7 @@ const RecordsPage = () => {
                             <motion.button
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
-                              onClick={async () => {
-                                // Check lock status before opening edit modal
-                                const currentLockStatus = await fetchLockStatus(record._id);
-                                if (currentLockStatus.locked && !currentLockStatus.isLockOwner) {
-                                  Swal.fire({
-                                    icon: "warning",
-                                    title: "Record Locked",
-                                    text: `This record is locked by ${currentLockStatus.lockedBy?.userName || "another user"}. You cannot edit it.`,
-                                  });
-                                  return;
-                                }
-                                setSelectedRecord(record);
-                              }}
+                              onClick={() => handleEditClick(record)}
                               style={{
                                 flex: 1,
                                 background: "#4f46e5",
@@ -1734,24 +1762,6 @@ const RecordsPage = () => {
                             </motion.button>
                           ) : null;
                         })()}
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => handleDelete(record)}
-                          style={{
-                            flex: 1,
-                            background: "#ef4444",
-                            color: "white",
-                            padding: "10px",
-                            borderRadius: 8,
-                            border: "none",
-                            cursor: "pointer",
-                            fontSize: 13,
-                            fontWeight: 600,
-                          }}
-                        >
-                          Delete
-                        </motion.button>
                       </div>
                     </motion.div>
                   ))}
@@ -1930,6 +1940,128 @@ const RecordsPage = () => {
               </p>
             </div>
           )}
+        </motion.div>
+
+        {/* Lock/Unlock Activity Logs Card - Separate Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm"
+          style={{ marginTop: 24 }}
+        >
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                      Lock/Unlock Activity Logs
+                    </h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      Recent lock and unlock activities across all records
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setShowLockLogsCard(!showLockLogsCard)}
+                      className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
+                      title={showLockLogsCard ? "Hide logs" : "Show logs"}
+                    >
+                      <svg 
+                        className={`w-4 h-4 transition-transform ${showLockLogsCard ? 'rotate-180' : ''}`}
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                      {showLockLogsCard ? "Hide" : "Show"}
+                    </button>
+                    <select
+                      value={lockLogFilter}
+                      onChange={(e) => setLockLogFilter(e.target.value)}
+                      className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 cursor-pointer"
+                    >
+                      <option value="all">All Actions</option>
+                      <option value="LOCK">Lock Only</option>
+                      <option value="UNLOCK">Unlock Only</option>
+                      <option value="UPDATE">Update Only</option>
+                    </select>
+                    <button
+                      onClick={fetchAllLockLogs}
+                      className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-semibold text-sm cursor-pointer transition-colors flex items-center gap-2"
+                      title="Refresh logs"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+
+            <AnimatePresence>
+              {showLockLogsCard && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.3 }}
+                  style={{ overflow: "hidden" }}
+                >
+                  {(() => {
+                    // Filter logs based on lockLogFilter
+                    const filteredLogs = lockLogFilter === "all" 
+                      ? allLockLogs 
+                      : allLockLogs.filter(log => log.action === lockLogFilter);
+                    
+                    return filteredLogs.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                        No lock/unlock activities found.
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
+                        {filteredLogs.map((log, index) => (
+                        <div
+                          key={index}
+                          className="border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <div className="flex justify-between items-center gap-2">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <span
+                                className={`px-2 py-0.5 rounded text-xs font-semibold whitespace-nowrap ${
+                                  log.action === "LOCK"
+                                    ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                    : log.action === "UNLOCK"
+                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                                    : log.action === "UPDATE"
+                                    ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                }`}
+                              >
+                                {log.action}
+                              </span>
+                              <span className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
+                                {log.performedBy.userName} <span className="text-gray-500 dark:text-gray-400">({log.performedBy.userRole})</span>
+                              </span>
+                              {log.record && (
+                                <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                                  {log.record.clientName} - Session #{log.record.sessionNumber}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                              {log.timestamp ? new Date(log.timestamp).toLocaleString() : log.createdAt ? new Date(log.createdAt).toLocaleString() : "N/A"}
+                            </span>
+                          </div>
+                          {log.reason && log.reason !== "Auto-locked when editing started" && (
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{log.reason}</p>
+                          )}
+                        </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </motion.div>
+              )}
+            </AnimatePresence>
         </motion.div>
 
         {/* Edit Modal */}
@@ -2157,6 +2289,33 @@ const RecordsPage = () => {
                     Delete Record
                   </motion.button>
                   <div style={{ display: "flex", gap: 12 }}>
+                    {/* STRICT 2PL: Show unlock button only if user owns the lock (after editing) */}
+                    {isLocked && isLockOwner && (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={async () => {
+                          await handleUnlockRecord(selectedRecord);
+                          setSelectedRecord(null);
+                        }}
+                        disabled={unlockingRecordId === selectedRecord?._id}
+                        style={{
+                          background: unlockingRecordId === selectedRecord?._id ? "#9ca3af" : "#f59e0b",
+                          color: "white",
+                          padding: "10px 20px",
+                          borderRadius: 10,
+                          border: "none",
+                          cursor: unlockingRecordId === selectedRecord?._id ? "not-allowed" : "pointer",
+                          fontWeight: 600,
+                          fontSize: 14,
+                          boxShadow: unlockingRecordId === selectedRecord?._id ? "none" : "0 4px 12px rgba(245, 158, 11, 0.3)",
+                          opacity: unlockingRecordId === selectedRecord?._id ? 0.6 : 1,
+                        }}
+                        title="Unlock record after finishing editing"
+                      >
+                        {unlockingRecordId === selectedRecord?._id ? "Unlocking..." : "🔓 Unlock"}
+                      </motion.button>
+                    )}
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
@@ -2195,6 +2354,109 @@ const RecordsPage = () => {
                     </div>
                   );
                 })()}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Lock Logs Modal */}
+        <AnimatePresence>
+          {showLockLogs && selectedRecordForLogs && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{
+                position: "fixed",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: "rgba(0,0,0,0.5)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 1000,
+                padding: "20px",
+              }}
+              onClick={() => setShowLockLogs(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    Lock Event Logs
+                  </h2>
+                  <button
+                    onClick={() => setShowLockLogs(false)}
+                    className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-2xl font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <strong>Record:</strong> {selectedRecordForLogs.clientName} - Session {selectedRecordForLogs.sessionNumber}
+                  </p>
+                </div>
+
+                {lockLogs.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    No lock events found.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {lockLogs.map((log, index) => (
+                      <div
+                        key={index}
+                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-700"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-1 rounded text-xs font-semibold ${
+                                log.action === "LOCK"
+                                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                  : log.action === "UNLOCK"
+                                  ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                                  : log.action === "UPDATE"
+                                  ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                                  : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                              }`}
+                            >
+                              {log.action}
+                            </span>
+                            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {log.performedBy.userName} ({log.performedBy.userRole})
+                            </span>
+                          </div>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {new Date(log.timestamp || log.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        {log.reason && (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{log.reason}</p>
+                        )}
+                        {log.metadata && log.metadata.changedFields && log.metadata.changedFields.length > 0 && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            Changed fields: {log.metadata.changedFields.join(", ")}
+                          </p>
+                        )}
+                        {log.lockOwner && log.lockOwner.userName !== log.performedBy.userName && (
+                          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                            Lock owner: {log.lockOwner.userName}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </motion.div>
             </motion.div>
           )}
