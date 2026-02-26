@@ -6,44 +6,6 @@ export default function Landing() {
   useDocumentTitle("Home");
   return (
     <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-gradient-to-br from-indigo-50 via-indigo-50 to-violet-50 font-sans text-gray-900">
-      {/* Navbar */}
-      <header className="flex justify-between items-center px-6 md:px-8 lg:px-12 py-4 md:py-5 bg-white/80 backdrop-blur-md border-b border-indigo-100/50 sticky top-0 z-50 shadow-sm">
-        <motion.h1 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-          className="text-2xl md:text-3xl font-bold tracking-tight text-indigo-600"
-        >
-          Guidance
-        </motion.h1>
-        <nav className="flex gap-4 md:gap-6 items-center">
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-          >
-            <Link
-              to="/login"
-              className="text-sm md:text-base text-indigo-600 font-semibold hover:text-indigo-700 transition-colors px-3 py-2 rounded-lg hover:bg-indigo-50"
-            >
-              Login
-            </Link>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <Link
-              to="/signup"
-              className="text-sm md:text-base px-4 py-2 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm hover:shadow-md"
-            >
-              Sign Up
-            </Link>
-          </motion.div>
-        </nav>
-      </header>
-
       <main className="flex-1 flex flex-col justify-center items-center text-center px-4 md:px-6 lg:px-8 py-12 md:py-16 lg:py-20 max-w-6xl mx-auto w-full">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

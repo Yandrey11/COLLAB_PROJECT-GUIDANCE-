@@ -6,33 +6,6 @@ export default function AboutUs() {
   
   return (
     <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 font-sans text-gray-900 dark:text-gray-100">
-      {/* Navbar */}
-      <header className="flex justify-between items-center px-6 py-5 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm border-b border-slate-200 dark:border-gray-700 sticky top-0 z-50">
-        <Link to="/" className="text-2xl font-bold tracking-wide text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors">
-          Guidance
-        </Link>
-        <nav className="flex gap-6 items-center">
-          <Link
-            to="/"
-            className="text-indigo-600 dark:text-indigo-400 font-semibold hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
-          >
-            Home
-          </Link>
-          <Link
-            to="/login"
-            className="text-indigo-600 dark:text-indigo-400 font-semibold hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
-          >
-            Login
-          </Link>
-          <Link
-            to="/signup"
-            className="text-indigo-600 dark:text-indigo-400 font-semibold hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
-          >
-            Sign Up
-          </Link>
-        </nav>
-      </header>
-
       <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-12 md:py-16">
         {/* Hero Section */}
         <div className="text-center mb-16">
