@@ -1,6 +1,8 @@
 import nodemailer from "nodemailer";
+import crypto from "crypto";
 import User from "../models/User.js";
 import Admin from "../models/Admin.js";
+import GoogleUser from "../models/GoogleUser.js";
 import { validatePassword } from "../utils/passwordValidation.js";
 
 // ✅ Forgot Password — send code to user's email
@@ -14,9 +16,46 @@ export const forgotPassword = async (req, res) => {
 
     console.log("📩 Forgot password request for:", email);
 
-    const user = await User.findOne({ email });
+    const emailRegex = new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+    let user = await User.findOne({ email: emailRegex });
     if (!user) {
+      user = await Admin.findOne({ email: emailRegex });
+    }
+    if (!user) {
+      // Google-only user: create User or Admin so they can set a password for manual login
+      const googleUser = await GoogleUser.findOne({ email: emailRegex });
+      if (googleUser) {
+        const tempPassword = crypto.randomBytes(24).toString("hex");
+        if (googleUser.role === "admin") {
+          user = await Admin.create({
+            name: googleUser.name,
+            email,
+            password: tempPassword,
+            role: "admin",
+            googleId: googleUser.googleId,
+            profilePicture: googleUser.profilePicture,
+          });
+          console.log(`✅ Admin created from GoogleUser for forgot password: ${email}`);
+        } else {
+          user = await User.create({
+            name: googleUser.name,
+            email,
+            password: tempPassword,
+            role: googleUser.role || "counselor",
+            accountStatus: "active",
+            profilePicture: googleUser.profilePicture,
+          });
+          console.log(`✅ User created from GoogleUser for forgot password: ${email}`);
+        }
+      }
+    }
+    if (!user) {
+      // Debug: check if email exists in any collection (for troubleshooting)
+      const inUser = await User.exists({ email: emailRegex });
+      const inAdmin = await Admin.exists({ email: emailRegex });
+      const inGoogle = await GoogleUser.exists({ email: emailRegex });
       console.log("❌ No user found in DB");
+      console.log(`   User: ${!!inUser}, Admin: ${!!inAdmin}, GoogleUser: ${!!inGoogle}`);
       return res.status(404).json({ message: "No user found with this email" });
     }
 
@@ -90,12 +129,20 @@ export const resetPassword = async (req, res) => {
         }
       }
     } else if (code) {
-      // Code-based reset (from forgot password)
+      // Code-based reset (from forgot password) - check User and Admin
       user = await User.findOne({
         email,
         resetPasswordCode: code,
         resetPasswordExpires: { $gt: Date.now() },
       });
+      if (!user) {
+        user = await Admin.findOne({
+          email,
+          resetPasswordCode: code,
+          resetPasswordExpires: { $gt: Date.now() },
+        });
+        userType = "admin";
+      }
     } else {
       return res.status(400).json({ message: "Reset code or token is required" });
     }
@@ -140,16 +187,6 @@ export const setPasswordWithToken = async (req, res) => {
       return res.status(400).json({ message: "Token, email, and new password are required" });
     }
 
-    // Enhanced password validation with email
-    const validation = validatePassword(newPassword, { email: user.email || email, name: user.name || "" });
-    if (!validation.isValid) {
-      return res.status(400).json({
-        message: "Password does not meet the security requirements.",
-        errors: validation.errors,
-        details: validation.details,
-      });
-    }
-
     // Check User collection first
     let user = await User.findOne({
       email,
@@ -169,6 +206,16 @@ export const setPasswordWithToken = async (req, res) => {
 
     if (!user) {
       return res.status(400).json({ message: "Invalid token. Please check your email link or contact support." });
+    }
+
+    // Enhanced password validation with email
+    const validation = validatePassword(newPassword, { email: user.email || email, name: user.name || "" });
+    if (!validation.isValid) {
+      return res.status(400).json({
+        message: "Password does not meet the security requirements.",
+        errors: validation.errors,
+        details: validation.details,
+      });
     }
 
     // Check if token is expired

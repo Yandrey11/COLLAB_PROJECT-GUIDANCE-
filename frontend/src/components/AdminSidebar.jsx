@@ -30,7 +30,7 @@ export default function AdminSidebar() {
   }, [navigate]);
 
   const navItems = [
-    { label: "Dashboard", action: () => navigate("/AdminDashboard") },
+    { label: "Dashboard", action: () => navigate("/admindashboard") },
     { label: "User Management", action: () => navigate("/admin/users") },
     { label: "Notification Center", action: () => navigate("/admin/notifications") },
     { label: "Record Management", action: () => navigate("/admin/records") },

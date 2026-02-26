@@ -64,9 +64,9 @@ export const googleAuthSuccess = (req, res) => {
 
     console.log(`✅ Google login success for ${req.user.email} (ID: ${userIdString}) - Token created. Redirecting to dashboard...`);
 
-    // ✅ Redirect back to the dashboard with the token
+    // ✅ Redirect back to the dashboard with the token (encode to prevent + and / corruption in URL)
     const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";
-    res.redirect(`${clientUrl}/dashboard?token=${token}&calendar=connected`);
+    res.redirect(`${clientUrl}/dashboard?token=${encodeURIComponent(token)}&calendar=connected`);
   } catch (err) {
     console.error("❌ Error in googleAuthSuccess:", err);
     const clientUrl = process.env.CLIENT_URL || "http://localhost:5173";

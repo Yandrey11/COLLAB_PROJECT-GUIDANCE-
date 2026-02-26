@@ -9,6 +9,8 @@ export default function ResetPassword() {
   useDocumentTitle("Reset Password");
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const returnTo = searchParams.get("returnTo");
+  const isAdmin = returnTo === "admin";
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [token, setToken] = useState("");
@@ -34,7 +36,6 @@ export default function ResetPassword() {
     setLoading(true);
     setMessage("");
 
-    // Validation
     if (!newPassword) {
       setMessage("New password is required");
       setLoading(false);
@@ -58,7 +59,8 @@ export default function ResetPassword() {
       const res = await axios.post(`${baseUrl}/api/reset/reset-password`, payload);
 
       setMessage(res.data.message || "Password reset successful!");
-      setTimeout(() => navigate("/login"), 2000);
+      const loginPath = isAdmin ? "/adminlogin" : "/login";
+      setTimeout(() => navigate(loginPath), 2000);
     } catch (err) {
       console.error("Reset password error:", err);
       setMessage(err.response?.data?.message || "Failed to reset password.");
@@ -68,127 +70,249 @@ export default function ResetPassword() {
   };
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
-      <div style={{ backgroundColor: 'white', padding: '2rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', borderRadius: '0.75rem', width: '24rem' }}>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', textAlign: 'center', marginBottom: '1.5rem' }}>
-          Reset Password
-        </h2>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
+        .reset-page * { box-sizing: border-box; }
+        .reset-page {
+          font-family: 'Montserrat', sans-serif;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          background: linear-gradient(135deg, #eef2ff, #c7d2fe);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 32px 16px;
+        }
+        .reset-card {
+          width: 100%;
+          max-width: 440px;
+          background: #fff;
+          border-radius: 24px;
+          padding: 48px 40px;
+          box-shadow: 0 25px 70px rgba(79, 70, 229, 0.15);
+          border: 1px solid rgba(226,232,240,0.8);
+          color: #111827;
+        }
+        .reset-heading h1 {
+          margin: 0;
+          font-size: 28px;
+          font-weight: 700;
+          color: #111827;
+        }
+        .reset-heading p {
+          color: #6b7280;
+          margin: 8px 0 0 0;
+          font-size: 15px;
+        }
+        .reset-form input {
+          width: 100%;
+          padding: 12px 14px;
+          border-radius: 12px;
+          border: 1px solid #e5e7eb;
+          background: #f9fafb;
+          color: #111827;
+          font-size: 15px;
+          transition: border 0.2s ease, background 0.2s ease;
+        }
+        .reset-form input:focus {
+          outline: none;
+          border-color: #4f46e5;
+          background: #fff;
+        }
+        .reset-form label {
+          font-size: 13px;
+          font-weight: 600;
+          color: #374151;
+          margin-bottom: 6px;
+          display: block;
+        }
+        .reset-primary {
+          width: 100%;
+          padding: 14px;
+          border: none;
+          border-radius: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          background: linear-gradient(120deg, #4f46e5, #7c3aed);
+          color: #fff;
+          margin-top: 4px;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+          font-family: inherit;
+        }
+        .reset-primary:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+        .reset-primary:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 15px 30px rgba(99,102,241,0.35);
+        }
+        .reset-back {
+          background: transparent;
+          color: #6b7280;
+          border: 1px solid #e5e7eb;
+          padding: 8px 16px;
+          border-radius: 999px;
+          font-weight: 600;
+          cursor: pointer;
+          font-family: inherit;
+          margin-bottom: 24px;
+        }
+        .reset-back:hover {
+          color: #111827;
+          border-color: #c7d2fe;
+        }
+        .reset-email-box {
+          padding: 12px 14px;
+          background: #f9fafb;
+          border-radius: 12px;
+          border: 1px solid #e5e7eb;
+          font-size: 14px;
+          color: #6b7280;
+        }
+        .reset-email-box strong {
+          color: #111827;
+        }
+        .reset-message {
+          margin-top: 12px;
+          padding: 10px 12px;
+          border-radius: 10px;
+          font-size: 13px;
+        }
+        .reset-message.success {
+          background: rgba(34,197,94,0.1);
+          color: #16a34a;
+        }
+        .reset-message.error {
+          background: rgba(239,68,68,0.1);
+          color: #dc2626;
+        }
+        .reset-errors {
+          font-size: 12px;
+          color: #dc2626;
+          list-style: disc;
+          padding-left: 20px;
+          margin: 4px 0 0 0;
+        }
+        .reset-link {
+          color: #4f46e5;
+          text-decoration: none;
+          font-weight: 600;
+        }
+        .reset-link:hover {
+          text-decoration: underline;
+        }
+        @media (max-width: 520px) {
+          .reset-card {
+            padding: 32px 24px;
+          }
+        }
+      `}</style>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {!useToken && (
-            <>
-              <input
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                style={{ 
-                  width: '100%', 
-                  border: '1px solid #d1d5db', 
-                  padding: '0.5rem', 
-                  borderRadius: '0.25rem',
-                  outline: 'none'
-                }}
-                required
-              />
-
-              <input
-                type="text"
-                placeholder="Enter 6-digit reset code"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                style={{ 
-                  width: '100%', 
-                  border: '1px solid #d1d5db', 
-                  padding: '0.5rem', 
-                  borderRadius: '0.25rem',
-                  outline: 'none'
-                }}
-                required
-              />
-            </>
-          )}
-
-          {useToken && (
-            <div style={{ 
-              padding: '0.75rem', 
-              backgroundColor: '#f3f4f6', 
-              borderRadius: '0.5rem', 
-              marginBottom: '0.5rem' 
-            }}>
-              <p style={{ margin: 0, fontSize: '0.875rem', color: '#6b7280' }}>
-                Resetting password for: <strong>{email}</strong>
-              </p>
-            </div>
-          )}
-
-          <input
-            type="password"
-            placeholder="Enter new password"
-            value={newPassword}
-            onChange={(e) => {
-              const value = e.target.value;
-              setNewPassword(value);
-              const result = validatePassword(value, { email });
-              setPasswordErrors(result.errors);
-            }}
-            style={{ 
-              width: '100%', 
-              border: '1px solid #d1d5db', 
-              padding: '0.5rem', 
-              borderRadius: '0.25rem',
-              outline: 'none'
-            }}
-            required
-          />
-          <div className="mt-1">
-            <PasswordStrengthMeter password={newPassword} email={email} />
-          </div>
-          {passwordErrors.length > 0 && (
-            <ul className="mt-2 text-xs text-red-600 list-disc list-inside">
-              {passwordErrors.map((err) => (
-                <li key={err}>{err}</li>
-              ))}
-            </ul>
-          )}
-
+      <div className="reset-page">
+        <div className="reset-card" role="main">
           <button
-            type="submit"
-            disabled={loading}
-            style={{
-              width: '100%',
-              color: 'white',
-              padding: '0.5rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              backgroundColor: loading ? '#60a5fa' : '#2563eb',
-              transition: 'background-color 0.2s'
-            }}
-            onMouseEnter={(e) => !loading && (e.target.style.backgroundColor = '#1d4ed8')}
-            onMouseLeave={(e) => !loading && (e.target.style.backgroundColor = '#2563eb')}
+            type="button"
+            className="reset-back"
+            onClick={() => navigate(isAdmin ? "/adminlogin" : "/login")}
           >
-            {loading ? "Resetting..." : "Reset Password"}
+            ← Back to Login
           </button>
-        </form>
+          <div className="reset-heading">
+            <h1>Reset Password</h1>
+            <p>
+              {isAdmin
+                ? "Enter your reset code and new password."
+                : "Enter your reset code and new password."}
+            </p>
+          </div>
 
-        {message && (
-          <p style={{ 
-            textAlign: 'center', 
-            marginTop: '1rem',
-            color: message.includes("Failed") ? '#dc2626' : '#16a34a'
-          }}>
-            {message}
+          <form onSubmit={handleSubmit} className="reset-form" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {!useToken && (
+              <>
+                <div>
+                  <label htmlFor="reset-email">Email</label>
+                  <input
+                    id="reset-email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="reset-code">Reset Code</label>
+                  <input
+                    id="reset-code"
+                    type="text"
+                    placeholder="Enter 6-digit reset code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    required
+                  />
+                </div>
+              </>
+            )}
+
+            {useToken && (
+              <div className="reset-email-box">
+                Resetting password for: <strong>{email}</strong>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="reset-password">New Password</label>
+              <input
+                id="reset-password"
+                type="password"
+                placeholder="Enter new password"
+                value={newPassword}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNewPassword(value);
+                  const result = validatePassword(value, { email });
+                  setPasswordErrors(result.errors);
+                }}
+                required
+              />
+              <div style={{ marginTop: 6 }}>
+                <PasswordStrengthMeter password={newPassword} email={email} />
+              </div>
+              {passwordErrors.length > 0 && (
+                <ul className="reset-errors">
+                  {passwordErrors.map((err) => (
+                    <li key={err}>{err}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="reset-primary"
+              disabled={loading}
+            >
+              {loading ? "Resetting..." : "Reset Password"}
+            </button>
+          </form>
+
+          {message && (
+            <p className={`reset-message ${message.includes("Failed") ? "error" : "success"}`}>
+              {message}
+            </p>
+          )}
+
+          <p style={{ textAlign: "center", marginTop: "24px", color: "#6b7280", fontSize: "14px" }}>
+            Remembered your password?{" "}
+            <Link to={isAdmin ? "/adminlogin" : "/login"} className="reset-link">
+              Back to {isAdmin ? "Admin " : ""}Login
+            </Link>
           </p>
-        )}
-
-        <p style={{ textAlign: 'center', marginTop: '1.5rem', color: '#4b5563' }}>
-          Remembered your password?{" "}
-          <Link to="/login" style={{ color: '#2563eb', textDecoration: 'none' }}>
-            Back to Login
-          </Link>
-        </p>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

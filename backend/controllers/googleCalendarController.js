@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { google } from "googleapis";
 import User from "../models/User.js";
+import { encryptToken, decryptToken } from "../utils/tokenEncryption.js";
 
 // Determine the redirect URI - use env variable or construct from backend URL
 const getRedirectUri = () => {
@@ -146,15 +147,14 @@ export const handleGoogleCalendarCallback = async (req, res) => {
     let saved = false;
     
     if (user) {
-      user.googleCalendarAccessToken = tokens.access_token || user.googleCalendarAccessToken;
+      user.googleCalendarAccessToken = tokens.access_token ? encryptToken(tokens.access_token) : user.googleCalendarAccessToken;
       if (tokens.refresh_token) {
-        user.googleCalendarRefreshToken = tokens.refresh_token;
+        user.googleCalendarRefreshToken = encryptToken(tokens.refresh_token);
       }
       const expiry = tokens.expiry_date || tokens.expires_at;
       if (expiry) {
         user.googleCalendarTokenExpires = new Date(expiry);
       } else {
-        // Default to 1 hour if no expiry provided
         user.googleCalendarTokenExpires = new Date(Date.now() + 3600 * 1000);
       }
       await user.save();
@@ -166,9 +166,9 @@ export const handleGoogleCalendarCallback = async (req, res) => {
       const googleUser = await GoogleUser.findById(state.userId);
       
       if (googleUser) {
-        googleUser.googleCalendarAccessToken = tokens.access_token || googleUser.googleCalendarAccessToken;
+        googleUser.googleCalendarAccessToken = tokens.access_token ? encryptToken(tokens.access_token) : googleUser.googleCalendarAccessToken;
         if (tokens.refresh_token) {
-          googleUser.googleCalendarRefreshToken = tokens.refresh_token;
+          googleUser.googleCalendarRefreshToken = encryptToken(tokens.refresh_token);
         }
         const expiry = tokens.expiry_date || tokens.expires_at;
         if (expiry) {
@@ -213,8 +213,8 @@ export const getDashboardCalendarEvents = async (req, res) => {
       // Try User collection first
       let user = await User.findById(req.user._id);
       if (user && user.googleCalendarAccessToken) {
-        calendarAccessToken = user.googleCalendarAccessToken;
-        calendarRefreshToken = user.googleCalendarRefreshToken;
+        calendarAccessToken = decryptToken(user.googleCalendarAccessToken);
+        calendarRefreshToken = decryptToken(user.googleCalendarRefreshToken);
         calendarTokenExpires = user.googleCalendarTokenExpires;
       } else {
         // Try GoogleUser collection by ID
@@ -232,17 +232,17 @@ export const getDashboardCalendarEvents = async (req, res) => {
         }
         
         if (googleUser && googleUser.googleCalendarAccessToken) {
-          calendarAccessToken = googleUser.googleCalendarAccessToken;
-          calendarRefreshToken = googleUser.googleCalendarRefreshToken;
+          calendarAccessToken = decryptToken(googleUser.googleCalendarAccessToken);
+          calendarRefreshToken = decryptToken(googleUser.googleCalendarRefreshToken);
           calendarTokenExpires = googleUser.googleCalendarTokenExpires;
           
           // Also check User collection by email if we found a GoogleUser
           if (!user && googleUser.email) {
             user = await User.findOne({ email: googleUser.email });
             if (user && !user.googleCalendarAccessToken) {
-              // Sync tokens to User model if it exists
-              user.googleCalendarAccessToken = calendarAccessToken;
-              user.googleCalendarRefreshToken = calendarRefreshToken;
+              // Sync tokens to User model if it exists (store encrypted)
+              user.googleCalendarAccessToken = encryptToken(calendarAccessToken);
+              user.googleCalendarRefreshToken = encryptToken(calendarRefreshToken);
               user.googleCalendarTokenExpires = calendarTokenExpires;
               await user.save();
             }
@@ -277,12 +277,12 @@ export const getDashboardCalendarEvents = async (req, res) => {
         const newRefreshToken = credentials.refresh_token || calendarRefreshToken;
         const newExpiry = credentials.expiry_date ? new Date(credentials.expiry_date) : new Date(Date.now() + 3600 * 1000);
         
-        // Update tokens in the appropriate model
+        // Update tokens in the appropriate model (encrypt before saving)
         let user = await User.findById(req.user._id);
         if (user) {
-          user.googleCalendarAccessToken = newAccessToken;
+          user.googleCalendarAccessToken = encryptToken(newAccessToken);
           if (newRefreshToken) {
-            user.googleCalendarRefreshToken = newRefreshToken;
+            user.googleCalendarRefreshToken = encryptToken(newRefreshToken);
           }
           user.googleCalendarTokenExpires = newExpiry;
           await user.save();
@@ -291,9 +291,9 @@ export const getDashboardCalendarEvents = async (req, res) => {
           const GoogleUser = (await import("../models/GoogleUser.js")).default;
           const googleUser = await GoogleUser.findById(req.user._id);
           if (googleUser) {
-            googleUser.googleCalendarAccessToken = newAccessToken;
+            googleUser.googleCalendarAccessToken = encryptToken(newAccessToken);
             if (newRefreshToken) {
-              googleUser.googleCalendarRefreshToken = newRefreshToken;
+              googleUser.googleCalendarRefreshToken = encryptToken(newRefreshToken);
             }
             googleUser.googleCalendarTokenExpires = newExpiry;
             await googleUser.save();

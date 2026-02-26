@@ -1,10 +1,13 @@
 import { useState } from "react";
 import axios from "axios";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 export default function ForgotPassword() {
   useDocumentTitle("Forgot Password");
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
+  const isAdmin = returnTo === "admin";
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -19,7 +22,8 @@ export default function ForgotPassword() {
       const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
       const res = await axios.post(`${baseUrl}/api/reset/forgot-password`, { email });
       setMessage(res.data.message || "Reset code sent! Check your email.");
-      setTimeout(() => navigate("/reset-password"), 2000);
+      const resetPath = isAdmin ? "/reset-password?returnTo=admin" : "/reset-password";
+      setTimeout(() => navigate(resetPath), 2000);
     } catch (err) {
       console.error("Forgot password error:", err);
       setMessage(err.response?.data?.message || "Failed to send reset code.");
@@ -29,93 +33,183 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div style={{ 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      minHeight: '100vh', 
-      backgroundColor: '#f3f4f6' 
-    }}>
-      <div style={{ 
-        backgroundColor: 'white', 
-        padding: '2rem', 
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', 
-        borderRadius: '0.75rem', 
-        width: '24rem' 
-      }}>
-        <h2 style={{ 
-          fontSize: '1.5rem', 
-          fontWeight: 'bold', 
-          textAlign: 'center', 
-          marginBottom: '1.5rem' 
-        }}>
-          Forgot Password
-        </h2>
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
+        .forgot-page * { box-sizing: border-box; }
+        .forgot-page {
+          font-family: 'Montserrat', sans-serif;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          background: linear-gradient(135deg, #eef2ff, #c7d2fe);
+          min-height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 32px 16px;
+        }
+        .forgot-card {
+          width: 100%;
+          max-width: 440px;
+          background: #fff;
+          border-radius: 24px;
+          padding: 48px 40px;
+          box-shadow: 0 25px 70px rgba(79, 70, 229, 0.15);
+          border: 1px solid rgba(226,232,240,0.8);
+          color: #111827;
+        }
+        .forgot-heading h1 {
+          margin: 0;
+          font-size: 28px;
+          font-weight: 700;
+          color: #111827;
+        }
+        .forgot-heading p {
+          color: #6b7280;
+          margin: 8px 0 0 0;
+          font-size: 15px;
+        }
+        .forgot-form input {
+          width: 100%;
+          padding: 12px 14px;
+          border-radius: 12px;
+          border: 1px solid #e5e7eb;
+          background: #f9fafb;
+          color: #111827;
+          font-size: 15px;
+          transition: border 0.2s ease, background 0.2s ease;
+        }
+        .forgot-form input:focus {
+          outline: none;
+          border-color: #4f46e5;
+          background: #fff;
+        }
+        .forgot-form label {
+          font-size: 13px;
+          font-weight: 600;
+          color: #374151;
+          margin-bottom: 6px;
+          display: block;
+        }
+        .forgot-primary {
+          width: 100%;
+          padding: 14px;
+          border: none;
+          border-radius: 12px;
+          font-weight: 700;
+          cursor: pointer;
+          background: linear-gradient(120deg, #4f46e5, #7c3aed);
+          color: #fff;
+          margin-top: 4px;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+          font-family: inherit;
+        }
+        .forgot-primary:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+        .forgot-primary:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 15px 30px rgba(99,102,241,0.35);
+        }
+        .forgot-back {
+          background: transparent;
+          color: #6b7280;
+          border: 1px solid #e5e7eb;
+          padding: 8px 16px;
+          border-radius: 999px;
+          font-weight: 600;
+          cursor: pointer;
+          font-family: inherit;
+          margin-bottom: 24px;
+        }
+        .forgot-back:hover {
+          color: #111827;
+          border-color: #c7d2fe;
+        }
+        .forgot-message {
+          margin-top: 12px;
+          padding: 10px 12px;
+          border-radius: 10px;
+          font-size: 13px;
+        }
+        .forgot-message.success {
+          background: rgba(34,197,94,0.1);
+          color: #16a34a;
+        }
+        .forgot-message.error {
+          background: rgba(239,68,68,0.1);
+          color: #dc2626;
+        }
+        .forgot-link {
+          color: #4f46e5;
+          text-decoration: none;
+          font-weight: 600;
+        }
+        .forgot-link:hover {
+          text-decoration: underline;
+        }
+        @media (max-width: 520px) {
+          .forgot-card {
+            padding: 32px 24px;
+          }
+        }
+      `}</style>
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <input
-            type="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ 
-              width: '100%', 
-              border: '1px solid #d1d5db', 
-              padding: '0.5rem', 
-              borderRadius: '0.25rem',
-              outline: 'none'
-            }}
-            onFocus={(e) => e.target.style.boxShadow = '0 0 0 2px #3b82f6'}
-            onBlur={(e) => e.target.style.boxShadow = 'none'}
-            required
-          />
+      <div className="forgot-page">
+        <div className="forgot-card" role="main">
           <button
-            type="submit"
-            disabled={loading}
-            style={{ 
-              width: '100%', 
-              color: 'white', 
-              padding: '0.5rem', 
-              borderRadius: '0.5rem',
-              backgroundColor: loading ? '#60a5fa' : '#2563eb',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              border: 'none',
-              transition: 'background-color 0.2s'
-            }}
-            onMouseEnter={(e) => !loading && (e.target.style.backgroundColor = '#1d4ed8')}
-            onMouseLeave={(e) => !loading && (e.target.style.backgroundColor = '#2563eb')}
+            type="button"
+            className="forgot-back"
+            onClick={() => navigate(isAdmin ? "/adminlogin" : "/login")}
           >
-            {loading ? "Sending..." : "Send Reset Code"}
+            ← Back to Login
           </button>
-        </form>
+          <div className="forgot-heading">
+            <h1>Forgot Password</h1>
+            <p>
+              {isAdmin
+                ? "Enter your admin email to receive a reset code."
+                : "Enter your email to receive a reset code."}
+            </p>
+          </div>
 
-        {message && (
-          <p style={{ 
-            textAlign: 'center', 
-            marginTop: '1rem',
-            color: message.includes("Failed") ? '#dc2626' : '#16a34a'
-          }}>
-            {message}
+          <form onSubmit={handleSubmit} className="forgot-form" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div>
+              <label htmlFor="forgot-email">Email</label>
+              <input
+                id="forgot-email"
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+              />
+            </div>
+            <button
+              type="submit"
+              className="forgot-primary"
+              disabled={loading}
+            >
+              {loading ? "Sending..." : "Send Reset Code"}
+            </button>
+          </form>
+
+          {message && (
+            <p className={`forgot-message ${message.includes("Failed") ? "error" : "success"}`}>
+              {message}
+            </p>
+          )}
+
+          <p style={{ textAlign: "center", marginTop: "24px", color: "#6b7280", fontSize: "14px" }}>
+            Remembered your password?{" "}
+            <Link to={isAdmin ? "/adminlogin" : "/login"} className="forgot-link">
+              Back to Login
+            </Link>
           </p>
-        )}
-
-        <p style={{ 
-          textAlign: 'center', 
-          marginTop: '1.5rem', 
-          color: '#4b5563' 
-        }}>
-          Remembered your password?{" "}
-          <Link to="/login" style={{ 
-            color: '#2563eb', 
-            textDecoration: 'none' 
-          }}
-          onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
-          onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
-          >
-            Back to Login
-          </Link>
-        </p>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

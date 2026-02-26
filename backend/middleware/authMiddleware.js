@@ -3,6 +3,7 @@ import User from "../models/User.js";
 import GoogleUser from "../models/GoogleUser.js";
 import Admin from "../models/Admin.js";
 import Session from "../models/Session.js";
+import { decryptToken } from "../utils/tokenEncryption.js";
 
 // ✅ Verify JWT and attach user to request
 export const protect = async (req, res, next) => {
@@ -23,16 +24,16 @@ export const protect = async (req, res, next) => {
     if (!user) {
       const googleUser = await GoogleUser.findById(decoded.id);
       if (googleUser) {
-        // Convert GoogleUser to user-like object for compatibility, including calendar tokens
+        // Convert GoogleUser to user-like object; decrypt tokens for API use
         user = {
           _id: googleUser._id,
-          id: googleUser._id, // Add id for compatibility
+          id: googleUser._id,
           name: googleUser.name,
           email: googleUser.email,
           role: googleUser.role || "counselor",
           googleId: googleUser.googleId,
-          googleCalendarAccessToken: googleUser.googleCalendarAccessToken || null,
-          googleCalendarRefreshToken: googleUser.googleCalendarRefreshToken || null,
+          googleCalendarAccessToken: decryptToken(googleUser.googleCalendarAccessToken) || null,
+          googleCalendarRefreshToken: decryptToken(googleUser.googleCalendarRefreshToken) || null,
           googleCalendarTokenExpires: googleUser.googleCalendarTokenExpires || null,
         };
       }
@@ -56,12 +57,19 @@ export const protect = async (req, res, next) => {
       if (user.googleId) {
         const googleUser = await GoogleUser.findOne({ googleId: user.googleId });
         if (googleUser && googleUser.googleCalendarAccessToken) {
-          // Merge calendar tokens into user object
-          user.googleCalendarAccessToken = googleUser.googleCalendarAccessToken;
-          user.googleCalendarRefreshToken = googleUser.googleCalendarRefreshToken;
+          user.googleCalendarAccessToken = decryptToken(googleUser.googleCalendarAccessToken);
+          user.googleCalendarRefreshToken = decryptToken(googleUser.googleCalendarRefreshToken);
           user.googleCalendarTokenExpires = googleUser.googleCalendarTokenExpires;
         }
       }
+    }
+
+    // Decrypt tokens for User documents (tokens stored encrypted in DB)
+    if (user?.googleCalendarAccessToken) {
+      const plain = user.toObject ? user.toObject() : { ...user };
+      plain.googleCalendarAccessToken = decryptToken(plain.googleCalendarAccessToken);
+      plain.googleCalendarRefreshToken = decryptToken(plain.googleCalendarRefreshToken);
+      user = plain;
     }
 
     if (!user) {

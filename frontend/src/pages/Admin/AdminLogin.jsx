@@ -312,7 +312,7 @@ export default function AdminLogin() {
               </div>
 
               <div className="actions">
-                <a className="link" href="/forgot-password">
+                <a className="link" href="/forgot-password?returnTo=admin">
                   Forgot password?
                 </a>
               </div>

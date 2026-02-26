@@ -56,7 +56,7 @@ export default function Analytics() {
     try {
       const token = localStorage.getItem("adminToken");
       if (!token) {
-        navigate("/admin/login");
+        navigate("/adminlogin");
         return;
       }
 
@@ -71,7 +71,7 @@ export default function Analytics() {
       console.error("Error fetching admin:", error);
       if (error.response?.status === 401 || error.response?.status === 403) {
         localStorage.removeItem("adminToken");
-        navigate("/admin/login");
+        navigate("/adminlogin");
       }
     } finally {
       setLoading(false);

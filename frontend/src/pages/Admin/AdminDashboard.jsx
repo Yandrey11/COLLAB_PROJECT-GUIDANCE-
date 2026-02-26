@@ -98,7 +98,13 @@ export default function AdminDashboard() {
     initializeTheme();
   }, []);
 
+  const hasFetchedRef = useRef(false);
+
   useEffect(() => {
+    // Prevent double-fetch (e.g. from React StrictMode or re-mounts)
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
+
     const urlParams = new URLSearchParams(window.location.search);
     const tokenFromUrl = urlParams.get("token");
 
@@ -160,6 +166,7 @@ export default function AdminDashboard() {
           });
         }
         localStorage.removeItem("adminToken");
+        hasFetchedRef.current = false; // Allow retry after redirect to login
         navigate("/adminlogin", { replace: true });
       } finally {
         setLoading(false);
@@ -173,8 +180,7 @@ export default function AdminDashboard() {
       if (notificationsIntervalRef.current) clearInterval(notificationsIntervalRef.current);
       if (summaryIntervalRef.current) clearInterval(summaryIntervalRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [navigate]);
+  }, []); // Empty deps - run once on mount; navigate is stable
 
   // Fetch admin profile
   const fetchAdminProfile = async (token) => {

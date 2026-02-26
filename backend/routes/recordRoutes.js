@@ -5,8 +5,10 @@ import {
   updateRecord,
   uploadToDrive,
   createRecord,
-  deleteRecord, // ✅ add delete function
-  generateRecordPDF, // ✅ add PDF generation function
+  deleteRecord,
+  generateRecordPDF,
+  syncAllRecordsToGoogleCalendar,
+  syncRecordsToDrive,
 } from "../controllers/recordController.js";
 import {
   lockRecord,
@@ -24,6 +26,12 @@ const router = express.Router();
 
 // View records - requires can_view_records permission
 router.get("/", protect, authorize("can_view_records"), getRecords);
+
+// Sync all records to Google Calendar (for existing records)
+router.post("/sync-google-calendar", protect, authorize("can_edit_records"), syncAllRecordsToGoogleCalendar);
+
+// Sync records without Drive link to logged-in user's Google Drive
+router.post("/sync-drive", protect, authorize("can_edit_records"), syncRecordsToDrive);
 
 // Generate PDF for a single record - requires can_view_records permission
 router.get("/:id/generate-pdf", protect, authorize("can_view_records"), generateRecordPDF);

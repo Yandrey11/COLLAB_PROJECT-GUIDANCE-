@@ -1,12 +1,217 @@
 import Record from "../models/Record.js";
 import PDFDocument from "pdfkit";
-import { oauth2Client } from "./googleDriveAuthController.js";
 import fs from "fs";
 import path from "path";
 import { google } from "googleapis";
+import User from "../models/User.js";
+import GoogleUser from "../models/GoogleUser.js";
+import { encryptToken, decryptToken } from "../utils/tokenEncryption.js";
 import { createNotification } from "./admin/notificationController.js";
 import { createCounselorNotification } from "./counselorNotificationController.js";
 import { logLockAction } from "./admin/recordLockController.js";
+
+// Build OAuth2 client for Google APIs (reusable for Drive, Calendar)
+const getOAuth2Client = () =>
+  new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_CALLBACK_URL || "http://localhost:5000/auth/google/callback"
+  );
+
+// Get Drive client from user's Google tokens (auto-connected when user logs in with Google)
+const getDriveClientFromUser = async (user) => {
+  if (!user) return null;
+  let accessToken = user.googleCalendarAccessToken;
+  let refreshToken = user.googleCalendarRefreshToken;
+  let tokenExpires = user.googleCalendarTokenExpires;
+
+  if (!accessToken) {
+    const uid = user._id || user.id;
+    const dbUser = await User.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires");
+    const googleUser = await GoogleUser.findById(uid);
+    const source = dbUser?.googleCalendarAccessToken ? dbUser : googleUser?.googleCalendarAccessToken ? googleUser : null;
+    if (source) {
+      accessToken = decryptToken(source.googleCalendarAccessToken);
+      refreshToken = decryptToken(source.googleCalendarRefreshToken);
+      tokenExpires = source.googleCalendarTokenExpires;
+    }
+  }
+
+  if (!accessToken) return null;
+
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  if (tokenExpires && new Date() >= new Date(tokenExpires) && refreshToken) {
+    try {
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      oauth2Client.setCredentials(credentials);
+      const uid = user._id || user.id;
+      const dbUser = await User.findById(uid);
+      const googleUser = await GoogleUser.findById(uid);
+      const toUpdate = dbUser || googleUser;
+      if (toUpdate) {
+        toUpdate.googleCalendarAccessToken = encryptToken(credentials.access_token);
+        if (credentials.refresh_token) toUpdate.googleCalendarRefreshToken = encryptToken(credentials.refresh_token);
+        toUpdate.googleCalendarTokenExpires = credentials.expiry_date ? new Date(credentials.expiry_date) : new Date(Date.now() + 3600 * 1000);
+        await toUpdate.save();
+      }
+    } catch (err) {
+      console.error("Token refresh failed:", err);
+      return null;
+    }
+  }
+
+  return google.drive({ version: "v3", auth: oauth2Client });
+};
+
+// Get or create "Counseling Records" folder in user's Drive (used when configured folder is missing)
+const getOrCreateCounselingFolder = async (drive) => {
+  const folderName = "Counseling Records";
+  try {
+    const listRes = await drive.files.list({
+      q: `name='${folderName.replace(/'/g, "\\'")}' and mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false`,
+      fields: "files(id, name)",
+      spaces: "drive",
+    });
+    const existing = listRes.data.files?.[0];
+    if (existing) return existing.id;
+
+    const createRes = await drive.files.create({
+      resource: {
+        name: folderName,
+        mimeType: "application/vnd.google-apps.folder",
+      },
+      fields: "id",
+    });
+    console.log(`✅ Created "${folderName}" folder in user's Drive`);
+    return createRes.data.id;
+  } catch (err) {
+    console.error("Failed to get/create Counseling Records folder:", err);
+    return null;
+  }
+};
+
+// Get Calendar client from user's Google tokens (for syncing records to Google Calendar)
+const getCalendarClientFromUser = async (user) => {
+  if (!user) return null;
+  let accessToken = user.googleCalendarAccessToken;
+  let refreshToken = user.googleCalendarRefreshToken;
+  let tokenExpires = user.googleCalendarTokenExpires;
+
+  if (!accessToken) {
+    const uid = user._id || user.id;
+    const dbUser = await User.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires");
+    const googleUser = await GoogleUser.findById(uid);
+    const source = dbUser?.googleCalendarAccessToken ? dbUser : googleUser?.googleCalendarAccessToken ? googleUser : null;
+    if (source) {
+      accessToken = decryptToken(source.googleCalendarAccessToken);
+      refreshToken = decryptToken(source.googleCalendarRefreshToken);
+      tokenExpires = source.googleCalendarTokenExpires;
+    }
+  }
+
+  if (!accessToken) return null;
+
+  const oauth2Client = getOAuth2Client();
+  oauth2Client.setCredentials({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  if (tokenExpires && new Date() >= new Date(tokenExpires) && refreshToken) {
+    try {
+      const { credentials } = await oauth2Client.refreshAccessToken();
+      oauth2Client.setCredentials(credentials);
+      const uid = user._id || user.id;
+      const dbUser = await User.findById(uid);
+      const googleUser = await GoogleUser.findById(uid);
+      const toUpdate = dbUser || googleUser;
+      if (toUpdate) {
+        toUpdate.googleCalendarAccessToken = encryptToken(credentials.access_token);
+        if (credentials.refresh_token) toUpdate.googleCalendarRefreshToken = encryptToken(credentials.refresh_token);
+        toUpdate.googleCalendarTokenExpires = credentials.expiry_date ? new Date(credentials.expiry_date) : new Date(Date.now() + 3600 * 1000);
+        await toUpdate.save();
+      }
+    } catch (err) {
+      console.error("Token refresh failed:", err);
+      return null;
+    }
+  }
+
+  return google.calendar({ version: "v3", auth: oauth2Client });
+};
+
+// Sync record to Google Calendar (create or update event so it appears in user's Google Calendar)
+const syncRecordToGoogleCalendar = async (record, req) => {
+  try {
+    const calendar = await getCalendarClientFromUser(req.user);
+    if (!calendar) {
+      console.warn("⚠️ Google Calendar not connected — skipping sync (sign in with Google to enable)");
+      return null;
+    }
+
+    const recordDate = new Date(record.date);
+    const startDate = new Date(recordDate);
+    // Use record time if it has meaningful time (not midnight); otherwise default 9 AM
+    const hours = startDate.getHours();
+    const mins = startDate.getMinutes();
+    if (hours === 0 && mins === 0) {
+      startDate.setHours(9, 0, 0, 0);
+    }
+    const endDate = new Date(startDate);
+    endDate.setHours(endDate.getHours() + 1, endDate.getMinutes(), 0, 0);
+
+    const eventTitle = `${record.clientName} - ${record.sessionType || "Session"} (${record.status || "Ongoing"})`;
+    const eventDescription = `Counseling Session #${record.sessionNumber || 1}\nClient: ${record.clientName}\nCounselor: ${record.counselor}\nStatus: ${record.status || "Ongoing"}`;
+
+    const eventResource = {
+      summary: eventTitle,
+      description: eventDescription,
+      start: {
+        dateTime: startDate.toISOString(),
+        timeZone: "UTC",
+      },
+      end: {
+        dateTime: endDate.toISOString(),
+        timeZone: "UTC",
+      },
+    };
+
+    if (record.googleCalendarEventId) {
+      try {
+        await calendar.events.update({
+          calendarId: "primary",
+          eventId: record.googleCalendarEventId,
+          requestBody: eventResource,
+        });
+        console.log(`✅ Updated Google Calendar event for record ${record._id}`);
+        return record.googleCalendarEventId;
+      } catch (updateErr) {
+        if (updateErr.code === 404) {
+          record.googleCalendarEventId = undefined;
+        } else throw updateErr;
+      }
+    }
+
+    const res = await calendar.events.insert({
+      calendarId: "primary",
+      requestBody: eventResource,
+    });
+
+    const eventId = res.data.id;
+    record.googleCalendarEventId = eventId;
+    await record.save();
+    console.log(`✅ Created Google Calendar event for record ${record._id} (${record.clientName})`);
+    return eventId;
+  } catch (err) {
+    console.error("❌ Google Calendar sync error:", err);
+    return null;
+  }
+};
 
 // Helper to get user info from request
 const getUserInfo = (req) => {
@@ -36,6 +241,76 @@ export const getRecords = async (req, res) => {
     res.json(records);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch records", error: err.message });
+  }
+};
+
+// ☁️ Sync records without Drive link to the logged-in user's Google Drive (uses account used to login)
+export const syncRecordsToDrive = async (req, res) => {
+  try {
+    const userInfo = getUserInfo(req);
+    const counselorName = userInfo.userName;
+    const counselorEmail = userInfo.userEmail;
+    const recordsToSync = await Record.find({
+      $and: [
+        {
+          $or: [
+            { counselor: counselorName },
+            { counselor: counselorEmail },
+            { "auditTrail.createdBy.userName": counselorName },
+          ],
+        },
+        { $or: [{ driveLink: { $exists: false } }, { driveLink: null }, { driveLink: "" }] },
+      ],
+    });
+    let synced = 0;
+    let skipped = 0;
+    for (const record of recordsToSync) {
+      const link = await uploadRecordToDrive(record, req);
+      if (link) synced++;
+      else skipped++;
+    }
+    res.json({
+      success: true,
+      message: `Uploaded ${synced} records to your Google Drive. ${skipped} skipped (no Google connection).`,
+      synced,
+      skipped,
+    });
+  } catch (err) {
+    console.error("Sync to Drive error:", err);
+    res.status(500).json({ message: "Failed to sync records to Google Drive", error: err.message });
+  }
+};
+
+// 📅 Sync all records to Google Calendar (for existing records created before sync was enabled)
+export const syncAllRecordsToGoogleCalendar = async (req, res) => {
+  try {
+    const userInfo = getUserInfo(req);
+    const counselorName = userInfo.userName;
+    const counselorEmail = userInfo.userEmail;
+    // Only sync records for the current counselor
+    const records = await Record.find({
+      $or: [
+        { counselor: counselorName },
+        { counselor: counselorEmail },
+        { "auditTrail.createdBy.userName": counselorName },
+      ],
+    });
+    let synced = 0;
+    let skipped = 0;
+    for (const record of records) {
+      const result = await syncRecordToGoogleCalendar(record, req);
+      if (result) synced++;
+      else skipped++;
+    }
+    res.json({
+      success: true,
+      message: `Synced ${synced} of your records to Google Calendar. ${skipped} skipped.`,
+      synced,
+      skipped,
+    });
+  } catch (err) {
+    console.error("Sync all to Google Calendar error:", err);
+    res.status(500).json({ message: "Failed to sync records to Google Calendar", error: err.message });
   }
 };
 
@@ -125,6 +400,12 @@ export const updateRecord = async (req, res) => {
     }
 
     await record.save();
+
+    // Sync to Google Calendar if date/clientName/sessionType/status changed
+    const calendarRelevantFields = ["date", "clientName", "sessionType", "status"];
+    if (changes.some((c) => calendarRelevantFields.includes(c.field))) {
+      await syncRecordToGoogleCalendar(record, req);
+    }
 
     // Log UPDATE action
     try {
@@ -321,8 +602,9 @@ const addHeaderFooter = (doc, pageNum, totalPages, trackingNumber, reportDate, r
 // Helper function to upload record to drive
 const uploadRecordToDrive = async (record, req) => {
   try {
-    if (!oauth2Client.credentials?.access_token) {
-      console.warn("⚠️ Google Drive not connected — skipping auto-upload");
+    const drive = await getDriveClientFromUser(req.user);
+    if (!drive) {
+      console.warn("⚠️ Google Drive not connected — skipping auto-upload (sign in with Google to enable)");
       return null;
     }
 
@@ -590,23 +872,46 @@ const uploadRecordToDrive = async (record, req) => {
       writeStream.on("error", reject);
     });
 
-    // ✅ Upload PDF to Google Drive with counselor name in filename
-    const drive = google.drive({ version: "v3", auth: oauth2Client });
+    // ✅ Upload PDF to Google Drive (to logged-in user's account)
     const fileName = `${sanitizedCounselorName}_${record.clientName.replace(/\s+/g, '_')}_record_${trackingNumber}.pdf`;
-    const fileMetadata = {
-      name: fileName,
-      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
-    };
     const media = {
       mimeType: "application/pdf",
       body: fs.createReadStream(pdfPath),
     };
+    const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
-    const file = await drive.files.create({
-      resource: fileMetadata,
-      media,
-      fields: "id, webViewLink",
-    });
+    let file;
+    try {
+      file = await drive.files.create({
+        resource: {
+          name: fileName,
+          parents: folderId ? [folderId] : [],
+        },
+        media,
+        fields: "id, webViewLink",
+      });
+    } catch (folderErr) {
+      // Fallback: create "Counseling Records" folder in user's Drive if configured folder fails
+      if (folderId && (folderErr.code === 404 || folderErr.code === 403 || String(folderErr.message || "").includes("not found"))) {
+        console.warn("⚠️ Drive folder not accessible, creating Counseling Records folder in user's Drive");
+        const userFolderId = await getOrCreateCounselingFolder(drive);
+        if (userFolderId) {
+          file = await drive.files.create({
+            resource: { name: fileName, parents: [userFolderId] },
+            media,
+            fields: "id, webViewLink",
+          });
+        } else {
+          file = await drive.files.create({
+            resource: { name: fileName },
+            media,
+            fields: "id, webViewLink",
+          });
+        }
+      } else {
+        throw folderErr;
+      }
+    }
 
     const driveLink = file.data.webViewLink;
 
@@ -774,6 +1079,8 @@ export const createRecord = async (req, res) => {
     
     // ✅ Automatically upload to drive after saving
     const driveLink = await uploadRecordToDrive(record, req);
+    // ✅ Sync to Google Calendar so it appears in user's Google Calendar
+    await syncRecordToGoogleCalendar(record, req);
     if (driveLink) {
       console.log("✅ Record automatically uploaded to Google Drive");
       
@@ -819,9 +1126,9 @@ export const uploadToDrive = async (req, res) => {
       return res.status(404).json({ error: "Record not found" });
     }
 
-    if (!oauth2Client.credentials?.access_token) {
-      console.error("❌ Google Drive not connected — no tokens saved");
-      return res.status(401).json({ error: "Google Drive not connected — no tokens saved" });
+    const drive = await getDriveClientFromUser(req.user);
+    if (!drive) {
+      return res.status(401).json({ error: "Google Drive not connected. Sign in with Google to enable Drive uploads." });
     }
 
     // Convert to plain object to ensure all fields are accessible
@@ -1066,23 +1373,45 @@ export const uploadToDrive = async (req, res) => {
       writeStream.on("error", reject);
     });
 
-    // ✅ Upload PDF to Google Drive with counselor name in filename
-    const drive = google.drive({ version: "v3", auth: oauth2Client });
+    // ✅ Upload PDF to Google Drive (to logged-in user's account)
     const fileName = `${sanitizedCounselorName}_${record.clientName.replace(/\s+/g, '_')}_record_${trackingNumber}.pdf`;
-    const fileMetadata = {
-      name: fileName,
-      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
-    };
     const media = {
       mimeType: "application/pdf",
       body: fs.createReadStream(pdfPath),
     };
+    const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
-    const file = await drive.files.create({
-      resource: fileMetadata,
-      media,
-      fields: "id, webViewLink",
-    });
+    let file;
+    try {
+      file = await drive.files.create({
+        resource: {
+          name: fileName,
+          parents: folderId ? [folderId] : [],
+        },
+        media,
+        fields: "id, webViewLink",
+      });
+    } catch (folderErr) {
+      if (folderId && (folderErr.code === 404 || folderErr.code === 403 || String(folderErr.message || "").includes("not found"))) {
+        console.warn("⚠️ Drive folder not accessible, creating Counseling Records folder in user's Drive");
+        const userFolderId = await getOrCreateCounselingFolder(drive);
+        if (userFolderId) {
+          file = await drive.files.create({
+            resource: { name: fileName, parents: [userFolderId] },
+            media,
+            fields: "id, webViewLink",
+          });
+        } else {
+          file = await drive.files.create({
+            resource: { name: fileName },
+            media,
+            fields: "id, webViewLink",
+          });
+        }
+      } else {
+        throw folderErr;
+      }
+    }
 
     const driveLink = file.data.webViewLink;
 

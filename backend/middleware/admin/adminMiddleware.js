@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import Admin from "../../models/Admin.js";
 import User from "../../models/User.js";
 import Session from "../../models/Session.js";
+import { decryptToken } from "../../utils/tokenEncryption.js";
 
 
 export const protectAdmin = async (req, res, next) => {
@@ -109,6 +110,14 @@ export const protectAdmin = async (req, res, next) => {
       // Update lastActivity on each request
       session.lastActivity = new Date();
       await session.save();
+    }
+
+    // Decrypt Google tokens for Drive/Calendar if present
+    if (admin?.googleCalendarAccessToken) {
+      const plain = admin.toObject ? admin.toObject() : { ...admin };
+      plain.googleCalendarAccessToken = decryptToken(plain.googleCalendarAccessToken);
+      plain.googleCalendarRefreshToken = decryptToken(plain.googleCalendarRefreshToken);
+      admin = plain;
     }
 
     // Attach admin to request and proceed

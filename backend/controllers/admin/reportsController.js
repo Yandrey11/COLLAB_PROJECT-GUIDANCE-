@@ -10,7 +10,7 @@ import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { google } from "googleapis";
-import { oauth2Client } from "../googleDriveAuthController.js";
+import { getDriveClientFromRequest, getOrCreateReportsFolder } from "../../utils/driveUtils.js";
 import mongoose from "mongoose";
 
 // Helper function to generate tracking number
@@ -672,36 +672,58 @@ export const generateReport = async (req, res) => {
     const stats = fs.statSync(pdfPath);
     const fileSize = stats.size;
 
-    // Upload to Google Drive
+    // Upload to Google Drive (uses logged-in admin's account when signed in with Google)
     let driveFileId = null;
     let driveLink = null;
     let driveUploadStatus = "failed";
     let driveUploadError = null;
 
     try {
-      if (oauth2Client.credentials?.access_token) {
-        const drive = google.drive({ version: "v3", auth: oauth2Client });
+      const drive = await getDriveClientFromRequest(req);
+      if (drive) {
         const fileName = `${sanitizedName}_${trackingNumber}.pdf`;
-        const fileMetadata = {
-          name: fileName,
-          parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
-        };
         const media = {
           mimeType: "application/pdf",
           body: fs.createReadStream(pdfPath),
         };
+        const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
 
-        const file = await drive.files.create({
-          resource: fileMetadata,
-          media,
-          fields: "id, webViewLink",
-        });
+        let file;
+        try {
+          file = await drive.files.create({
+            resource: {
+              name: fileName,
+              parents: folderId ? [folderId] : [],
+            },
+            media,
+            fields: "id, webViewLink",
+          });
+        } catch (folderErr) {
+          if (folderId && (folderErr.code === 404 || folderErr.code === 403 || String(folderErr.message || "").includes("not found"))) {
+            const userFolderId = await getOrCreateReportsFolder(drive);
+            if (userFolderId) {
+              file = await drive.files.create({
+                resource: { name: fileName, parents: [userFolderId] },
+                media,
+                fields: "id, webViewLink",
+              });
+            } else {
+              file = await drive.files.create({
+                resource: { name: fileName },
+                media,
+                fields: "id, webViewLink",
+              });
+            }
+          } else {
+            throw folderErr;
+          }
+        }
 
         driveFileId = file.data.id;
         driveLink = file.data.webViewLink;
         driveUploadStatus = "success";
       } else {
-        driveUploadError = "Google Drive not connected";
+        driveUploadError = "Sign in with Google to upload reports to Drive";
       }
     } catch (driveError) {
       console.error("❌ Google Drive upload failed:", driveError);

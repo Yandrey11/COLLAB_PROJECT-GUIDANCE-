@@ -5,7 +5,7 @@ import { googleAuthSuccess, googleAuthFailure } from "../controllers/googleAuthC
 
 const router = express.Router();
 
-// Start Google login - include calendar scopes for automatic calendar connection
+// Start Google login - include calendar and drive scopes for automatic connection
 router.get(
   "/google",
   passport.authenticate("google", {
@@ -14,6 +14,7 @@ router.get(
       "email",
       "https://www.googleapis.com/auth/calendar.readonly",
       "https://www.googleapis.com/auth/calendar",
+      "https://www.googleapis.com/auth/drive.file",
     ],
     accessType: "offline",
     prompt: "consent",

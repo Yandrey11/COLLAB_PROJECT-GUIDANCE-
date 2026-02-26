@@ -7,6 +7,10 @@ const adminSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     role: { type: String, default: "admin" },
+    googleId: { type: String, sparse: true }, // For Google OAuth; allows manual login with same email
+    googleCalendarAccessToken: { type: String },
+    googleCalendarRefreshToken: { type: String },
+    googleCalendarTokenExpires: { type: Date },
     resetPasswordCode: { type: String },
     resetPasswordExpires: { type: Date },
     // Profile fields

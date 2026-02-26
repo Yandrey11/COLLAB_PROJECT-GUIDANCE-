@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import Admin from "../../models/Admin.js";
 import User from "../../models/User.js";
+import GoogleUser from "../../models/GoogleUser.js";
 import axios from "axios";
 
 // ✅ Verify Google reCAPTCHA helper
@@ -50,6 +51,13 @@ export const adminLogin = async (req, res) => {
     }
 
     if (!admin) {
+      // Check if GoogleUser with admin role exists (Google-only admin)
+      const googleAdmin = await GoogleUser.findOne({ email, role: "admin" });
+      if (googleAdmin) {
+        return res.status(400).json({
+          message: "This account uses Google sign-in. Sign in with Google above, or use Forgot Password to set a password for manual login.",
+        });
+      }
       return res.status(404).json({ message: "Admin not found" });
     }
 

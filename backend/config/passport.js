@@ -1,7 +1,8 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import dotenv from "dotenv";
-import GoogleUser from "../models/GoogleUser.js"; // ✅ use correct collection
+import GoogleUser from "../models/GoogleUser.js";
+import { encryptToken } from "../utils/tokenEncryption.js";
 
 dotenv.config();
 
@@ -25,13 +26,16 @@ passport.use(
         const calendarTokenExpires = new Date();
         calendarTokenExpires.setHours(calendarTokenExpires.getHours() + 1); // Google tokens typically expire in 1 hour
         
+        const encryptedAccess = encryptToken(accessToken);
+        const encryptedRefresh = refreshToken ? encryptToken(refreshToken) : null;
+
         if (!user) {
           user = await GoogleUser.create({
             googleId: profile.id,
             name: profile.displayName,
             email,
-            googleCalendarAccessToken: accessToken,
-            googleCalendarRefreshToken: refreshToken || null,
+            googleCalendarAccessToken: encryptedAccess,
+            googleCalendarRefreshToken: encryptedRefresh,
             googleCalendarTokenExpires: calendarTokenExpires,
           });
           console.log(`✅ New Google user created with calendar access: ${email}`);
@@ -39,9 +43,9 @@ passport.use(
           // Update user info and calendar tokens
           user.name = profile.displayName;
           user.email = email;
-          user.googleCalendarAccessToken = accessToken;
-          if (refreshToken) {
-            user.googleCalendarRefreshToken = refreshToken;
+          user.googleCalendarAccessToken = encryptedAccess;
+          if (encryptedRefresh) {
+            user.googleCalendarRefreshToken = encryptedRefresh;
           }
           user.googleCalendarTokenExpires = calendarTokenExpires;
           await user.save();

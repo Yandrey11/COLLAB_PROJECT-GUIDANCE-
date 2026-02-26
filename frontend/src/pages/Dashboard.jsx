@@ -1,4 +1,4 @@
- import { useEffect, useState } from "react";
+ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import CalendarView from "../components/CalendarView";
@@ -18,6 +18,7 @@ export default function Dashboard() {
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [recordsLoading, setRecordsLoading] = useState(true);
+  const [syncingToGoogle, setSyncingToGoogle] = useState(false);
 
   // Initialize inactivity detection
   useInactivity({
@@ -33,7 +34,7 @@ export default function Dashboard() {
     const fetchCalendarEvents = async () => {
       try {
         setCalendarLoading(true);
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token") || localStorage.getItem("authToken");
         if (!token || !user) {
           setCalendarLoading(false);
           return;
@@ -56,14 +57,7 @@ export default function Dashboard() {
       } catch (error) {
         console.error("Error fetching calendar events:", error);
         setCalendarEvents([]);
-        // Check if it's a connection issue or just no tokens
-        if (error.response?.status === 401 || error.response?.data?.connected === false) {
-          setCalendarConnected(false);
-        } else {
-          // Other errors - still mark as not connected
-          setCalendarConnected(false);
-          console.warn("Calendar fetch error details:", error.response?.data || error.message);
-        }
+        setCalendarConnected(false);
       } finally {
         setCalendarLoading(false);
       }
@@ -74,6 +68,9 @@ export default function Dashboard() {
       // Auto-refresh calendar every 5 minutes
       const interval = setInterval(fetchCalendarEvents, 5 * 60 * 1000);
       return () => clearInterval(interval);
+    } else {
+      // User not loaded yet - show calendar with empty data instead of infinite loading
+      setCalendarLoading(false);
     }
   }, [user]);
 
@@ -83,28 +80,33 @@ export default function Dashboard() {
     initializeTheme();
   }, []);
 
+  const hasFetchedRef = useRef(false);
+
   // Load user and token validation (unchanged backend connection logic)
   useEffect(() => {
+    if (hasFetchedRef.current) return;
+    hasFetchedRef.current = true;
+
+    // ✅ Step 1: Immediately store token from URL (Google OAuth redirect) - before any async delay
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromURL = urlParams.get("token");
+    if (tokenFromURL) {
+      console.log("🔑 Received Google token from URL");
+      localStorage.setItem("token", tokenFromURL);
+      localStorage.setItem("authToken", tokenFromURL);
+      window.history.replaceState({}, document.title, "/dashboard");
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(() => {
       (async () => {
-        // ✅ Step 1: Check if token was passed via Google redirect URL
-        const urlParams = new URLSearchParams(window.location.search);
-        const tokenFromURL = urlParams.get("token");
-
-        if (tokenFromURL) {
-          console.log("🔑 Received Google token from URL");
-          localStorage.setItem("token", tokenFromURL);
-
-          // ✅ Optionally clean up the URL
-          window.history.replaceState({}, document.title, "/dashboard");
-        }
-
         // ✅ Step 2: Get token (from localStorage or Google)
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token") || localStorage.getItem("authToken");
 
         if (!token) {
           console.warn("🚫 No token found, redirecting to login...");
+          hasFetchedRef.current = false;
+          localStorage.removeItem("authToken");
           navigate("/login", { replace: true });
           setLoading(false);
           return;
@@ -125,7 +127,9 @@ export default function Dashboard() {
             const errorData = await res.json().catch(() => ({ message: "Unknown error" }));
             console.warn("🚫 Token validation failed:", res.status, errorData);
             localStorage.removeItem("token");
+            localStorage.removeItem("authToken");
             localStorage.removeItem("user");
+            hasFetchedRef.current = false;
             navigate("/login", { replace: true });
           } else {
             const data = await res.json();
@@ -137,9 +141,10 @@ export default function Dashboard() {
         } catch (err) {
           if (err.name !== "AbortError") {
             console.error("❌ Error fetching user from backend:", err);
-            // Don't redirect on network errors, let the user see the error
             localStorage.removeItem("token");
+            localStorage.removeItem("authToken");
             localStorage.removeItem("user");
+            hasFetchedRef.current = false;
             navigate("/login", { replace: true });
           }
         } finally {
@@ -152,7 +157,7 @@ export default function Dashboard() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [navigate]);
+  }, []); // Empty deps - run once on mount
 
   // Listen to storage events so multiple tabs / components can stay in sync
   useEffect(() => {
@@ -176,7 +181,12 @@ export default function Dashboard() {
     const fetchRecords = async () => {
       try {
         setRecordsLoading(true);
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+        if (!token) {
+          setRecords([]);
+          setRecordsLoading(false);
+          return;
+        }
         const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
         const res = await axios.get(`${baseUrl}/api/records`, {
           headers: {
@@ -198,6 +208,9 @@ export default function Dashboard() {
       // Auto-refresh records every 30 seconds for sync
       const interval = setInterval(fetchRecords, 30000);
       return () => clearInterval(interval);
+    } else {
+      // User not loaded yet - show calendar with empty data instead of infinite loading
+      setRecordsLoading(false);
     }
   }, [user]);
 
@@ -229,15 +242,53 @@ export default function Dashboard() {
                   Calendar 
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400 m-0">
-                  View your Google Calendar events alongside counseling records from the system. Calendar events and
-                  records are read-only.
+                  {calendarConnected
+                    ? "Your Google Calendar events are shown alongside counseling records. All events and records are read-only."
+                    : "View counseling records on the calendar. Sign in with Google to automatically see your Google Calendar events."}
                 </p>
               </div>
+              <div className="flex gap-2 flex-wrap">
+              <button
+                  onClick={async () => {
+                    setSyncingToGoogle(true);
+                    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+                    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+                    try {
+                      const res = await axios.post(`${baseUrl}/api/records/sync-google-calendar`, {}, {
+                        headers: { Authorization: `Bearer ${token}` },
+                      });
+                      if (res.data?.success) {
+                        alert(res.data.message || "Records synced to Google Calendar.");
+                        setCalendarLoading(true);
+                        const evRes = await axios.get(`${baseUrl}/auth/dashboard/calendar-events`, {
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        if (evRes.data.connected) {
+                          setCalendarEvents(evRes.data.events || []);
+                          setCalendarConnected(true);
+                        }
+                        const recRes = await axios.get(`${baseUrl}/api/records`, {
+                          headers: { Authorization: `Bearer ${token}` },
+                        });
+                        setRecords(recRes.data || []);
+                      }
+                    } catch (error) {
+                      alert(error.response?.data?.message || "Failed to sync. Sign in with Google to enable.");
+                    } finally {
+                      setSyncingToGoogle(false);
+                      setCalendarLoading(false);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 text-sm font-semibold hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
+                  disabled={syncingToGoogle}
+                >
+                  {syncingToGoogle ? "Syncing..." : "Sync Records to Google Calendar"}
+                </button>
               {calendarConnected ? (
               <button
                   onClick={async () => {
                     setCalendarLoading(true);
-                    const token = localStorage.getItem("token");
+                    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
                     const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
                     try {
                       const res = await axios.get(`${baseUrl}/auth/dashboard/calendar-events`, {
@@ -259,6 +310,7 @@ export default function Dashboard() {
                   {calendarLoading ? "Refreshing..." : "Refresh Calendar"}
               </button>
               ) : null}
+              </div>
             </div>
 
             {/* Always show calendar view with records - Google Calendar is optional */}
@@ -267,39 +319,10 @@ export default function Dashboard() {
                 <div className="text-base text-gray-600 dark:text-gray-400 font-semibold mb-2">Loading calendar...</div>
               </div>
             ) : (
-              <div>
-                <CalendarView 
-                  calendarEvents={calendarConnected ? calendarEvents : []}
-                  records={records}
-                />
-                
-                {/* Show connect button if calendar not connected */}
-                {!calendarConnected && (
-                  <div className="mt-4 p-4 text-center bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-200 dark:border-indigo-700">
-                    <p className="text-sm text-indigo-800 dark:text-indigo-300 m-0 mb-2">
-                      Connect your Google Calendar to see events alongside your records.
-                    </p>
-                    <button
-                      onClick={async () => {
-                        try {
-                          const token = localStorage.getItem("token");
-                          const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-                          window.location.href = `${baseUrl}/auth/google/calendar/connect?token=${token}`;
-                        } catch (error) {
-                          await Swal.fire({
-                            icon: "error",
-                            title: "Error",
-                            text: "Failed to initiate Google Calendar connection.",
-                          });
-                        }
-                      }}
-                      className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
-                    >
-                      Connect Google Calendar
-                    </button>
-                </div>
-                )}
-              </div>
+              <CalendarView 
+                calendarEvents={calendarConnected ? calendarEvents : []}
+                records={records}
+              />
             )}
           </section>
 

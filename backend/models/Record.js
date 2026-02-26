@@ -14,6 +14,7 @@ const recordSchema = new mongoose.Schema(
     notes: { type: String },
     outcomes: { type: String },
     driveLink: { type: String },
+    googleCalendarEventId: { type: String }, // Links record to Google Calendar event
     counselor: { type: String, required: true },
     
     // File attachments

@@ -190,8 +190,8 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
                 {date.getDate()}
               </div>
               
-              {/* Show records and events inside the date */}
-              <div className="flex flex-col gap-0.5 flex-1 overflow-y-auto">
+              {/* Show records (client names) and events inside the date */}
+              <div className="flex flex-col gap-0.5 flex-1 overflow-y-auto min-h-0">
                 {hasRecords && dateData.records.map((record, idx) => {
                   const statusColors = {
                     Completed: "bg-emerald-500",
@@ -203,7 +203,7 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
                   return (
                     <div
                       key={record._id || idx}
-                      className={`text-[9px] ${bgColor} text-white rounded px-1 py-0.5 truncate font-medium`}
+                      className={`text-[10px] leading-tight ${bgColor} text-white rounded px-1.5 py-0.5 font-semibold truncate`}
                       title={`${record.clientName} - ${record.sessionType || "General Counseling"} (${record.status || "Ongoing"})`}
                     >
                       {record.clientName}
@@ -213,7 +213,7 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
                 {hasEvents && dateData.events.map((event, idx) => (
                   <div
                     key={event.id || idx}
-                    className="text-[9px] bg-blue-500 text-white rounded px-1 py-0.5 truncate font-medium"
+                    className="text-[10px] leading-tight bg-blue-500 text-white rounded px-1.5 py-0.5 font-semibold truncate"
                     title={event.title}
                   >
                     {event.title}

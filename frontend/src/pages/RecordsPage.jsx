@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
@@ -78,7 +78,6 @@ const RecordsPage = () => {
   const [showForm, setShowForm] = useState(false);
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [driveMessage, setDriveMessage] = useState(null);
   const [hasPermission, setHasPermission] = useState(true); // Default to true for backwards compatibility
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
@@ -93,6 +92,7 @@ const RecordsPage = () => {
   const [allLockLogs, setAllLockLogs] = useState([]); // All lock/unlock logs for the card
   const [lockLogFilter, setLockLogFilter] = useState("all"); // Filter: "all", "LOCK", "UNLOCK", "UPDATE"
   const [showLockLogsCard, setShowLockLogsCard] = useState(true); // Toggle to show/hide the lock logs card
+  const hasAutoSyncedDriveRef = useRef(false);
 
   const generateTrackingNumber = () => {
     const timestamp = Date.now();
@@ -518,20 +518,6 @@ const RecordsPage = () => {
     }
   };
 
-  useEffect(() => {
-    // Check for OAuth callback messages
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get("error") === "drive_connection_failed") {
-      setDriveMessage({ type: "error", text: "Failed to connect to Google Drive. Please try again." });
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (urlParams.get("success") === "drive_connected") {
-      setDriveMessage({ type: "success", text: "✅ Google Drive connected successfully! You can now save records with Drive links." });
-      // Clean up URL
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
-
   // Fetch records after user is loaded and has permission
   useEffect(() => {
     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
@@ -541,6 +527,29 @@ const RecordsPage = () => {
       // Stop loading if user doesn't have permission
       setLoading(false);
     }
+  }, [user, hasPermission]);
+
+  // Auto-sync records without Drive link to logged-in user's Google Drive (runs once per session)
+  useEffect(() => {
+    if (!user || !hasPermission || hasAutoSyncedDriveRef.current) return;
+    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+    if (!token) return;
+
+    const syncDrive = async () => {
+      hasAutoSyncedDriveRef.current = true;
+      try {
+        const res = await axios.post(`${API_URL}/sync-drive`, {}, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.data?.success && res.data.synced > 0) {
+          fetchRecords(); // Refresh to show new Drive links
+        }
+      } catch {
+        // Silent fail - user may not be signed in with Google
+      }
+    };
+
+    syncDrive();
   }, [user, hasPermission]);
   
   // Show error page if no permission (after user is loaded)
@@ -600,12 +609,6 @@ const RecordsPage = () => {
   }, [user]);
   
   // Auto-hide message after 5 seconds
-  useEffect(() => {
-    if (driveMessage) {
-      const timer = setTimeout(() => setDriveMessage(null), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [driveMessage]);
 
   const handleCreateRecord = async () => {
     if (!newRecord.clientName || !newRecord.sessionType) {
@@ -672,10 +675,13 @@ const RecordsPage = () => {
       // Refresh records to get the updated record with driveLink
       await fetchRecords();
       
+      const hasDriveLink = res.data?.driveLink;
       Swal.fire({
         icon: "success",
         title: "Success!",
-        text: "New record created and uploaded to Google Drive successfully!",
+        text: hasDriveLink
+          ? "Record created and uploaded to your Google Drive."
+          : "Record created. Sign in with Google to enable automatic Drive upload.",
         timer: 3000,
         showConfirmButton: false,
       });
@@ -1087,7 +1093,7 @@ const RecordsPage = () => {
                 Counseling Records
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-1.5 text-sm">
-                Manage and track all counseling session records, notes, and outcomes.
+                Manage and track all counseling session records, notes, and outcomes. Records are automatically uploaded to Google Drive when you sign in with Google.
               </p>
             </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -1104,56 +1110,6 @@ const RecordsPage = () => {
             </div>
           </div>
         </motion.div>
-
-        {/* Drive Connection Message */}
-        <AnimatePresence>
-          {driveMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              style={{
-                background: driveMessage.type === "success" 
-                  ? "linear-gradient(90deg, #10b981, #059669)" 
-                  : "linear-gradient(90deg, #ef4444, #dc2626)",
-                color: "white",
-                padding: "12px 20px",
-                borderRadius: 10,
-                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 12,
-              }}
-            >
-              <span style={{ fontSize: 14, fontWeight: 500 }}>
-                {driveMessage.text}
-              </span>
-              <motion.button
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setDriveMessage(null)}
-                style={{
-                  background: "rgba(255, 255, 255, 0.2)",
-                  border: "none",
-                  color: "white",
-                  cursor: "pointer",
-                  borderRadius: "50%",
-                  width: 24,
-                  height: 24,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 16,
-                  fontWeight: 600,
-                  padding: 0,
-                }}
-              >
-                ×
-              </motion.button>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Action Buttons */}
         <motion.div
@@ -1191,31 +1147,6 @@ const RecordsPage = () => {
             {showForm ? "Close Form" : "Create New Record"}
           </motion.button>
           
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => {
-              const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-              window.location.href = `${baseUrl}/auth/drive`;
-            }}
-            style={{
-              background: "linear-gradient(90deg, #10b981, #059669)",
-              color: "white",
-              padding: "12px 20px",
-              borderRadius: 10,
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontWeight: 600,
-              fontSize: 14,
-              boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
-            }}
-          >
-            <span style={{ fontSize: "18px" }}>☁️</span>
-            Connect Google Drive
-          </motion.button>
           <motion.button
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
