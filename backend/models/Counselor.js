@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
-const userSchema = new mongoose.Schema(
+const counselorSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
@@ -34,11 +34,11 @@ const userSchema = new mongoose.Schema(
       is_admin: { type: Boolean, default: false },
     },
   },
-  { timestamps: true }
+  { timestamps: true, collection: "users" }
 );
 
 // ✅ Hash password ONLY if modified and not already hashed
-userSchema.pre("save", async function (next) {
+counselorSchema.pre("save", async function (next) {
   // Set permissions based on role
   if (this.role === "admin") {
     if (!this.permissions) {
@@ -46,8 +46,8 @@ userSchema.pre("save", async function (next) {
     }
     this.permissions.is_admin = true;
   }
-  
-  // Set default permissions for new users if not set
+
+  // Set default permissions for new counselors if not set
   if (this.isNew && !this.permissions) {
     this.permissions = {
       can_view_records: true,
@@ -57,17 +57,17 @@ userSchema.pre("save", async function (next) {
       is_admin: this.role === "admin",
     };
   }
-  
+
   // Hash password if modified
   if (!this.isModified("password")) return next();
-  
+
   // Safeguard: Check if password is already hashed (starts with bcrypt hash prefix)
   // This prevents double-hashing if an already-hashed password is accidentally passed
   if (this.password && (this.password.startsWith("$2a$") || this.password.startsWith("$2b$") || this.password.startsWith("$2y$"))) {
     console.warn("⚠️ Password appears to be already hashed, skipping hash operation");
     return next();
   }
-  
+
   console.log("🔒 Hashing password for:", this.email);
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
@@ -75,12 +75,12 @@ userSchema.pre("save", async function (next) {
 });
 
 // ✅ Compare password for login
-userSchema.methods.matchPassword = async function (enteredPassword) {
+counselorSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
 // ✅ Helper method to check permission
-userSchema.methods.hasPermission = function (permission) {
+counselorSchema.methods.hasPermission = function (permission) {
   // Admins have all permissions
   if (this.role === "admin" || this.permissions?.is_admin) {
     return true;
@@ -88,7 +88,7 @@ userSchema.methods.hasPermission = function (permission) {
   return this.permissions?.[permission] === true;
 };
 
-// ✅ Prevent OverwriteModelError
-const User = mongoose.models.User || mongoose.model("User", userSchema);
+// ✅ Prevent OverwriteModelError (keep "users" collection for backward compatibility)
+const Counselor = mongoose.models.Counselor || mongoose.model("Counselor", counselorSchema);
 
-export default User;
+export default Counselor;

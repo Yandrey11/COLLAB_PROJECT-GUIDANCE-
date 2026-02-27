@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import Admin from "../../models/Admin.js";
-import User from "../../models/User.js";
+import Counselor from "../../models/Counselor.js";
 import Session from "../../models/Session.js";
 import { decryptToken } from "../../utils/tokenEncryption.js";
 
@@ -63,7 +63,7 @@ export const protectAdmin = async (req, res, next) => {
     
     // If not found in Admin collection, check User collection for admin role
     if (!admin) {
-      const user = await User.findById(decoded.id).select("-password");
+      const user = await Counselor.findById(decoded.id).select("-password");
       if (user && user.role === "admin") {
         // Convert user to admin-like object for middleware
         admin = {

@@ -1,5 +1,5 @@
 import Record from "../../models/Record.js";
-import User from "../../models/User.js";
+import Counselor from "../../models/Counselor.js";
 import { createNotification } from "./notificationController.js";
 import { createCounselorNotification, createNotificationForAllCounselors } from "../counselorNotificationController.js";
 import { logLockAction } from "./recordLockController.js";
@@ -317,7 +317,7 @@ export const updateRecord = async (req, res) => {
     if (counselorChanged && newCounselorName && newCounselorName !== oldCounselorName) {
       try {
         // Find counselor by name or email
-        const counselor = await User.findOne({
+        const counselor = await Counselor.findOne({
           $or: [
             { name: newCounselorName },
             { email: newCounselorName },
@@ -349,7 +349,7 @@ export const updateRecord = async (req, res) => {
     } else if (!counselorChanged && newCounselorName) {
       // Record was updated but counselor didn't change - notify the counselor
       try {
-        const counselor = await User.findOne({
+        const counselor = await Counselor.findOne({
           $or: [
             { name: newCounselorName },
             { email: newCounselorName },

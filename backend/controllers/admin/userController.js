@@ -1,4 +1,4 @@
-import User from "../../models/User.js";
+import Counselor from "../../models/Counselor.js";
 import Session from "../../models/Session.js";
 
 // Get all users with online/offline status
@@ -22,7 +22,7 @@ export const getAllUsers = async (req, res) => {
     }
 
     // Get all users with pagination
-    const users = await User.find(userQuery)
+    const users = await Counselor.find(userQuery)
       .select("-password")
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -30,7 +30,7 @@ export const getAllUsers = async (req, res) => {
       .lean();
 
     // Get total count
-    const total = await User.countDocuments(userQuery);
+    const total = await Counselor.countDocuments(userQuery);
 
     // Get all active session user IDs
     const activeSessions = await Session.find({ isActive: true }).select("userId").lean();

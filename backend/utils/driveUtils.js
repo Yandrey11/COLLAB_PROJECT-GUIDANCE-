@@ -1,5 +1,5 @@
 import { google } from "googleapis";
-import User from "../models/User.js";
+import Counselor from "../models/Counselor.js";
 import GoogleUser from "../models/GoogleUser.js";
 import Admin from "../models/Admin.js";
 import { decryptToken, encryptToken } from "./tokenEncryption.js";
@@ -26,7 +26,7 @@ export const getDriveClientFromRequest = async (req) => {
   if (!accessToken) {
     const uid = person._id || person.id;
     const dbAdmin = await Admin.findById(uid)?.select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires");
-    const dbUser = await User.findById(uid)?.select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires");
+    const dbUser = await Counselor.findById(uid)?.select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires");
     const googleUser = await GoogleUser.findById(uid);
     const source = dbAdmin?.googleCalendarAccessToken
       ? dbAdmin
@@ -55,7 +55,7 @@ export const getDriveClientFromRequest = async (req) => {
       const { credentials } = await oauth2Client.refreshAccessToken();
       oauth2Client.setCredentials(credentials);
       const uid = person._id || person.id;
-      const toUpdate = (await Admin.findById(uid)) || (await User.findById(uid)) || (await GoogleUser.findById(uid));
+      const toUpdate = (await Admin.findById(uid)) || (await Counselor.findById(uid)) || (await GoogleUser.findById(uid));
       if (toUpdate) {
         toUpdate.googleCalendarAccessToken = encryptToken(credentials.access_token);
         if (credentials.refresh_token) toUpdate.googleCalendarRefreshToken = encryptToken(credentials.refresh_token);

@@ -4,7 +4,7 @@ import LockAuditLog from "../../models/LockAuditLog.js";
 import { createNotification } from "./notificationController.js";
 import { createCounselorNotification } from "../counselorNotificationController.js";
 import Admin from "../../models/Admin.js";
-import User from "../../models/User.js";
+import Counselor from "../../models/Counselor.js";
 
 /**
  * Helper to get user info from request
@@ -246,12 +246,12 @@ export const lockRecord = async (req, res) => {
         
         // Try to find counselor by userId from auditTrail
         if (record.auditTrail?.createdBy?.userId) {
-          counselorUser = await User.findById(record.auditTrail.createdBy.userId);
+          counselorUser = await Counselor.findById(record.auditTrail.createdBy.userId);
         }
         
         // If not found by userId, try to find by counselor name
         if (!counselorUser && record.counselor) {
-          counselorUser = await User.findOne({ 
+          counselorUser = await Counselor.findOne({ 
             $or: [
               { name: record.counselor },
               { email: record.counselor }
@@ -408,12 +408,12 @@ export const unlockRecord = async (req, res) => {
         
         // Try to find counselor by userId from auditTrail
         if (record.auditTrail?.createdBy?.userId) {
-          counselorUser = await User.findById(record.auditTrail.createdBy.userId);
+          counselorUser = await Counselor.findById(record.auditTrail.createdBy.userId);
         }
         
         // If not found by userId, try to find by counselor name
         if (!counselorUser && record.counselor) {
-          counselorUser = await User.findOne({ 
+          counselorUser = await Counselor.findOne({ 
             $or: [
               { name: record.counselor },
               { email: record.counselor }

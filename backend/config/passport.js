@@ -54,8 +54,8 @@ passport.use(
 
         // Also sync calendar tokens to User model if a User exists with the same email
         try {
-          const UserModel = (await import("../models/User.js")).default;
-          const regularUser = await UserModel.findOne({ email });
+          const CounselorModel = (await import("../models/Counselor.js")).default;
+          const regularUser = await CounselorModel.findOne({ email });
           if (regularUser) {
             regularUser.googleCalendarAccessToken = user.googleCalendarAccessToken;
             regularUser.googleCalendarRefreshToken = user.googleCalendarRefreshToken;
@@ -64,7 +64,7 @@ passport.use(
               regularUser.googleId = user.googleId;
             }
             await regularUser.save();
-            console.log(`✅ Synced calendar tokens to User model for ${email}`);
+            console.log(`✅ Synced calendar tokens to Counselor model for ${email}`);
           }
         } catch (syncError) {
           console.error("⚠️ Error syncing calendar tokens to User model:", syncError);

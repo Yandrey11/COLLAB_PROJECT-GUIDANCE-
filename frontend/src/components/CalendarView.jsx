@@ -20,15 +20,24 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
     "July", "August", "September", "October", "November", "December"
   ];
 
-  // Helper function to format date as YYYY-MM-DD (normalizes to local timezone)
+  // Helper function to format date as YYYY-MM-DD (handles ISO strings, Date objects, MongoDB $date)
   const formatDateKey = (date) => {
     if (!date) return null;
+    let dateStr = null;
+    if (typeof date === "string") {
+      dateStr = /^\d{4}-\d{2}-\d{2}/.test(date) ? date.substring(0, 10) : date;
+    } else if (date && typeof date === "object" && date.$date) {
+      dateStr = date.$date;
+    }
+    if (dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      return dateStr.substring(0, 10);
+    }
     const d = new Date(date);
-    // Use local date to avoid timezone issues
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    if (isNaN(d.getTime())) return null;
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   };
 
   // Helper to check if date is today
@@ -39,13 +48,14 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
            date.getFullYear() === today.getFullYear();
   };
 
-  // Group records by date
+  // Group records by date (use record.date or fallback to createdAt)
   const recordsByDate = useMemo(() => {
     const grouped = {};
     records.forEach(record => {
-      if (record.date) {
+      const dateValue = record.date ?? record.createdAt;
+      if (dateValue) {
         try {
-          const dateKey = formatDateKey(record.date);
+          const dateKey = formatDateKey(dateValue);
           if (dateKey) {
             if (!grouped[dateKey]) {
               grouped[dateKey] = [];

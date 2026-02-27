@@ -1,6 +1,6 @@
 import express from "express";
 import jwt from "jsonwebtoken";
-import User from "../../models/User.js";
+import Counselor from "../../models/Counselor.js";
 
 const router = express.Router();
 
@@ -17,7 +17,7 @@ router.post("/refresh-token", async (req, res) => {
     // Verify the refresh token
     const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
 
-    const admin = await User.findById(decoded.id);
+    const admin = await Counselor.findById(decoded.id);
     if (!admin || admin.role !== "admin") {
       return res.status(403).json({ message: "Invalid refresh token" });
     }

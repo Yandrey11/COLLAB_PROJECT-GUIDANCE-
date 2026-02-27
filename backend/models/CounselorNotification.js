@@ -4,7 +4,7 @@ const counselorNotificationSchema = new mongoose.Schema(
   {
     counselorId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Counselor",
       required: true,
       index: true,
     },

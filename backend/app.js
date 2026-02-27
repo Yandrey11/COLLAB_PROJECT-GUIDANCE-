@@ -17,6 +17,12 @@ const __dirname = path.dirname(__filename);
 // ✅ Load environment variables
 dotenv.config();
 
+// ✅ Require secrets from env (never from db or hardcoded)
+if (!process.env.JWT_SECRET || !process.env.SESSION_SECRET) {
+  console.error("❌ FATAL: JWT_SECRET and SESSION_SECRET must be set in .env");
+  process.exit(1);
+}
+
 // ✅ Connect to MongoDB
 connectDB();
 
@@ -45,7 +51,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // ✅ Session configuration (for OAuths)
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || "keyboard cat",
+    secret: process.env.SESSION_SECRET,
     resave: true, // Changed to true to ensure session is saved
     saveUninitialized: true, // Changed to true to save uninitialized sessions (required for OAuth)
     cookie: {

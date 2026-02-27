@@ -1,6 +1,5 @@
 import Session from "../../models/Session.js";
 import SessionSettings from "../../models/SessionSettings.js";
-import User from "../../models/User.js";
 import jwt from "jsonwebtoken";
 
 // Get all active sessions

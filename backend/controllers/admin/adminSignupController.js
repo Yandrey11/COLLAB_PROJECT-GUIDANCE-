@@ -1,5 +1,5 @@
 import Admin from "../../models/Admin.js";
-import User from "../../models/User.js";
+import Counselor from "../../models/Counselor.js";
 import GoogleUser from "../../models/GoogleUser.js";
 import jwt from "jsonwebtoken";
 import { validatePassword } from "../../utils/passwordValidation.js";
@@ -10,7 +10,7 @@ export const adminSignup = async (req, res) => {
     const { name, email, password } = req.body;
 
     const existingAdmin = await Admin.findOne({ email });
-    const existingUser = await User.findOne({ email });
+    const existingUser = await Counselor.findOne({ email });
     const existingGoogleUser = await GoogleUser.findOne({ email });
     if (existingAdmin || existingUser || existingGoogleUser) {
       return res.status(400).json({ message: "Email already in use" });

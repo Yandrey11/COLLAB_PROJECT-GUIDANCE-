@@ -1,4 +1,4 @@
-import User from "../../models/User.js";
+import Counselor from "../../models/Counselor.js";
 import GoogleUser from "../../models/GoogleUser.js";
 import Admin from "../../models/Admin.js";
 import Session from "../../models/Session.js";
@@ -36,7 +36,7 @@ export const getAllUsers = async (req, res) => {
     console.log("🔍 MongoDB query:", JSON.stringify(query, null, 2));
 
     // Get regular users
-    const regularUsers = await User.find(query)
+    const regularUsers = await Counselor.find(query)
       .select("-password")
       .sort({ createdAt: -1 })
       .lean();
@@ -228,7 +228,7 @@ export const createUser = async (req, res) => {
     }
 
     // Check for duplicate email across User, Admin, and GoogleUser collections
-    const existingUser = await User.findOne({ email });
+    const existingUser = await Counselor.findOne({ email });
     const existingAdmin = await Admin.findOne({ email });
     const existingGoogleUser = await GoogleUser.findOne({ email });
     if (existingUser || existingAdmin || existingGoogleUser) {
@@ -326,7 +326,7 @@ export const updateUser = async (req, res) => {
     const { name, email, role } = req.body;
 
     // Check all collections: User, GoogleUser, Admin
-    let user = await User.findById(userId);
+    let user = await Counselor.findById(userId);
     let userType = "regular";
     
     if (!user) {
@@ -351,7 +351,7 @@ export const updateUser = async (req, res) => {
       }
 
       // Check for duplicate email across all collections (excluding current user)
-      const existingUser = await User.findOne({ email, _id: { $ne: userId } });
+      const existingUser = await Counselor.findOne({ email, _id: { $ne: userId } });
       const existingGoogleUser = await GoogleUser.findOne({ email, _id: { $ne: userId } });
       const existingAdmin = await Admin.findOne({ email, _id: { $ne: userId } });
       
@@ -376,10 +376,10 @@ export const updateUser = async (req, res) => {
         user.role = role;
       }
       // If changing to admin role, need to move to Admin collection
-      // If changing from admin to user/counselor, need to move to User collection
+      // If changing from admin to user/counselor, need to move to Counselor collection
       else if (userType === "admin" && role !== "admin") {
-        // Move from Admin to User collection
-        const newUser = new User({
+        // Move from Admin to Counselor collection
+        const newUser = new Counselor({
           name: user.name,
           email: user.email,
           password: user.password, // Keep existing password
@@ -391,7 +391,7 @@ export const updateUser = async (req, res) => {
         user = newUser;
         userType = "regular";
       } else if (userType === "regular" && role === "admin") {
-        // Move from User to Admin collection
+        // Move from Counselor to Admin collection
         const newAdmin = new Admin({
           name: user.name,
           email: user.email,
@@ -399,7 +399,7 @@ export const updateUser = async (req, res) => {
           role: "admin",
         });
         await newAdmin.save();
-        await User.findByIdAndDelete(userId);
+        await Counselor.findByIdAndDelete(userId);
         user = newAdmin;
         userType = "admin";
       } else {
@@ -444,7 +444,7 @@ export const toggleUserStatus = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const user = await User.findById(userId);
+    const user = await Counselor.findById(userId);
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -491,7 +491,7 @@ export const deleteUser = async (req, res) => {
     const { userId } = req.params;
 
     // Check all collections: User, GoogleUser, Admin
-    let user = await User.findById(userId);
+    let user = await Counselor.findById(userId);
     let userType = "regular";
     let collection = User;
     
@@ -609,7 +609,7 @@ export const resetUserPassword = async (req, res) => {
     const { userId } = req.params;
 
     // Check all collections: User, GoogleUser, Admin
-    let user = await User.findById(userId);
+    let user = await Counselor.findById(userId);
     let userType = "regular";
     
     if (!user) {
@@ -629,7 +629,7 @@ export const resetUserPassword = async (req, res) => {
     // Google users don't have passwords (they use OAuth)
     if (userType === "google") {
       const googleUser = user;
-      let localUser = await User.findOne({ email: googleUser.email });
+      let localUser = await Counselor.findOne({ email: googleUser.email });
       let localAdmin = await Admin.findOne({ email: googleUser.email });
       if (localAdmin) {
         user = localAdmin;

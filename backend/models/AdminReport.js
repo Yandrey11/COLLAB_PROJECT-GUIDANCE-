@@ -33,7 +33,7 @@ const adminReportSchema = new mongoose.Schema(
       userModel: {
         type: String,
         required: true,
-        enum: ["Admin", "User"],
+        enum: ["Admin", "Counselor"],
       },
     },
     // Filter criteria used to generate the report

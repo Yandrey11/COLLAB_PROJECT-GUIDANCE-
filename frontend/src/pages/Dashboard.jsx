@@ -1,5 +1,5 @@
  import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import CalendarView from "../components/CalendarView";
 import CounselorSidebar from "../components/CounselorSidebar";
@@ -18,7 +18,8 @@ export default function Dashboard() {
   const [calendarLoading, setCalendarLoading] = useState(true);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [recordsLoading, setRecordsLoading] = useState(true);
-  const [syncingToGoogle, setSyncingToGoogle] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const hasAutoSyncedCalendarRef = useRef(false);
 
   // Initialize inactivity detection
   useInactivity({
@@ -29,33 +30,44 @@ export default function Dashboard() {
     enabled: !!user, // Only enable when user is loaded
   });
 
-  // Fetch Google Calendar events
+  // Fetch Google Calendar events and auto-sync records to Google Calendar
   useEffect(() => {
-    const fetchCalendarEvents = async () => {
+    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+    const fetchCalendarEvents = async (token) => {
+      const res = await axios.get(`${baseUrl}/auth/dashboard/calendar-events`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data.connected) {
+        setCalendarEvents(res.data.events || []);
+        setCalendarConnected(true);
+        return true;
+      }
+      setCalendarEvents([]);
+      setCalendarConnected(false);
+      return false;
+    };
+
+    const fetchAndMaybeSync = async () => {
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      if (!token || !user) {
+        setCalendarLoading(false);
+        return;
+      }
       try {
         setCalendarLoading(true);
-        const token = localStorage.getItem("token") || localStorage.getItem("authToken");
-        if (!token || !user) {
-          setCalendarLoading(false);
-          return;
-        }
-
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-        const res = await axios.get(`${baseUrl}/auth/dashboard/calendar-events`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (res.data.connected) {
-          setCalendarEvents(res.data.events || []);
-          setCalendarConnected(true);
-        } else {
-          setCalendarEvents([]);
-          setCalendarConnected(false);
+        const connected = await fetchCalendarEvents(token);
+        if (connected && !hasAutoSyncedCalendarRef.current) {
+          hasAutoSyncedCalendarRef.current = true;
+          await axios.post(`${baseUrl}/api/records/sync-google-calendar`, {}, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          await fetchCalendarEvents(token);
         }
       } catch (error) {
-        console.error("Error fetching calendar events:", error);
+        if (error.response?.status !== 401) {
+          console.error("Error fetching calendar events:", error);
+        }
         setCalendarEvents([]);
         setCalendarConnected(false);
       } finally {
@@ -64,12 +76,19 @@ export default function Dashboard() {
     };
 
     if (user) {
-      fetchCalendarEvents();
-      // Auto-refresh calendar every 5 minutes
-      const interval = setInterval(fetchCalendarEvents, 5 * 60 * 1000);
+      fetchAndMaybeSync();
+      const interval = setInterval(async () => {
+        const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+        if (token && user) {
+          try {
+            await fetchCalendarEvents(token);
+          } catch {
+            // ignore refresh errors
+          }
+        }
+      }, 5 * 60 * 1000);
       return () => clearInterval(interval);
     } else {
-      // User not loaded yet - show calendar with empty data instead of infinite loading
       setCalendarLoading(false);
     }
   }, [user]);
@@ -194,7 +213,8 @@ export default function Dashboard() {
             Authorization: `Bearer ${token}`,
           },
         });
-        setRecords(res.data || []);
+        const data = res.data;
+        setRecords(Array.isArray(data) ? data : data?.records || data?.data || []);
       } catch (error) {
         console.error("Error fetching records:", error);
         setRecords([]);
@@ -250,66 +270,44 @@ export default function Dashboard() {
               <div className="flex gap-2 flex-wrap">
               <button
                   onClick={async () => {
-                    setSyncingToGoogle(true);
                     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
                     const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+                    if (!token) return;
+                    setRefreshing(true);
                     try {
-                      const res = await axios.post(`${baseUrl}/api/records/sync-google-calendar`, {}, {
-                        headers: { Authorization: `Bearer ${token}` },
-                      });
-                      if (res.data?.success) {
-                        alert(res.data.message || "Records synced to Google Calendar.");
-                        setCalendarLoading(true);
-                        const evRes = await axios.get(`${baseUrl}/auth/dashboard/calendar-events`, {
+                      if (calendarConnected) {
+                        await axios.post(`${baseUrl}/api/records/sync-google-calendar`, {}, {
                           headers: { Authorization: `Bearer ${token}` },
                         });
-                        if (evRes.data.connected) {
-                          setCalendarEvents(evRes.data.events || []);
-                          setCalendarConnected(true);
-                        }
-                        const recRes = await axios.get(`${baseUrl}/api/records`, {
-                          headers: { Authorization: `Bearer ${token}` },
-                        });
-                        setRecords(recRes.data || []);
                       }
+                      const [evRes, recRes] = await Promise.all([
+                        axios.get(`${baseUrl}/auth/dashboard/calendar-events`, {
+                          headers: { Authorization: `Bearer ${token}` },
+                        }),
+                        axios.get(`${baseUrl}/api/records`, {
+                          headers: { Authorization: `Bearer ${token}` },
+                        }),
+                      ]);
+                      if (evRes.data.connected) {
+                        setCalendarEvents(evRes.data.events || []);
+                        setCalendarConnected(true);
+                      } else {
+                        setCalendarEvents([]);
+                        setCalendarConnected(false);
+                      }
+                      const data = recRes.data;
+                      setRecords(Array.isArray(data) ? data : data?.records || data?.data || []);
                     } catch (error) {
-                      alert(error.response?.data?.message || "Failed to sync. Sign in with Google to enable.");
+                      console.error("Error refreshing:", error);
                     } finally {
-                      setSyncingToGoogle(false);
-                      setCalendarLoading(false);
+                      setRefreshing(false);
                     }
                   }}
-                  className="px-4 py-2 rounded-lg border border-emerald-200 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-200 text-sm font-semibold hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
-                  disabled={syncingToGoogle}
+                  className="px-4 py-2 rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200 text-sm font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                  disabled={refreshing}
                 >
-                  {syncingToGoogle ? "Syncing..." : "Sync Records to Google Calendar"}
-                </button>
-              {calendarConnected ? (
-              <button
-                  onClick={async () => {
-                    setCalendarLoading(true);
-                    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
-                    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-                    try {
-                      const res = await axios.get(`${baseUrl}/auth/dashboard/calendar-events`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                      });
-                      if (res.data.connected) {
-                        setCalendarEvents(res.data.events || []);
-                        setCalendarConnected(true);
-                      }
-                    } catch (error) {
-                      console.error("Error refreshing calendar:", error);
-                    } finally {
-                      setCalendarLoading(false);
-                  }
-                }}
-                  className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                  disabled={calendarLoading}
-                >
-                  {calendarLoading ? "Refreshing..." : "Refresh Calendar"}
+                  {refreshing ? "Refreshing..." : "Refresh"}
               </button>
-              ) : null}
               </div>
             </div>
 
@@ -319,10 +317,17 @@ export default function Dashboard() {
                 <div className="text-base text-gray-600 dark:text-gray-400 font-semibold mb-2">Loading calendar...</div>
               </div>
             ) : (
-              <CalendarView 
-                calendarEvents={calendarConnected ? calendarEvents : []}
-                records={records}
-              />
+              <>
+                {!recordsLoading && records.length === 0 && (
+                  <p className="text-sm text-amber-600 dark:text-amber-400 mb-3">
+                    No records yet. Create records from the <Link to="/records" className="underline font-medium">Records</Link> page to see them here.
+                  </p>
+                )}
+                <CalendarView 
+                  calendarEvents={calendarConnected ? calendarEvents : []}
+                  records={records}
+                />
+              </>
             )}
           </section>
 

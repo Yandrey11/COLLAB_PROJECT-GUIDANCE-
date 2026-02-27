@@ -3,7 +3,7 @@ import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
 import { google } from "googleapis";
-import User from "../models/User.js";
+import Counselor from "../models/Counselor.js";
 import GoogleUser from "../models/GoogleUser.js";
 import { encryptToken, decryptToken } from "../utils/tokenEncryption.js";
 import { createNotification } from "./admin/notificationController.js";
@@ -27,7 +27,7 @@ const getDriveClientFromUser = async (user) => {
 
   if (!accessToken) {
     const uid = user._id || user.id;
-    const dbUser = await User.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires");
+    const dbUser = await Counselor.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires");
     const googleUser = await GoogleUser.findById(uid);
     const source = dbUser?.googleCalendarAccessToken ? dbUser : googleUser?.googleCalendarAccessToken ? googleUser : null;
     if (source) {
@@ -50,7 +50,7 @@ const getDriveClientFromUser = async (user) => {
       const { credentials } = await oauth2Client.refreshAccessToken();
       oauth2Client.setCredentials(credentials);
       const uid = user._id || user.id;
-      const dbUser = await User.findById(uid);
+      const dbUser = await Counselor.findById(uid);
       const googleUser = await GoogleUser.findById(uid);
       const toUpdate = dbUser || googleUser;
       if (toUpdate) {
@@ -104,7 +104,7 @@ const getCalendarClientFromUser = async (user) => {
 
   if (!accessToken) {
     const uid = user._id || user.id;
-    const dbUser = await User.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires");
+    const dbUser = await Counselor.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires");
     const googleUser = await GoogleUser.findById(uid);
     const source = dbUser?.googleCalendarAccessToken ? dbUser : googleUser?.googleCalendarAccessToken ? googleUser : null;
     if (source) {
@@ -127,7 +127,7 @@ const getCalendarClientFromUser = async (user) => {
       const { credentials } = await oauth2Client.refreshAccessToken();
       oauth2Client.setCredentials(credentials);
       const uid = user._id || user.id;
-      const dbUser = await User.findById(uid);
+      const dbUser = await Counselor.findById(uid);
       const googleUser = await GoogleUser.findById(uid);
       const toUpdate = dbUser || googleUser;
       if (toUpdate) {

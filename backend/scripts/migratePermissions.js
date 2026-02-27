@@ -4,19 +4,25 @@
  * This script adds default permissions to all existing users in the database.
  * Run this script once after deploying the RBAC feature.
  * 
- * Usage:
+ * Usage (from project root):
  *   node backend/scripts/migratePermissions.js
  * 
- * Or with environment variables:
- *   MONGODB_URI=mongodb://localhost:27017/counseling_db node backend/scripts/migratePermissions.js
+ * Loads .env from backend folder. Uses MONGO_URI or MONGODB_URI.
  */
 
+import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__dirname, "../.env") });
+
 import mongoose from "mongoose";
-import User from "../models/User.js";
+import Counselor from "../models/Counselor.js";
 import GoogleUser from "../models/GoogleUser.js";
 import Admin from "../models/Admin.js";
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/counseling_db";
+const MONGODB_URI = process.env.MONGO_URI || process.env.MONGODB_URI || "mongodb://localhost:27017/counseling_db";
 
 async function migratePermissions() {
   try {
@@ -32,7 +38,7 @@ async function migratePermissions() {
 
     // Migrate regular Users
     console.log("\n📋 Migrating User collection...");
-    const users = await User.find({});
+    const users = await Counselor.find({});
     for (const user of users) {
       if (!user.permissions) {
         user.permissions = {};

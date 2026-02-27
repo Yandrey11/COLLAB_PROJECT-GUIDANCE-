@@ -33,7 +33,7 @@ const announcementSchema = new mongoose.Schema(
     targetCounselorIds: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "User",
+        ref: "Counselor",
       },
     ],
     isActive: {

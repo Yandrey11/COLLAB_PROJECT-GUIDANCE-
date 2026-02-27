@@ -1,4 +1,4 @@
-import User from "../models/User.js";
+import Counselor from "../models/Counselor.js";
 import Admin from "../models/Admin.js";
 import GoogleUser from "../models/GoogleUser.js";
 import jwt from "jsonwebtoken";
@@ -23,7 +23,7 @@ export const signup = async (req, res) => {
     }
 
     // Check if email already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await Counselor.findOne({ email });
     const existingAdmin = await Admin.findOne({ email });
     const existingGoogleUser = await GoogleUser.findOne({ email });
     if (existingUser || existingAdmin || existingGoogleUser) {
@@ -31,7 +31,7 @@ export const signup = async (req, res) => {
     }
 
     // Create new user (password automatically hashed via pre-save)
-    const newUser = new User({ name, email, password });
+    const newUser = new Counselor({ name, email, password });
     await newUser.save();
 
     // Generate JWT token

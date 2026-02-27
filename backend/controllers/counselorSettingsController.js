@@ -16,7 +16,7 @@ export const getSettings = async (req, res) => {
     }
 
     // Determine user model type
-    const userModel = user.googleId ? "GoogleUser" : "User";
+    const userModel = user.googleId ? "GoogleUser" : "Counselor";
     const userId = user._id;
 
     // Get or create settings
@@ -61,7 +61,7 @@ export const updateSettings = async (req, res) => {
     }
 
     // Determine user model type
-    const userModel = user.googleId ? "GoogleUser" : "User";
+    const userModel = user.googleId ? "GoogleUser" : "Counselor";
     const userId = user._id;
 
     const { display, notifications, googleCalendar, privacy } = req.body;
@@ -191,7 +191,7 @@ export const resetSettings = async (req, res) => {
       });
     }
 
-    const userModel = user.googleId ? "GoogleUser" : "User";
+    const userModel = user.googleId ? "GoogleUser" : "Counselor";
     const userId = user._id;
 
     let settings = await CounselorSettings.findOne({ userId, userModel });

@@ -1,6 +1,6 @@
 import AdminReport from "../../models/AdminReport.js";
 import Record from "../../models/Record.js";
-import User from "../../models/User.js";
+import Counselor from "../../models/Counselor.js";
 import Admin from "../../models/Admin.js";
 import Session from "../../models/Session.js";
 import AnalyticsEvent from "../../models/AnalyticsEvent.js";
@@ -87,7 +87,7 @@ const getUserInfo = (req) => {
     userId: req.admin?._id || req.user?._id,
     userName: req.admin?.name || req.admin?.email || req.user?.name || req.user?.email || "Unknown Admin",
     userEmail: req.admin?.email || req.user?.email || "unknown@example.com",
-    userModel: req.admin?._id ? "Admin" : "User",
+    userModel: req.admin?._id ? "Admin" : "Counselor",
   };
 };
 
@@ -97,7 +97,7 @@ const logActivity = async (req, activityType, description, metadata = {}) => {
     const userInfo = getUserInfo(req);
     const activityLog = new ActivityLog({
       userId: userInfo.userId,
-      userModel: userInfo.userModel === "Admin" ? "Admin" : "User",
+      userModel: userInfo.userModel === "Admin" ? "Admin" : "Counselor",
       userEmail: userInfo.userEmail,
       userName: userInfo.userName,
       activityType,
@@ -128,7 +128,7 @@ export const getReportsOverview = async (req, res) => {
     const ongoingSessions = await Record.countDocuments({ status: "Ongoing" });
 
     // Total Counselors
-    const totalCounselors = await User.countDocuments({ role: "counselor" });
+    const totalCounselors = await Counselor.countDocuments({ role: "counselor" });
 
     // Total Generated PDFs (records with driveLink)
     const totalPDFs = await Record.countDocuments({
@@ -298,7 +298,7 @@ export const generateReport = async (req, res) => {
         records = await Record.find(filter)
           .sort({ date: -1 })
           .lean();
-        const counselors = await User.find({ role: "counselor" }).lean();
+        const counselors = await Counselor.find({ role: "counselor" }).lean();
         statistics = {
           totalCounselors: counselors.length,
           totalRecords: records.length,
@@ -316,7 +316,7 @@ export const generateReport = async (req, res) => {
         };
         break;
       case "User Account Report":
-        const users = await User.find().lean();
+        const users = await Counselor.find().lean();
         const admins = await Admin.find().lean();
         statistics = {
           totalUsers: users.length,
@@ -1012,7 +1012,7 @@ export const downloadReport = async (req, res) => {
  */
 export const getCounselorsList = async (req, res) => {
   try {
-    const counselors = await User.find({ role: "counselor" })
+    const counselors = await Counselor.find({ role: "counselor" })
       .select("name email _id")
       .lean();
 

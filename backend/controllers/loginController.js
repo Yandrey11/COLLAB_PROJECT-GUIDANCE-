@@ -1,4 +1,4 @@
-import User from "../models/User.js";
+import Counselor from "../models/Counselor.js";
 import GoogleUser from "../models/GoogleUser.js";
 import jwt from "jsonwebtoken";
 import { createSession } from "./admin/sessionController.js";
@@ -12,7 +12,7 @@ export const login = async (req, res) => {
     }
 
     // ✅ Check if user exists in User collection (for email/password login)
-    let user = await User.findOne({ email });
+    let user = await Counselor.findOne({ email });
 
     // ✅ If not found in User collection, check if they're a Google-only user
     if (!user) {

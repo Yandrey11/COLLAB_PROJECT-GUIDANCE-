@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import User from "../models/User.js";
+import Counselor from "../models/Counselor.js";
 import GoogleUser from "../models/GoogleUser.js";
 import Admin from "../models/Admin.js";
 import Session from "../models/Session.js";
@@ -18,7 +18,7 @@ export const protect = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Try to find user in User collection first
-    let user = await User.findById(decoded.id).select("-password");
+    let user = await Counselor.findById(decoded.id).select("-password");
     
     // If not found, try GoogleUser collection (for Google OAuth users)
     if (!user) {

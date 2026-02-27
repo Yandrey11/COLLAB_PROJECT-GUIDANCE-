@@ -35,7 +35,7 @@ export const logAnalyticsEvent = async (eventData) => {
 
     if (user) {
       userId = user._id || user.id;
-      userModel = user.constructor?.modelName || "User";
+      userModel = user.constructor?.modelName || "Counselor";
       userName = user.name || user.userName || "Unknown";
       userEmail = user.email || user.userEmail || null;
       userRole = user.role || (user.permissions?.is_admin ? "admin" : "counselor");

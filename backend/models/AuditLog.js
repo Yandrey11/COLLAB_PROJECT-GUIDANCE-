@@ -10,7 +10,7 @@ const auditLogSchema = new mongoose.Schema(
     actorModel: {
       type: String,
       required: true,
-      enum: ["Admin", "User"],
+      enum: ["Admin", "Counselor"],
     },
     actorName: {
       type: String,
@@ -28,7 +28,7 @@ const auditLogSchema = new mongoose.Schema(
     targetModel: {
       type: String,
       required: true,
-      enum: ["User", "GoogleUser", "Admin"],
+      enum: ["Counselor", "GoogleUser", "Admin"],
     },
     targetUserName: {
       type: String,

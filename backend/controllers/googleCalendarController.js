@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import { google } from "googleapis";
-import User from "../models/User.js";
+import Counselor from "../models/Counselor.js";
 import { encryptToken, decryptToken } from "../utils/tokenEncryption.js";
 
 // Determine the redirect URI - use env variable or construct from backend URL
@@ -143,7 +143,7 @@ export const handleGoogleCalendarCallback = async (req, res) => {
     console.log("✅ Tokens received successfully");
     
     // Try to find user in User collection first
-    let user = await User.findById(state.userId);
+    let user = await Counselor.findById(state.userId);
     let saved = false;
     
     if (user) {
@@ -211,7 +211,7 @@ export const getDashboardCalendarEvents = async (req, res) => {
     // If not in req.user, try fetching from User or GoogleUser models
     if (!calendarAccessToken) {
       // Try User collection first
-      let user = await User.findById(req.user._id);
+      let user = await Counselor.findById(req.user._id);
       if (user && user.googleCalendarAccessToken) {
         calendarAccessToken = decryptToken(user.googleCalendarAccessToken);
         calendarRefreshToken = decryptToken(user.googleCalendarRefreshToken);
@@ -238,7 +238,7 @@ export const getDashboardCalendarEvents = async (req, res) => {
           
           // Also check User collection by email if we found a GoogleUser
           if (!user && googleUser.email) {
-            user = await User.findOne({ email: googleUser.email });
+            user = await Counselor.findOne({ email: googleUser.email });
             if (user && !user.googleCalendarAccessToken) {
               // Sync tokens to User model if it exists (store encrypted)
               user.googleCalendarAccessToken = encryptToken(calendarAccessToken);
@@ -278,7 +278,7 @@ export const getDashboardCalendarEvents = async (req, res) => {
         const newExpiry = credentials.expiry_date ? new Date(credentials.expiry_date) : new Date(Date.now() + 3600 * 1000);
         
         // Update tokens in the appropriate model (encrypt before saving)
-        let user = await User.findById(req.user._id);
+        let user = await Counselor.findById(req.user._id);
         if (user) {
           user.googleCalendarAccessToken = encryptToken(newAccessToken);
           if (newRefreshToken) {

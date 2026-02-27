@@ -1,4 +1,4 @@
-import User from "../../models/User.js";
+import Counselor from "../../models/Counselor.js";
 import GoogleUser from "../../models/GoogleUser.js";
 import Admin from "../../models/Admin.js";
 import AuditLog from "../../models/AuditLog.js";
@@ -10,8 +10,8 @@ export const getUserPermissions = async (req, res) => {
     const { userId } = req.params;
     
     // Find user in all collections
-    let user = await User.findById(userId);
-    let userType = "User";
+    let user = await Counselor.findById(userId);
+    let userType = "Counselor";
     
     if (!user) {
       user = await GoogleUser.findById(userId);
@@ -93,8 +93,8 @@ export const updateUserPermissions = async (req, res) => {
     }
 
     // Find user in all collections
-    let user = await User.findById(userId);
-    let userType = "User";
+    let user = await Counselor.findById(userId);
+    let userType = "Counselor";
     
     if (!user) {
       user = await GoogleUser.findById(userId);
@@ -114,7 +114,7 @@ export const updateUserPermissions = async (req, res) => {
     if (newPermissions.is_admin === false && user._id.toString() === actorAdmin._id.toString()) {
       // Check if this is the only admin
       const adminCount = await Admin.countDocuments({ "permissions.is_admin": true });
-      const userAdminCount = await User.countDocuments({ "permissions.is_admin": true, role: "admin" });
+      const userAdminCount = await Counselor.countDocuments({ "permissions.is_admin": true, role: "admin" });
       
       if (adminCount + userAdminCount <= 1) {
         return res.status(400).json({
@@ -126,7 +126,7 @@ export const updateUserPermissions = async (req, res) => {
     // Prevent removing is_admin from the only admin
     if (newPermissions.is_admin === false && user.permissions?.is_admin === true) {
       const adminCount = await Admin.countDocuments({ "permissions.is_admin": true });
-      const userAdminCount = await User.countDocuments({
+      const userAdminCount = await Counselor.countDocuments({
         "permissions.is_admin": true,
         role: "admin",
         _id: { $ne: user._id },

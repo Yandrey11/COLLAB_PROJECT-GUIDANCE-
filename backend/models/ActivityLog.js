@@ -10,7 +10,7 @@ const activityLogSchema = new mongoose.Schema(
     userModel: {
       type: String,
       required: true,
-      enum: ["User", "GoogleUser", "Admin"],
+      enum: ["Counselor", "GoogleUser", "Admin"],
     },
     userEmail: { type: String, required: true },
     userName: { type: String, required: true },

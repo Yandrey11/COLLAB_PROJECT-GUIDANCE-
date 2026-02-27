@@ -1,4 +1,4 @@
-import User from "../models/User.js";
+import Counselor from "../models/Counselor.js";
 import GoogleUser from "../models/GoogleUser.js";
 import ActivityLog from "../models/ActivityLog.js";
 import bcrypt from "bcryptjs";
@@ -21,7 +21,7 @@ const createActivityLog = async (req, activityType, description, metadata = {}) 
     
     await ActivityLog.create({
       userId: user._id,
-      userModel: user.googleId ? "GoogleUser" : "User",
+      userModel: user.googleId ? "GoogleUser" : "Counselor",
       userEmail: user.email,
       userName: user.name,
       activityType,
@@ -38,8 +38,8 @@ const createActivityLog = async (req, activityType, description, metadata = {}) 
 
 // Helper function to find user (check both User and GoogleUser collections)
 const findUserById = async (userId) => {
-  let user = await User.findById(userId);
-  let userModel = "User";
+  let user = await Counselor.findById(userId);
+  let userModel = "Counselor";
   
   if (!user) {
     user = await GoogleUser.findById(userId);
@@ -51,7 +51,7 @@ const findUserById = async (userId) => {
 
 // Helper function to save user based on model type
 const saveUser = async (user, userModel) => {
-  if (userModel === "User") {
+  if (userModel === "Counselor") {
     await user.save();
   } else if (userModel === "GoogleUser") {
     await user.save();
@@ -160,7 +160,7 @@ export const updateProfile = async (req, res) => {
       }
 
       // Check if email already exists (in both User and GoogleUser collections)
-      const existingUser = await User.findOne({ email, _id: { $ne: user._id } });
+      const existingUser = await Counselor.findOne({ email, _id: { $ne: user._id } });
       const existingGoogleUser = await GoogleUser.findOne({ email, _id: { $ne: user._id } });
 
       if (existingUser || existingGoogleUser) {

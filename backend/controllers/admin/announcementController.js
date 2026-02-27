@@ -47,9 +47,9 @@ export const createAnnouncement = async (req, res) => {
         });
       } else if (targetAudience === "specific" && targetCounselorIds.length > 0) {
         // Send to specific counselors
-        const User = (await import("../../models/User.js")).default;
+        const Counselor = (await import("../../models/Counselor.js")).default;
         for (const counselorId of targetCounselorIds) {
-          const counselor = await User.findById(counselorId);
+          const counselor = await Counselor.findById(counselorId);
           if (counselor && counselor.role === "counselor") {
             const { createCounselorNotification } = await import("../counselorNotificationController.js");
             await createCounselorNotification({

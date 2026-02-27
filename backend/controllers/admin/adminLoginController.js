@@ -1,6 +1,6 @@
 import jwt from "jsonwebtoken";
 import Admin from "../../models/Admin.js";
-import User from "../../models/User.js";
+import Counselor from "../../models/Counselor.js";
 import GoogleUser from "../../models/GoogleUser.js";
 import axios from "axios";
 
@@ -35,7 +35,7 @@ export const adminLogin = async (req, res) => {
 
     // If not found in Admin collection, check User collection for admin role
     if (!admin) {
-      const user = await User.findOne({ email });
+      const user = await Counselor.findOne({ email });
       
       if (user && user.role === "admin") {
         // User has admin role, treat as admin

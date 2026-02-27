@@ -1,4 +1,4 @@
-import User from "../../models/User.js";
+import Counselor from "../../models/Counselor.js";
 import GoogleUser from "../../models/GoogleUser.js";
 import Admin from "../../models/Admin.js";
 import Session from "../../models/Session.js";
@@ -8,16 +8,16 @@ import Notification from "../../models/Notification.js";
 export const getSummary = async (req, res) => {
   try {
     // Count all users from all collections
-    const totalRegularUsers = await User.countDocuments();
+    const totalRegularUsers = await Counselor.countDocuments();
     const totalGoogleUsers = await GoogleUser.countDocuments();
     const totalAdmins = await Admin.countDocuments();
     const totalUsers = totalRegularUsers + totalGoogleUsers + totalAdmins;
 
     // Count counselors (from User collection with role "counselor")
-    const totalCounselors = await User.countDocuments({ role: "counselor" });
+    const totalCounselors = await Counselor.countDocuments({ role: "counselor" });
 
     // Count admins (from Admin collection + User collection with role "admin")
-    const adminsInUserCollection = await User.countDocuments({ role: "admin" });
+    const adminsInUserCollection = await Counselor.countDocuments({ role: "admin" });
     const totalAdminAccounts = totalAdmins + adminsInUserCollection;
 
     // Get active sessions to determine online/offline counts
@@ -27,7 +27,7 @@ export const getSummary = async (req, res) => {
 
     // Count active users (users with active sessions)
     // We need to check all collections
-    const allRegularUsers = await User.find().select("_id email").lean();
+    const allRegularUsers = await Counselor.find().select("_id email").lean();
     const allGoogleUsers = await GoogleUser.find().select("_id email").lean();
     const allAdmins = await Admin.find().select("_id email").lean();
 

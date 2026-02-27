@@ -43,7 +43,7 @@ const analyticsEventSchema = new mongoose.Schema(
     },
     userModel: {
       type: String,
-      enum: ["User", "GoogleUser", "Admin"],
+      enum: ["Counselor", "GoogleUser", "Admin"],
     },
     userName: {
       type: String,

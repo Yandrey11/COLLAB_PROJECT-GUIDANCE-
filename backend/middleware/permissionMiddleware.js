@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import User from "../models/User.js";
+import Counselor from "../models/Counselor.js";
 import GoogleUser from "../models/GoogleUser.js";
 import Admin from "../models/Admin.js";
 import AuditLog from "../models/AuditLog.js";
@@ -22,7 +22,7 @@ export const authorize = (requiredPermission) => {
           const decoded = jwt.verify(token, process.env.JWT_SECRET);
           
           // Try to find user in all collections
-          user = await User.findById(decoded.id).select("-password");
+          user = await Counselor.findById(decoded.id).select("-password");
           
           if (!user) {
             user = await GoogleUser.findById(decoded.id);
@@ -66,11 +66,11 @@ export const authorize = (requiredPermission) => {
         try {
           await AuditLog.create({
             actorAdminId: user._id,
-            actorModel: user.constructor.modelName || "User",
+            actorModel: user.constructor.modelName || "Counselor",
             actorName: user.name || user.email,
             actorEmail: user.email,
             targetUserId: user._id,
-            targetModel: user.constructor.modelName || "User",
+            targetModel: user.constructor.modelName || "Counselor",
             targetUserName: user.name || user.email,
             targetUserEmail: user.email,
             action: "permission_denied",
@@ -130,7 +130,7 @@ export const authorizeAll = (requiredPermissions) => {
           const token = authHeader.split(" ")[1];
           const decoded = jwt.verify(token, process.env.JWT_SECRET);
           
-          user = await User.findById(decoded.id).select("-password");
+          user = await Counselor.findById(decoded.id).select("-password");
           if (!user) {
             user = await GoogleUser.findById(decoded.id);
           }
@@ -163,11 +163,11 @@ export const authorizeAll = (requiredPermissions) => {
         try {
           await AuditLog.create({
             actorAdminId: user._id,
-            actorModel: user.constructor.modelName || "User",
+            actorModel: user.constructor.modelName || "Counselor",
             actorName: user.name || user.email,
             actorEmail: user.email,
             targetUserId: user._id,
-            targetModel: user.constructor.modelName || "User",
+            targetModel: user.constructor.modelName || "Counselor",
             targetUserName: user.name || user.email,
             targetUserEmail: user.email,
             action: "permission_denied",
@@ -215,7 +215,7 @@ export const authorizeAny = (requiredPermissions) => {
           const token = authHeader.split(" ")[1];
           const decoded = jwt.verify(token, process.env.JWT_SECRET);
           
-          user = await User.findById(decoded.id).select("-password");
+          user = await Counselor.findById(decoded.id).select("-password");
           if (!user) {
             user = await GoogleUser.findById(decoded.id);
           }
@@ -248,11 +248,11 @@ export const authorizeAny = (requiredPermissions) => {
         try {
           await AuditLog.create({
             actorAdminId: user._id,
-            actorModel: user.constructor.modelName || "User",
+            actorModel: user.constructor.modelName || "Counselor",
             actorName: user.name || user.email,
             actorEmail: user.email,
             targetUserId: user._id,
-            targetModel: user.constructor.modelName || "User",
+            targetModel: user.constructor.modelName || "Counselor",
             targetUserName: user.name || user.email,
             targetUserEmail: user.email,
             action: "permission_denied",

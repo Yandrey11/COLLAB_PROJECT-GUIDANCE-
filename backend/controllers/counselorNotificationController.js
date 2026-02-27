@@ -1,5 +1,5 @@
 import CounselorNotification from "../models/CounselorNotification.js";
-import User from "../models/User.js";
+import Counselor from "../models/Counselor.js";
 
 // Get all notifications for a specific counselor with filters and pagination
 export const getCounselorNotifications = async (req, res) => {
@@ -319,7 +319,7 @@ export const createNotificationForAllCounselors = async (data) => {
     const { title, description, category, priority, metadata, relatedId, relatedType, isAnnouncement, announcementId } = data;
 
     // Get all counselors
-    const counselors = await User.find({ role: "counselor" }).select("_id email").lean();
+    const counselors = await Counselor.find({ role: "counselor" }).select("_id email").lean();
 
     if (!counselors || counselors.length === 0) {
       console.log("⚠️ No counselors found to send notification to");

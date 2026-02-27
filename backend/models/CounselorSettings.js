@@ -11,7 +11,7 @@ const counselorSettingsSchema = new mongoose.Schema(
     userModel: {
       type: String,
       required: true,
-      enum: ["User", "GoogleUser"],
+      enum: ["Counselor", "GoogleUser"],
     },
     userEmail: {
       type: String,

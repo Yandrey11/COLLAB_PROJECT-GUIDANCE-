@@ -1,4 +1,4 @@
-import User from "../models/User.js";
+import Counselor from "../models/Counselor.js";
 import Admin from "../models/Admin.js";
 import GoogleUser from "../models/GoogleUser.js";
 import jwt from "jsonwebtoken";
@@ -15,7 +15,7 @@ export const signupUser = async (req, res) => {
     const { name, email, password } = req.body;
 
     // ✅ Check if user already exists (in any collection)
-    const existingUser = await User.findOne({ email });
+    const existingUser = await Counselor.findOne({ email });
     const existingAdmin = await Admin.findOne({ email });
     const existingGoogleUser = await GoogleUser.findOne({ email });
     if (existingUser || existingAdmin || existingGoogleUser)
@@ -104,7 +104,7 @@ export const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     // ✅ Find user by email
-    const user = await User.findOne({ email });
+    const user = await Counselor.findOne({ email });
     if (!user)
       return res.status(400).json({ message: "Invalid email or password" });
 
@@ -124,7 +124,7 @@ export const loginUser = async (req, res) => {
       const synced = await syncCalendarTokensFromGoogleUser(email, user);
       if (synced) {
         // Reload user from database to get updated tokens
-        const refreshedUser = await User.findById(user._id);
+        const refreshedUser = await Counselor.findById(user._id);
         if (refreshedUser?.googleCalendarAccessToken) {
           console.log(`✅ Google Calendar automatically connected for ${email} based on email match`);
         }
@@ -186,14 +186,14 @@ export const getCurrentUser = async (req, res) => {
     }
 
     // ✅ Try to find user in User collection first
-    let user = await User.findById(userIdToSearch).select("-password");
+    let user = await Counselor.findById(userIdToSearch).select("-password");
     if (user) {
       console.log(`✅ Found user in User collection: ${user.email}`);
     }
     
     // ✅ If not found, check GoogleUser collection (for Google OAuth users)
     if (!user) {
-      console.log(`🔍 User not found in User collection, checking GoogleUser...`);
+      console.log(`🔍 User not found in Counselor collection, checking GoogleUser...`);
       let googleUser = await GoogleUser.findById(userIdToSearch);
       
       if (googleUser) {
@@ -257,7 +257,7 @@ export const getCurrentUser = async (req, res) => {
     if (user && typeof user.save === 'function' && !user.googleCalendarAccessToken && user.email) {
       await syncCalendarTokensFromGoogleUser(user.email, user);
       // Reload to get updated tokens
-      const refreshedUser = await User.findById(decoded.id).select("-password");
+      const refreshedUser = await Counselor.findById(decoded.id).select("-password");
       if (refreshedUser?.googleCalendarAccessToken) {
         console.log(`✅ Auto-synced calendar tokens for ${user.email}`);
         user = refreshedUser;

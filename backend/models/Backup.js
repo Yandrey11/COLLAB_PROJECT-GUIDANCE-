@@ -24,7 +24,7 @@ const backupSchema = new mongoose.Schema(
       },
       adminModel: {
         type: String,
-        enum: ["Admin", "User"],
+        enum: ["Admin", "Counselor"],
         default: "Admin",
       },
       adminName: { type: String, required: true },
@@ -83,7 +83,7 @@ const backupSchema = new mongoose.Schema(
       },
       adminModel: {
         type: String,
-        enum: ["Admin", "User"],
+        enum: ["Admin", "Counselor"],
       },
       adminName: { type: String },
       adminEmail: { type: String },
