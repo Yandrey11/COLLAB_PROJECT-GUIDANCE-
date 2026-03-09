@@ -260,8 +260,8 @@ export const createUser = async (req, res) => {
       await newAccount.save();
       accountType = "admin";
     } else {
-      // Save to User collection (for counselor roles)
-      newAccount = new User({
+      // Save to Counselor collection (for counselor roles)
+      newAccount = new Counselor({
         name,
         email,
         password: tempPassword, // Temporary password, will be changed
@@ -490,10 +490,10 @@ export const deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // Check all collections: User, GoogleUser, Admin
+    // Check all collections: Counselor, GoogleUser, Admin
     let user = await Counselor.findById(userId);
     let userType = "regular";
-    let collection = User;
+    let collection = Counselor;
     
     if (!user) {
       user = await GoogleUser.findById(userId);
@@ -649,7 +649,7 @@ export const resetUserPassword = async (req, res) => {
           await user.save();
           userType = "admin";
         } else {
-          user = new User({
+          user = new Counselor({
             name: googleUser.name,
             email: googleUser.email,
             password: tempPassword,

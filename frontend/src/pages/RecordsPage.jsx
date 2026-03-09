@@ -3,7 +3,7 @@ import axios from "axios";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { NotificationBadgeBadge } from "../components/NotificationBadge";
 import CounselorSidebar from "../components/CounselorSidebar";
@@ -60,6 +60,7 @@ const RecordsPage = () => {
       }
     };
   }, []);
+  const location = useLocation();
   const navigate = useNavigate();
   const [records, setRecords] = useState([]);
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -349,6 +350,21 @@ const RecordsPage = () => {
     }
   };
 
+  const handleConnectGoogleDrive = () => {
+    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+    if (!token) {
+      Swal.fire({
+        icon: "warning",
+        title: "Login Required",
+        text: "Please log in first to connect Google Drive.",
+      });
+      navigate("/login");
+      return;
+    }
+
+    window.location.href = `${BASE_URL}/auth/drive?token=${encodeURIComponent(token)}`;
+  };
+
   // Fetch lock status for a record (counselor endpoint)
   const fetchLockStatus = async (recordId) => {
     try {
@@ -551,6 +567,40 @@ const RecordsPage = () => {
 
     syncDrive();
   }, [user, hasPermission]);
+
+  // Handle Google Drive OAuth redirect result
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const success = params.get("success");
+    const error = params.get("error");
+
+    if (!success && !error) return;
+
+    if (success === "drive_connected") {
+      Swal.fire({
+        icon: "success",
+        title: "Google Drive Connected",
+        text: "Your account is now connected to Google Drive.",
+        timer: 2200,
+        showConfirmButton: false,
+      });
+
+      hasAutoSyncedDriveRef.current = false;
+      fetchUserInfo();
+      fetchRecords();
+    }
+
+    if (error) {
+      Swal.fire({
+        icon: "error",
+        title: "Drive Connection Failed",
+        text: "Unable to connect Google Drive. Please try again.",
+      });
+    }
+
+    navigate("/records", { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, navigate]);
   
   // Show error page if no permission (after user is loaded)
   // Show immediately when permission is denied
@@ -1107,6 +1157,16 @@ const RecordsPage = () => {
             >
               {user?.name || user?.email || "Not logged in"}
             </span>
+            {!user?.isGoogleUser && !user?.isDriveConnected && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleConnectGoogleDrive}
+                className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+              >
+                Connect Google Drive
+              </motion.button>
+            )}
             </div>
           </div>
         </motion.div>

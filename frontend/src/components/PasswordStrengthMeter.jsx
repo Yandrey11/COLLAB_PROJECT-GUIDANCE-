@@ -124,19 +124,6 @@ export default function PasswordStrengthMeter({ password, email = "", name = "" 
         )}
       </div>
 
-      {/* Helpful Hints for Weak Passwords */}
-      {validation.strength === "Weak" && password.length > 0 && (
-        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <p className="text-xs font-semibold text-blue-900 dark:text-blue-200 mb-1.5">
-            Tips for a stronger password:
-          </p>
-          <ul className="text-xs text-blue-800 dark:text-blue-300 space-y-1 list-disc list-inside">
-            {validation.hints.slice(0, 3).map((hint, index) => (
-              <li key={index}>{hint}</li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }

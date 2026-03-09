@@ -18,6 +18,7 @@ export default function BackupRestore() {
   const [backups, setBackups] = useState([]);
   const [creatingBackup, setCreatingBackup] = useState(false);
   const [restoringId, setRestoringId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [pagination, setPagination] = useState({
     page: 1,
@@ -230,6 +231,64 @@ export default function BackupRestore() {
         title: "Error",
         text: error.response?.data?.message || "Failed to download backup",
       });
+    }
+  };
+
+  const handleDeleteBackup = async (backupId, backupName) => {
+    const result = await Swal.fire({
+      title: "Delete Backup?",
+      html: `
+        <div style="text-align: left;">
+          <p><strong>You are about to delete:</strong></p>
+          <p style="color: #dc2626; font-weight: bold;">${backupName}</p>
+          <br/>
+          <p>This will permanently remove backup metadata and stored backup collections.</p>
+          <p style="color: #dc2626; font-weight: bold;">This action cannot be undone.</p>
+        </div>
+      `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, delete backup",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      setDeletingId(backupId);
+      const token = localStorage.getItem("adminToken");
+      const res = await axios.delete(`${BASE_URL}/api/admin/backups/${backupId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.data?.success) {
+        await Swal.fire({
+          icon: "success",
+          title: "Deleted",
+          text: "Backup deleted successfully",
+          timer: 1800,
+          showConfirmButton: false,
+        });
+
+        // If we deleted the last item on a page, move back one page when possible.
+        if (backups.length === 1 && pagination.page > 1) {
+          setPagination((prev) => ({ ...prev, page: prev.page - 1 }));
+        } else {
+          fetchBackups();
+        }
+      }
+    } catch (error) {
+      console.error("Error deleting backup:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: error.response?.data?.message || "Failed to delete backup",
+      });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -467,6 +526,20 @@ export default function BackupRestore() {
                             {restoringId === (backup._id || backup.backupId)
                               ? "Restoring..."
                               : "Restore"}
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleDeleteBackup(
+                                backup._id || backup.backupId,
+                                backup.backupName || backup.backupId
+                              )
+                            }
+                            disabled={deletingId === (backup._id || backup.backupId)}
+                            className="px-2 py-1 text-xs rounded-lg bg-gray-800 text-white font-medium hover:bg-black dark:bg-gray-600 dark:hover:bg-gray-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {deletingId === (backup._id || backup.backupId)
+                              ? "Deleting..."
+                              : "Delete"}
                           </button>
                         </div>
                       </td>

@@ -215,6 +215,8 @@ export const getCurrentUser = async (req, res) => {
           email: googleUser.email,
           role: googleUser.role || "counselor",
           googleId: googleUser.googleId,
+          googleCalendarAccessToken: googleUser.googleCalendarAccessToken || null,
+          googleCalendarRefreshToken: googleUser.googleCalendarRefreshToken || null,
         };
       } else {
         // Try to find by email as fallback (in case ID format doesn't match)
@@ -230,6 +232,8 @@ export const getCurrentUser = async (req, res) => {
               email: googleUserByEmail.email,
               role: googleUserByEmail.role || "counselor",
               googleId: googleUserByEmail.googleId,
+              googleCalendarAccessToken: googleUserByEmail.googleCalendarAccessToken || null,
+              googleCalendarRefreshToken: googleUserByEmail.googleCalendarRefreshToken || null,
             };
           }
         }
@@ -264,12 +268,18 @@ export const getCurrentUser = async (req, res) => {
       }
     }
 
+    const isGoogleUser = Boolean(user.googleId);
+    const isDriveConnected = Boolean(user.googleCalendarAccessToken || user.googleCalendarRefreshToken);
+
     res.status(200).json({
       user: {
         id: user._id || user.id,
         name: user.name,
         email: user.email,
         role: user.role || "counselor",
+        googleId: user.googleId || null,
+        isGoogleUser,
+        isDriveConnected,
       },
     });
   } catch (err) {

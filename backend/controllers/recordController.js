@@ -18,6 +18,57 @@ const getOAuth2Client = () =>
     process.env.GOOGLE_CALLBACK_URL || "http://localhost:5000/auth/google/callback"
   );
 
+// Fallback Drive client using a system OAuth refresh token.
+// This allows automatic uploads to a single configured Google account's Drive.
+const getSystemOAuthDriveClient = async () => {
+  try {
+    const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+    if (!refreshToken) {
+      return null;
+    }
+
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_DRIVE_REDIRECT_URI || process.env.GOOGLE_CALLBACK_URL || "http://localhost:5000/auth/google/callback"
+    );
+
+    oauth2Client.setCredentials({ refresh_token: refreshToken });
+
+    // Validate token grant early so invalid refresh tokens don't fail later during file upload.
+    await oauth2Client.getAccessToken();
+
+    return google.drive({ version: "v3", auth: oauth2Client });
+  } catch (error) {
+    console.error("❌ Failed to initialize system OAuth Drive client:", error.message);
+    return null;
+  }
+};
+
+// Fallback Drive client using service account credentials.
+// This allows Drive uploads even when the current user has no Google OAuth tokens.
+const getServiceAccountDriveClient = async () => {
+  try {
+    const serviceAccountPath = path.join(process.cwd(), "config", "google-service-account.json");
+    if (!fs.existsSync(serviceAccountPath)) {
+      return null;
+    }
+
+    const serviceAccountRaw = fs.readFileSync(serviceAccountPath, "utf8");
+    const serviceAccount = JSON.parse(serviceAccountRaw);
+
+    const auth = new google.auth.GoogleAuth({
+      credentials: serviceAccount,
+      scopes: ["https://www.googleapis.com/auth/drive.file"],
+    });
+
+    return google.drive({ version: "v3", auth });
+  } catch (error) {
+    console.error("❌ Failed to initialize service account Drive client:", error.message);
+    return null;
+  }
+};
+
 // Get Drive client from user's Google tokens (auto-connected when user logs in with Google)
 const getDriveClientFromUser = async (user) => {
   if (!user) return null;
@@ -27,9 +78,22 @@ const getDriveClientFromUser = async (user) => {
 
   if (!accessToken) {
     const uid = user._id || user.id;
-    const dbUser = await Counselor.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires");
-    const googleUser = await GoogleUser.findById(uid);
-    const source = dbUser?.googleCalendarAccessToken ? dbUser : googleUser?.googleCalendarAccessToken ? googleUser : null;
+    const email = user.email;
+    const dbUser = await Counselor.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires email");
+    const googleUser = await GoogleUser.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires email");
+    let source = dbUser?.googleCalendarAccessToken ? dbUser : googleUser?.googleCalendarAccessToken ? googleUser : null;
+
+    // Fallback by email to support accounts created locally then linked via Google.
+    if (!source && email) {
+      const byEmailCounselor = await Counselor.findOne({ email }).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires email");
+      const byEmailGoogleUser = await GoogleUser.findOne({ email }).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires email");
+      source = byEmailCounselor?.googleCalendarAccessToken
+        ? byEmailCounselor
+        : byEmailGoogleUser?.googleCalendarAccessToken
+        ? byEmailGoogleUser
+        : null;
+    }
+
     if (source) {
       accessToken = decryptToken(source.googleCalendarAccessToken);
       refreshToken = decryptToken(source.googleCalendarRefreshToken);
@@ -37,7 +101,19 @@ const getDriveClientFromUser = async (user) => {
     }
   }
 
-  if (!accessToken) return null;
+  if (!accessToken) {
+    const systemDrive = await getSystemOAuthDriveClient();
+    if (systemDrive) {
+      console.warn("⚠️ Using system OAuth Drive fallback (user not connected via Google OAuth)");
+      return systemDrive;
+    }
+
+    const serviceDrive = await getServiceAccountDriveClient();
+    if (serviceDrive) {
+      console.warn("⚠️ Using service account Drive fallback (user not connected via Google OAuth)");
+    }
+    return serviceDrive;
+  }
 
   const oauth2Client = getOAuth2Client();
   oauth2Client.setCredentials({
@@ -50,9 +126,15 @@ const getDriveClientFromUser = async (user) => {
       const { credentials } = await oauth2Client.refreshAccessToken();
       oauth2Client.setCredentials(credentials);
       const uid = user._id || user.id;
+      const email = user.email;
       const dbUser = await Counselor.findById(uid);
       const googleUser = await GoogleUser.findById(uid);
-      const toUpdate = dbUser || googleUser;
+      let toUpdate = dbUser || googleUser;
+
+      if (!toUpdate && email) {
+        toUpdate = (await Counselor.findOne({ email })) || (await GoogleUser.findOne({ email }));
+      }
+
       if (toUpdate) {
         toUpdate.googleCalendarAccessToken = encryptToken(credentials.access_token);
         if (credentials.refresh_token) toUpdate.googleCalendarRefreshToken = encryptToken(credentials.refresh_token);
@@ -61,7 +143,17 @@ const getDriveClientFromUser = async (user) => {
       }
     } catch (err) {
       console.error("Token refresh failed:", err);
-      return null;
+      const systemDrive = await getSystemOAuthDriveClient();
+      if (systemDrive) {
+        console.warn("⚠️ Token refresh failed. Falling back to system OAuth Drive client");
+        return systemDrive;
+      }
+
+      const serviceDrive = await getServiceAccountDriveClient();
+      if (serviceDrive) {
+        console.warn("⚠️ Token refresh failed. Falling back to service account Drive client");
+      }
+      return serviceDrive;
     }
   }
 
@@ -95,6 +187,73 @@ const getOrCreateCounselingFolder = async (drive) => {
   }
 };
 
+const isDriveAuthError = (error) => {
+  const message = String(error?.message || "").toLowerCase();
+  const description = String(error?.response?.data?.error_description || "").toLowerCase();
+  const status = error?.status || error?.code || error?.response?.status;
+
+  return (
+    status === 401 ||
+    message.includes("invalid_grant") ||
+    description.includes("invalid grant") ||
+    message.includes("account not found") ||
+    description.includes("account not found")
+  );
+};
+
+// Upload with robust retry behavior using a fresh file stream on each attempt.
+// Reusing a consumed stream can cause ERR_STREAM_PUSH_AFTER_EOF.
+const uploadPdfToDriveWithFolderFallback = async ({ drive, fileName, pdfPath, folderId }) => {
+  const createDriveFile = async (parentFolderId = null) => {
+    const resource = parentFolderId
+      ? { name: fileName, parents: [parentFolderId] }
+      : { name: fileName };
+
+    return drive.files.create({
+      resource,
+      media: {
+        mimeType: "application/pdf",
+        body: fs.createReadStream(pdfPath),
+      },
+      fields: "id, webViewLink",
+    });
+  };
+
+  try {
+    return await createDriveFile(folderId || null);
+  } catch (folderErr) {
+    if (isDriveAuthError(folderErr)) {
+      throw folderErr;
+    }
+
+    const folderIssue = Boolean(folderId) && (
+      folderErr.code === 404 ||
+      folderErr.code === 403 ||
+      String(folderErr.message || "").toLowerCase().includes("not found")
+    );
+
+    if (!folderIssue) {
+      throw folderErr;
+    }
+
+    console.warn("⚠️ Drive folder not accessible, creating Counseling Records folder in user's Drive");
+    const userFolderId = await getOrCreateCounselingFolder(drive);
+
+    if (userFolderId) {
+      try {
+        return await createDriveFile(userFolderId);
+      } catch (retryErr) {
+        if (isDriveAuthError(retryErr)) {
+          throw retryErr;
+        }
+      }
+    }
+
+    // Final fallback: upload to root without a parent folder.
+    return createDriveFile(null);
+  }
+};
+
 // Get Calendar client from user's Google tokens (for syncing records to Google Calendar)
 const getCalendarClientFromUser = async (user) => {
   if (!user) return null;
@@ -104,9 +263,22 @@ const getCalendarClientFromUser = async (user) => {
 
   if (!accessToken) {
     const uid = user._id || user.id;
-    const dbUser = await Counselor.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires");
-    const googleUser = await GoogleUser.findById(uid);
-    const source = dbUser?.googleCalendarAccessToken ? dbUser : googleUser?.googleCalendarAccessToken ? googleUser : null;
+    const email = user.email;
+    const dbUser = await Counselor.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires email");
+    const googleUser = await GoogleUser.findById(uid).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires email");
+    let source = dbUser?.googleCalendarAccessToken ? dbUser : googleUser?.googleCalendarAccessToken ? googleUser : null;
+
+    // Fallback by email to support accounts created locally then linked via Google.
+    if (!source && email) {
+      const byEmailCounselor = await Counselor.findOne({ email }).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires email");
+      const byEmailGoogleUser = await GoogleUser.findOne({ email }).select("googleCalendarAccessToken googleCalendarRefreshToken googleCalendarTokenExpires email");
+      source = byEmailCounselor?.googleCalendarAccessToken
+        ? byEmailCounselor
+        : byEmailGoogleUser?.googleCalendarAccessToken
+        ? byEmailGoogleUser
+        : null;
+    }
+
     if (source) {
       accessToken = decryptToken(source.googleCalendarAccessToken);
       refreshToken = decryptToken(source.googleCalendarRefreshToken);
@@ -127,9 +299,15 @@ const getCalendarClientFromUser = async (user) => {
       const { credentials } = await oauth2Client.refreshAccessToken();
       oauth2Client.setCredentials(credentials);
       const uid = user._id || user.id;
+      const email = user.email;
       const dbUser = await Counselor.findById(uid);
       const googleUser = await GoogleUser.findById(uid);
-      const toUpdate = dbUser || googleUser;
+      let toUpdate = dbUser || googleUser;
+
+      if (!toUpdate && email) {
+        toUpdate = (await Counselor.findOne({ email })) || (await GoogleUser.findOne({ email }));
+      }
+
       if (toUpdate) {
         toUpdate.googleCalendarAccessToken = encryptToken(credentials.access_token);
         if (credentials.refresh_token) toUpdate.googleCalendarRefreshToken = encryptToken(credentials.refresh_token);
@@ -495,8 +673,9 @@ const generateTrackingNumber = () => {
 const addRecordHeaderFooter = (doc, pageNum, totalPages, trackingNumber, reportDate) => {
   const pageWidth = doc.page.width;
   const pageHeight = doc.page.height;
-  const headerHeight = 55;
+  const headerHeight = 60;
   const footerHeight = 60;
+  const sidePadding = 14;
 
   // Header - Blue background
   doc.fillColor('#667eea');
@@ -504,18 +683,18 @@ const addRecordHeaderFooter = (doc, pageNum, totalPages, trackingNumber, reportD
   
   // Header text in white
   doc.fillColor('#ffffff');
-  doc.fontSize(16)
+  doc.fontSize(14)
      .font('Helvetica-Bold')
-     .text("COUNSELING RECORD", pageWidth / 6, 6, { align: 'left' });
+     .text("COUNSELING RECORDS REPORT", 0, 10, {
+       width: pageWidth,
+       align: 'center'
+     });
   
   doc.fontSize(9)
      .font('Helvetica')
      .fillColor('#ffffff');
-  doc.text(`Document Tracking: ${trackingNumber}`, 14, 38);
-  doc.text(`Date: ${reportDate}`, 14, 38, { 
-    width: pageWidth - 28, 
-    align: 'right' 
-  });
+  doc.text(`Document Tracking: ${trackingNumber}`, sidePadding, 43);
+  doc.text(`Date: ${reportDate}`, pageWidth - sidePadding, 43, { align: 'right' });
   
   // Footer - Blue background
   doc.fillColor('#667eea');
@@ -874,44 +1053,8 @@ const uploadRecordToDrive = async (record, req) => {
 
     // ✅ Upload PDF to Google Drive (to logged-in user's account)
     const fileName = `${sanitizedCounselorName}_${record.clientName.replace(/\s+/g, '_')}_record_${trackingNumber}.pdf`;
-    const media = {
-      mimeType: "application/pdf",
-      body: fs.createReadStream(pdfPath),
-    };
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-
-    let file;
-    try {
-      file = await drive.files.create({
-        resource: {
-          name: fileName,
-          parents: folderId ? [folderId] : [],
-        },
-        media,
-        fields: "id, webViewLink",
-      });
-    } catch (folderErr) {
-      // Fallback: create "Counseling Records" folder in user's Drive if configured folder fails
-      if (folderId && (folderErr.code === 404 || folderErr.code === 403 || String(folderErr.message || "").includes("not found"))) {
-        console.warn("⚠️ Drive folder not accessible, creating Counseling Records folder in user's Drive");
-        const userFolderId = await getOrCreateCounselingFolder(drive);
-        if (userFolderId) {
-          file = await drive.files.create({
-            resource: { name: fileName, parents: [userFolderId] },
-            media,
-            fields: "id, webViewLink",
-          });
-        } else {
-          file = await drive.files.create({
-            resource: { name: fileName },
-            media,
-            fields: "id, webViewLink",
-          });
-        }
-      } else {
-        throw folderErr;
-      }
-    }
+    const file = await uploadPdfToDriveWithFolderFallback({ drive, fileName, pdfPath, folderId });
 
     const driveLink = file.data.webViewLink;
 
@@ -1375,43 +1518,8 @@ export const uploadToDrive = async (req, res) => {
 
     // ✅ Upload PDF to Google Drive (to logged-in user's account)
     const fileName = `${sanitizedCounselorName}_${record.clientName.replace(/\s+/g, '_')}_record_${trackingNumber}.pdf`;
-    const media = {
-      mimeType: "application/pdf",
-      body: fs.createReadStream(pdfPath),
-    };
     const folderId = process.env.GOOGLE_DRIVE_FOLDER_ID;
-
-    let file;
-    try {
-      file = await drive.files.create({
-        resource: {
-          name: fileName,
-          parents: folderId ? [folderId] : [],
-        },
-        media,
-        fields: "id, webViewLink",
-      });
-    } catch (folderErr) {
-      if (folderId && (folderErr.code === 404 || folderErr.code === 403 || String(folderErr.message || "").includes("not found"))) {
-        console.warn("⚠️ Drive folder not accessible, creating Counseling Records folder in user's Drive");
-        const userFolderId = await getOrCreateCounselingFolder(drive);
-        if (userFolderId) {
-          file = await drive.files.create({
-            resource: { name: fileName, parents: [userFolderId] },
-            media,
-            fields: "id, webViewLink",
-          });
-        } else {
-          file = await drive.files.create({
-            resource: { name: fileName },
-            media,
-            fields: "id, webViewLink",
-          });
-        }
-      } else {
-        throw folderErr;
-      }
-    }
+    const file = await uploadPdfToDriveWithFolderFallback({ drive, fileName, pdfPath, folderId });
 
     const driveLink = file.data.webViewLink;
 
