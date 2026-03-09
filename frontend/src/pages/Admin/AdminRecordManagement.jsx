@@ -767,7 +767,7 @@ export default function AdminRecordManagement() {
               Records ({totalRecords})
             </h2>
             <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-              <label style={{ fontWeight: "600", color: "#4a5568" }}>Page Size:</label>
+              <label style={{ fontWeight: "600", color: "var(--text-secondary)" }}>Page Size:</label>
               <select
                 value={pageSize}
                 onChange={(e) => {
@@ -776,7 +776,7 @@ export default function AdminRecordManagement() {
                 }}
                 style={{
                   padding: "8px",
-                  border: "1px solid #e2e8f0",
+                  border: "1px solid var(--muted-surface)",
                   borderRadius: "8px",
                   fontSize: "14px",
                 }}
@@ -790,9 +790,9 @@ export default function AdminRecordManagement() {
           </div>
 
           {loading ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "#718096" }}>Loading records...</div>
+            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>Loading records...</div>
           ) : records.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "#718096" }}>No records found</div>
+            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>No records found</div>
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table className="w-full border-collapse">
@@ -1138,7 +1138,7 @@ export default function AdminRecordManagement() {
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               style={{
-                background: "white",
+                background: "var(--surface-color)",
                 borderRadius: "12px",
                 padding: "30px",
                 maxWidth: "800px",
@@ -1149,7 +1149,7 @@ export default function AdminRecordManagement() {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                <h2 style={{ fontSize: "24px", fontWeight: "700", margin: 0, color: "#1a202c" }}>
+                <h2 style={{ fontSize: "24px", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
                   Record Details
                 </h2>
                 <button
@@ -1159,7 +1159,7 @@ export default function AdminRecordManagement() {
                     border: "none",
                     fontSize: "24px",
                     cursor: "pointer",
-                    color: "#718096",
+                    color: "var(--text-secondary)",
                   }}
                 >
                   ×
@@ -1168,23 +1168,23 @@ export default function AdminRecordManagement() {
 
               <div style={{ display: "grid", gap: "15px" }}>
                 <div>
-                  <strong style={{ color: "#4a5568" }}>Client Name:</strong>
+                  <strong style={{ color: "var(--text-secondary)" }}>Client Name:</strong>
                   <div style={{ marginTop: "5px", color: "#2d3748" }}>{selectedRecord.clientName}</div>
                 </div>
                 <div>
-                  <strong style={{ color: "#4a5568" }}>Date:</strong>
+                  <strong style={{ color: "var(--text-secondary)" }}>Date:</strong>
                   <div style={{ marginTop: "5px", color: "#2d3748" }}>{formatDate(selectedRecord.date)}</div>
                 </div>
                 <div>
-                  <strong style={{ color: "#4a5568" }}>Session Type:</strong>
+                  <strong style={{ color: "var(--text-secondary)" }}>Session Type:</strong>
                   <div style={{ marginTop: "5px", color: "#2d3748" }}>{selectedRecord.sessionType}</div>
                 </div>
                 <div>
-                  <strong style={{ color: "#4a5568" }}>Session Number:</strong>
+                  <strong style={{ color: "var(--text-secondary)" }}>Session Number:</strong>
                   <div style={{ marginTop: "5px", color: "#2d3748" }}>#{selectedRecord.sessionNumber}</div>
                 </div>
                 <div>
-                  <strong style={{ color: "#4a5568" }}>Status:</strong>
+                  <strong style={{ color: "var(--text-secondary)" }}>Status:</strong>
                   <div style={{ marginTop: "5px" }}>
                     <span
                       className={getStatusColor(selectedRecord.status)}
@@ -1200,24 +1200,24 @@ export default function AdminRecordManagement() {
                   </div>
                 </div>
                 <div>
-                  <strong style={{ color: "#4a5568" }}>Counselor:</strong>
+                  <strong style={{ color: "var(--text-secondary)" }}>Counselor:</strong>
                   <div style={{ marginTop: "5px", color: "#2d3748" }}>{selectedRecord.counselor}</div>
                 </div>
                 <div>
-                  <strong style={{ color: "#4a5568" }}>Notes:</strong>
+                  <strong style={{ color: "var(--text-secondary)" }}>Notes:</strong>
                   <div style={{ marginTop: "5px", color: "#2d3748", whiteSpace: "pre-wrap" }}>
                     {selectedRecord.notes || "No notes"}
                   </div>
                 </div>
                 <div>
-                  <strong style={{ color: "#4a5568" }}>Outcomes:</strong>
+                  <strong style={{ color: "var(--text-secondary)" }}>Outcomes:</strong>
                   <div style={{ marginTop: "5px", color: "#2d3748", whiteSpace: "pre-wrap" }}>
                     {selectedRecord.outcomes || "No outcomes"}
                   </div>
                 </div>
                 {selectedRecord.attachments && selectedRecord.attachments.length > 0 && (
                   <div>
-                    <strong style={{ color: "#4a5568" }}>Attachments:</strong>
+                    <strong style={{ color: "var(--text-secondary)" }}>Attachments:</strong>
                     <div style={{ marginTop: "5px" }}>
                       {selectedRecord.attachments.map((attachment, idx) => (
                         <div key={idx} style={{ marginBottom: "5px" }}>
@@ -1236,7 +1236,7 @@ export default function AdminRecordManagement() {
                 )}
                 {selectedRecord.auditTrail && (
                   <div>
-                    <strong style={{ color: "#4a5568" }}>Audit Trail:</strong>
+                    <strong style={{ color: "var(--text-secondary)" }}>Audit Trail:</strong>
                     <div style={{ marginTop: "5px", fontSize: "14px", color: "#2d3748" }}>
                       <div>Created by: {selectedRecord.auditTrail.createdBy?.userName || "N/A"}</div>
                       <div>Created at: {formatDate(selectedRecord.auditTrail.createdAt)}</div>
@@ -1281,8 +1281,8 @@ export default function AdminRecordManagement() {
                   onClick={() => setShowDetailModal(false)}
                   style={{
                     padding: "10px 20px",
-                    background: "#e2e8f0",
-                    color: "#4a5568",
+                    background: "var(--muted-surface)",
+                    color: "var(--text-secondary)",
                     border: "none",
                     borderRadius: "8px",
                     cursor: "pointer",
@@ -1325,7 +1325,7 @@ export default function AdminRecordManagement() {
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               style={{
-                background: "white",
+                background: "var(--surface-color)",
                 borderRadius: "12px",
                 padding: "30px",
                 maxWidth: "600px",
@@ -1337,7 +1337,7 @@ export default function AdminRecordManagement() {
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
                 <div>
-                  <h2 style={{ fontSize: "24px", fontWeight: "700", margin: 0, color: "#1a202c" }}>
+                  <h2 style={{ fontSize: "24px", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
                     Edit Record
                   </h2>
                   {(() => {
@@ -1368,7 +1368,7 @@ export default function AdminRecordManagement() {
                     border: "none",
                     fontSize: "24px",
                     cursor: "pointer",
-                    color: "#718096",
+                    color: "var(--text-secondary)",
                   }}
                 >
                   ×
@@ -1384,7 +1384,7 @@ export default function AdminRecordManagement() {
                 return (
                   <div style={{ display: "grid", gap: "15px" }}>
                     <div>
-                      <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "#4a5568" }}>
+                      <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
                         Client Name *
                       </label>
                       <input
@@ -1395,18 +1395,18 @@ export default function AdminRecordManagement() {
                         style={{
                           width: "100%",
                           padding: "10px",
-                          border: "1px solid #e2e8f0",
+                          border: "1px solid var(--muted-surface)",
                           borderRadius: "8px",
                           fontSize: "14px",
                           backgroundColor: isReadOnly ? "#f7fafc" : "white",
-                          color: isReadOnly ? "#718096" : "#1a202c",
+                          color: isReadOnly ? "var(--text-secondary)" : "var(--text-primary)",
                           cursor: isReadOnly ? "not-allowed" : "text",
                         }}
                       />
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "#4a5568" }}>
+                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
                     Date *
                   </label>
                   <input
@@ -1417,18 +1417,18 @@ export default function AdminRecordManagement() {
                     style={{
                       width: "100%",
                       padding: "10px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--muted-surface)",
                       borderRadius: "8px",
                       fontSize: "14px",
                       backgroundColor: isReadOnly ? "#f7fafc" : "white",
-                      color: isReadOnly ? "#718096" : "#1a202c",
+                      color: isReadOnly ? "var(--text-secondary)" : "var(--text-primary)",
                       cursor: isReadOnly ? "not-allowed" : "text",
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "#4a5568" }}>
+                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
                     Session Type *
                   </label>
                   <input
@@ -1439,18 +1439,18 @@ export default function AdminRecordManagement() {
                     style={{
                       width: "100%",
                       padding: "10px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--muted-surface)",
                       borderRadius: "8px",
                       fontSize: "14px",
                       backgroundColor: isReadOnly ? "#f7fafc" : "white",
-                      color: isReadOnly ? "#718096" : "#1a202c",
+                      color: isReadOnly ? "var(--text-secondary)" : "var(--text-primary)",
                       cursor: isReadOnly ? "not-allowed" : "text",
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "#4a5568" }}>
+                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
                     Session Number
                   </label>
                   <input
@@ -1461,18 +1461,18 @@ export default function AdminRecordManagement() {
                     style={{
                       width: "100%",
                       padding: "10px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--muted-surface)",
                       borderRadius: "8px",
                       fontSize: "14px",
                       backgroundColor: isReadOnly ? "#f7fafc" : "white",
-                      color: isReadOnly ? "#718096" : "#1a202c",
+                      color: isReadOnly ? "var(--text-secondary)" : "var(--text-primary)",
                       cursor: isReadOnly ? "not-allowed" : "text",
                     }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "#4a5568" }}>
+                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
                     Status *
                   </label>
                   <select
@@ -1482,11 +1482,11 @@ export default function AdminRecordManagement() {
                     style={{
                       width: "100%",
                       padding: "10px",
-                      border: "1px solid #e2e8f0",
+                      border: "1px solid var(--muted-surface)",
                       borderRadius: "8px",
                       fontSize: "14px",
                       backgroundColor: isReadOnly ? "#f7fafc" : "white",
-                      color: isReadOnly ? "#718096" : "#1a202c",
+                      color: isReadOnly ? "var(--text-secondary)" : "var(--text-primary)",
                       cursor: isReadOnly ? "not-allowed" : "pointer",
                     }}
                   >
@@ -1497,7 +1497,7 @@ export default function AdminRecordManagement() {
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "#4a5568" }}>
+                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
                     Notes
                   </label>
                   <textarea
@@ -1518,7 +1518,7 @@ export default function AdminRecordManagement() {
                 </div>
 
                 <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "#4a5568" }}>
+                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
                     Outcomes
                   </label>
                   <textarea
@@ -1578,8 +1578,8 @@ export default function AdminRecordManagement() {
                   onClick={() => setShowEditModal(false)}
                   style={{
                     padding: "10px 20px",
-                    background: "#e2e8f0",
-                    color: "#4a5568",
+                    background: "var(--muted-surface)",
+                    color: "var(--text-secondary)",
                     border: "none",
                     borderRadius: "8px",
                     cursor: "pointer",
@@ -1646,7 +1646,7 @@ export default function AdminRecordManagement() {
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
               style={{
-                background: "white",
+                background: "var(--surface-color)",
                 borderRadius: "12px",
                 padding: "30px",
                 maxWidth: "500px",
@@ -1654,10 +1654,10 @@ export default function AdminRecordManagement() {
                 boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
               }}
             >
-              <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "15px", color: "#1a202c" }}>
+              <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "15px", color: "var(--text-primary)" }}>
                 Confirm Deletion
               </h2>
-              <p style={{ color: "#4a5568", marginBottom: "20px" }}>
+              <p style={{ color: "var(--text-secondary)", marginBottom: "20px" }}>
                 Are you sure you want to delete the record for <strong>{recordToDelete.clientName}</strong> - Session{" "}
                 #{recordToDelete.sessionNumber}? This action cannot be undone.
               </p>
@@ -1669,8 +1669,8 @@ export default function AdminRecordManagement() {
                   }}
                   style={{
                     padding: "10px 20px",
-                    background: "#e2e8f0",
-                    color: "#4a5568",
+                    background: "var(--muted-surface)",
+                    color: "var(--text-secondary)",
                     border: "none",
                     borderRadius: "8px",
                     cursor: "pointer",
@@ -1805,4 +1805,5 @@ export default function AdminRecordManagement() {
     </div>
   );
 }
+
 

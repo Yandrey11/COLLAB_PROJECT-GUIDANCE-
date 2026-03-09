@@ -2082,7 +2082,7 @@ const RecordsPage = () => {
                 transition={{ type: "spring", damping: 20 }}
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                  background: "#fff",
+                  background: "var(--surface-color)",
                   borderRadius: 16,
                   padding: 24,
                   width: "100%",
@@ -2099,7 +2099,7 @@ const RecordsPage = () => {
                         fontSize: "1.25rem",
                         fontWeight: 600,
                         margin: 0,
-                        color: "#111827",
+                        color: "var(--text-primary)",
                       }}
                     >
                       Edit Record — {selectedRecord.clientName}
