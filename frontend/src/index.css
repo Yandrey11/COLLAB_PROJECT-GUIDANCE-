@@ -27,6 +27,15 @@ body {
   color: #0f172a;
 }
 
+/* System-wide page background gradient */
+.page-bg {
+  background: linear-gradient(135deg, #e0e7ff 0%, #ede9fe 50%, #ddd6fe 100%);
+}
+
+.dark .page-bg {
+  background: linear-gradient(135deg, #111827 0%, #1f2937 60%, #1e1b4b 100%);
+}
+
 .dark body {
   background-color: #0f172a;
   color: #e5e7eb;

@@ -85,7 +85,7 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-indigo-100 font-sans p-4">
+    <div className="min-h-screen flex items-center justify-center page-bg font-sans p-4">
       <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-8 md:p-12" role="main">
         <section className="flex flex-col gap-6" aria-label="Login form">
           <button

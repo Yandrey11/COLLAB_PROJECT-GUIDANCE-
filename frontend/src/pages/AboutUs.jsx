@@ -5,7 +5,7 @@ export default function AboutUs() {
   useDocumentTitle("About Us");
   
   return (
-    <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 font-sans text-gray-900 dark:text-gray-100">
+    <div className="min-h-screen w-full flex flex-col overflow-x-hidden page-bg font-sans text-gray-900 dark:text-gray-100">
       <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-12 md:py-16">
         {/* Hero Section */}
         <div className="text-center mb-16">

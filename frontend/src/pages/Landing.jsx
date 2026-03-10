@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 export default function Landing() {
   useDocumentTitle("Home");
   return (
-    <div className="min-h-screen w-full flex flex-col overflow-x-hidden bg-gradient-to-br from-indigo-50 via-indigo-50 to-violet-50 font-sans text-gray-900">
+    <div className="min-h-screen w-full flex flex-col overflow-x-hidden page-bg font-sans text-gray-900">
       <main className="flex-1 flex flex-col justify-center items-center text-center px-4 md:px-6 lg:px-8 py-12 md:py-16 lg:py-20 max-w-6xl mx-auto w-full">
         <motion.div
           initial={{ opacity: 0, y: 20 }}

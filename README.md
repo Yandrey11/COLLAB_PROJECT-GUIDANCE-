@@ -192,7 +192,9 @@ npm install
 # Create .env file with required variables
 cat > .env << EOF
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/counseling_system
+CLIENT_URL=http://localhost:5173
+MONGO_URI=mongodb://localhost:27017/counseling_system
+MONGO_URI_DIRECT=
 JWT_SECRET=your_secure_jwt_secret_here
 SESSION_SECRET=your_secure_session_secret_here
 GOOGLE_CLIENT_ID=your_google_client_id
@@ -203,7 +205,7 @@ GITHUB_CLIENT_SECRET=your_github_client_secret
 GITHUB_CALLBACK_URL=http://localhost:5000/auth/github/callback
 EMAIL_SERVICE=gmail
 EMAIL_USER=your_email@gmail.com
-EMAIL_PASSWORD=your_app_password
+EMAIL_PASS=your_app_password
 EOF
 
 # Start development server
@@ -211,7 +213,7 @@ npm run dev
 # Or production: npm start
 ```
 
-**Backend runs on**: `http://localhost:5000`
+**Backend runs on**: `http://localhost:5000` (or the `PORT` set in your `.env`)
 
 ### Step 3: Frontend Setup
 
@@ -231,6 +233,8 @@ npm run dev
 ```
 
 **Frontend runs on**: `http://localhost:5173` (or provided Vite URL)
+
+If your backend runs on a different port (for example `5050`), set `VITE_API_URL` to that exact backend URL.
 
 ### Step 4: Verify Setup
 
@@ -257,7 +261,7 @@ mongod
 1. Create account at [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
 2. Create a cluster and database
 3. Get connection string
-4. Set `MONGODB_URI` in backend `.env`
+4. Set `MONGO_URI` in backend `.env`
 
 ## Core Features
 
@@ -330,7 +334,7 @@ mongod
 - `GET /admin/analytics` - System analytics
 - `GET /admin/audit-logs` - View audit logs
 
-See [API_DOCUMENTATION.md](../API_DOCUMENTATION.md) for complete endpoint reference.
+See [API_DOCUMENTATION.md](API_DOCUMENTATION.md) for complete endpoint reference.
 
 ## Environment Variables
 
@@ -339,7 +343,8 @@ See [API_DOCUMENTATION.md](../API_DOCUMENTATION.md) for complete endpoint refere
 PORT=5000
 
 # Database
-MONGODB_URI=mongodb://localhost:27017/counseling_system
+MONGO_URI=mongodb://localhost:27017/counseling_system
+MONGO_URI_DIRECT=
 
 # Security & Sessions
 JWT_SECRET=your_jwt_secret_min_32_chars
@@ -362,9 +367,10 @@ FACEBOOK_APP_SECRET=xxxxx
 # Email Service
 EMAIL_SERVICE=gmail
 EMAIL_USER=your_email@gmail.com
-EMAIL_PASSWORD=your_app_specific_password
+EMAIL_PASS=your_app_specific_password
 
 # Frontend URL (for CORS)
+CLIENT_URL=http://localhost:5173
 FRONTEND_URL=http://localhost:5173
 
 # Node Environment
@@ -424,7 +430,7 @@ npm run build
 
 ## Google Integration Setup
 
-See [INTEGRATIONS_SETUP_GUIDE.md](../INTEGRATIONS_SETUP_GUIDE.md) for detailed instructions on:
+See [INTEGRATIONS_SETUP_GUIDE.md](INTEGRATIONS_SETUP_GUIDE.md) for detailed instructions on:
 - Creating Google OAuth credentials
 - Setting up Google Drive access
 - Enabling Google Calendar API
@@ -432,7 +438,7 @@ See [INTEGRATIONS_SETUP_GUIDE.md](../INTEGRATIONS_SETUP_GUIDE.md) for detailed i
 
 ## RBAC & Permissions
 
-See [RBAC_DOCUMENTATION.md](../RBAC_DOCUMENTATION.md) for:
+See [RBAC_DOCUMENTATION.md](RBAC_DOCUMENTATION.md) for:
 - Permission matrix by role
 - How to add new roles
 - Permission validation flow
@@ -442,11 +448,11 @@ See [RBAC_DOCUMENTATION.md](../RBAC_DOCUMENTATION.md) for:
 
 ### MongoDB Connection Issues
 - Verify MongoDB is running: `mongosh` or `mongo`
-- Check `MONGODB_URI` format
+- Check `MONGO_URI` format
 - Ensure firewall allows port 27017
 
 ### CORS Errors
-- Verify frontend URL matches `FRONTEND_URL` in `.env`
+- Verify frontend URL matches `CLIENT_URL` in `.env`
 - Check CORS middleware in `app.js`
 - Browser console shows specific origin issue
 
@@ -496,14 +502,15 @@ See [RBAC_DOCUMENTATION.md](../RBAC_DOCUMENTATION.md) for:
 2. Make changes and test thoroughly
 3. Commit with clear messages: `git commit -m "Add new feature"`
 4. Push branch: `git push origin feature/new-feature`
-5. Create Pull Request with description
+5. If your team flow uses a shared Development branch, push with: `git push -u origin Development`
+6. Create Pull Request with description
 
 ## Project Documentation
 
-- [API_DOCUMENTATION.md](../API_DOCUMENTATION.md) - REST API reference
-- [RBAC_DOCUMENTATION.md](../RBAC_DOCUMENTATION.md) - Access control details
-- [INTEGRATIONS_SETUP_GUIDE.md](../INTEGRATIONS_SETUP_GUIDE.md) - OAuth & Google setup
-- [ANALYTICS_INTEGRATION_GUIDE.md](../ANALYTICS_INTEGRATION_GUIDE.md) - Analytics implementation
+- [API_DOCUMENTATION.md](API_DOCUMENTATION.md) - REST API reference
+- [RBAC_DOCUMENTATION.md](RBAC_DOCUMENTATION.md) - Access control details
+- [INTEGRATIONS_SETUP_GUIDE.md](INTEGRATIONS_SETUP_GUIDE.md) - OAuth & Google setup
+- [ANALYTICS_INTEGRATION_GUIDE.md](ANALYTICS_INTEGRATION_GUIDE.md) - Analytics implementation
 
 ## License
 
@@ -525,5 +532,5 @@ For issues, feature requests, or questions:
 ## System Status
 
 - **Status**: Active Development
-- **Last Updated**: February 13, 2026
+- **Last Updated**: March 10, 2026
 - **Maintenance Window**: None scheduled

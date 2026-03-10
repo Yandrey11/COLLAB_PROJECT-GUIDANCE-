@@ -52,7 +52,7 @@ const AdminSignup = () => {
     };
 
     return (
-        <div className="min-h-screen w-screen flex items-center justify-center bg-gradient-to-br from-purple-100 via-pink-50 to-purple-200 px-4 py-8">
+        <div className="min-h-screen w-screen flex items-center justify-center page-bg px-4 py-8">
             <div className="bg-white p-6 sm:p-8 rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-500 hover:scale-[1.02] animate-fade-in-up">
                 {/* Header with animated gradient */}
                 <div className="mb-6 text-center">

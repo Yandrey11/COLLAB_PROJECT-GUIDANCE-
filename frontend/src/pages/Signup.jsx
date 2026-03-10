@@ -81,7 +81,7 @@ function Signup() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-indigo-100 font-sans p-4">
+    <div className="min-h-screen flex items-center justify-center page-bg font-sans p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8" role="region" aria-labelledby="signup-title">
         <h1 id="signup-title" className="text-2xl font-extrabold text-gray-900 text-center mb-2">Create your account</h1>
         <p className="text-sm text-gray-500 text-center mb-6">Sign up to start collaborating — it's quick and free.</p>

@@ -93,7 +93,7 @@ export default function AdminLogin() {
           font-family: 'Montserrat', sans-serif;
           -webkit-font-smoothing: antialiased;
           -moz-osx-font-smoothing: grayscale;
-          background: linear-gradient(135deg, #eef2ff, #c7d2fe);
+          background: linear-gradient(135deg, #e0e7ff, #ede9fe, #ddd6fe);
           overflow-x: hidden;
         }
         .page {
