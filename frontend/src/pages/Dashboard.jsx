@@ -225,11 +225,10 @@ export default function Dashboard() {
 
     if (user) {
       fetchRecords();
-      // Auto-refresh records every 30 seconds for sync
-      const interval = setInterval(fetchRecords, 30000);
+      // Auto-refresh records every 2 minutes (reduced from 30s)
+      const interval = setInterval(fetchRecords, 2 * 60 * 1000);
       return () => clearInterval(interval);
     } else {
-      // User not loaded yet - show calendar with empty data instead of infinite loading
       setRecordsLoading(false);
     }
   }, [user]);

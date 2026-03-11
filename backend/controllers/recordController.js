@@ -415,7 +415,7 @@ export const getRecords = async (req, res) => {
     const sortOption = {};
     if (sortBy) sortOption[sortBy] = order === "desc" ? -1 : 1;
 
-    const records = await Record.find(filter).sort(sortOption);
+    const records = await Record.find(filter).sort(sortOption).lean();
     res.json(records);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch records", error: err.message });

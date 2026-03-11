@@ -275,8 +275,13 @@ mongod
 ### Record Management
 - **CRUD Operations**: Full lifecycle management of counseling records
 - **Rich Metadata**: Student info, session notes, outcomes, follow-ups
+- **Session Auto-numbering**: Session number calculated automatically per client on record creation
 - **Search & Filter**: Advanced filtering by date, counselor, student, status
-- **Bulk Operations**: Batch processing capabilities
+- **Strict 2PL Locking**: Records must be locked before editing; lock ownership is validated server-side
+- **Auto Google Drive Upload**: New records automatically generate a PDF and upload it to the counselor's Drive
+- **Auto Google Calendar Sync**: New records sync to Google Calendar; updates to date, client, session type, or status re-sync automatically
+- **PDF Generation**: Branded A4 PDFs with document tracking numbers, blue header/footer, and confidentiality footer
+- **Bulk Sync**: Sync all existing records missing Drive links, or bulk-sync all records to Google Calendar
 
 ### Role-Based Access Control
 - **Admin**: Full system access, user management, analytics
@@ -297,10 +302,12 @@ mongod
 - **Daily Summaries**: Automated daily report generation
 
 ### Google Integration
-- **Google Drive**: Upload/download counseling documents
-- **Google Calendar**: Sync counseling appointments
-- **OAuth Flow**: Seamless account linking
-- **Token Management**: Automatic refresh token handling
+- **Google Drive**: Upload counseling PDFs automatically or on demand
+- **Google Calendar**: Sync sessions as calendar events; creates or updates events on record save
+- **OAuth Flow**: Seamless account linking for counselors
+- **Token Management**: Automatic refresh token handling with encrypted token storage
+- **3-Tier Drive Auth Fallback**: 1) User's own connected Google OAuth tokens; 2) System-level OAuth via `GOOGLE_REFRESH_TOKEN` env var; 3) Service account credentials (`google-service-account.json`)
+- **Drive Folder Fallback**: If the configured Drive folder is inaccessible, automatically creates or uses a "Counseling Records" folder
 
 ## API Endpoints
 
@@ -312,11 +319,20 @@ mongod
 - `POST /auth/logout` - Logout user
 
 ### Records
-- `GET /records` - List all records
-- `POST /records` - Create new record
-- `GET /records/:id` - Get specific record
-- `PUT /records/:id` - Update record
+- `GET /records` - List all records (supports search, sessionType, status, date range, sort)
+- `POST /records` - Create new record (auto-uploads PDF to Drive, syncs to Google Calendar)
+- `PUT /records/:id` - Update record (requires lock ownership via Strict 2PL)
 - `DELETE /records/:id` - Delete record
+- `GET /records/:id/generate-pdf` - Download record as PDF
+- `POST /records/:id/upload-drive` - Upload record PDF to Google Drive
+- `POST /records/:id/lock` - Lock record for editing
+- `POST /records/:id/unlock` - Unlock record
+- `POST /records/:id/start-editing` - Auto-lock when editing begins
+- `GET /records/:id/lock-status` - Get current lock status
+- `GET /records/:id/lock-logs` - Get lock/unlock history for a record
+- `GET /records/lock-logs/all` - Get all recent lock/unlock logs
+- `POST /records/sync-drive` - Bulk-upload records missing Drive links
+- `POST /records/sync-google-calendar` - Bulk-sync all records to Google Calendar
 
 ### Profile
 - `GET /profile` - Get user profile
@@ -354,6 +370,14 @@ SESSION_SECRET=your_session_secret_min_32_chars
 GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=xxxxx
 GOOGLE_CALLBACK_URL=http://localhost:5000/auth/google/callback
+
+# Google Drive (optional)
+# System-level refresh token for Drive uploads when users have no OAuth tokens
+GOOGLE_REFRESH_TOKEN=
+# Redirect URI used when obtaining Drive OAuth tokens
+GOOGLE_DRIVE_REDIRECT_URI=http://localhost:5000/auth/google/callback
+# Target folder ID in Google Drive for record uploads (falls back to 'Counseling Records' folder)
+GOOGLE_DRIVE_FOLDER_ID=
 
 # GitHub OAuth
 GITHUB_CLIENT_ID=xxxxx
@@ -483,6 +507,7 @@ See [RBAC_DOCUMENTATION.md](RBAC_DOCUMENTATION.md) for:
 | **AnalyticsEvent** | Analytics data collection |
 | **Announcement** | System announcements |
 | **GoogleTokenStore** | OAuth token persistence |
+| **RecordLock** | Strict 2PL record locking |
 | **Session** | User session data |
 
 ## Security Best Practices
@@ -532,5 +557,5 @@ For issues, feature requests, or questions:
 ## System Status
 
 - **Status**: Active Development
-- **Last Updated**: March 10, 2026
+- **Last Updated**: March 11, 2026
 - **Maintenance Window**: None scheduled

@@ -30,6 +30,7 @@
     "pdfkit": "^0.17.2"
   },
   "devDependencies": {
+    "@types/node": "^25.4.0",
     "nodemon": "^3.1.10"
   }
 }

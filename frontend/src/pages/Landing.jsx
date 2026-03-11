@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 export default function Landing() {
   useDocumentTitle("Home");
   return (
-    <div className="min-h-screen w-full flex flex-col overflow-x-hidden page-bg font-sans text-gray-900">
+    <div className="min-h-screen w-full flex flex-col overflow-x-hidden page-bg font-sans text-gray-900 dark:text-gray-100">
       <main className="flex-1 flex flex-col justify-center items-center text-center px-4 md:px-6 lg:px-8 py-12 md:py-16 lg:py-20 max-w-6xl mx-auto w-full">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -13,10 +13,10 @@ export default function Landing() {
           transition={{ duration: 0.6 }}
           className="max-w-4xl mx-auto"
         >
-          <h2 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold text-gray-900 mb-6 md:mb-8 leading-tight tracking-tight">
+          <h2 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold text-gray-900 dark:text-white mb-6 md:mb-8 leading-tight tracking-tight">
             Guidance Counsel
             <br />
-            <span className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400 bg-clip-text text-transparent">
               Record System
             </span>
           </h2>
@@ -25,7 +25,7 @@ export default function Landing() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-base md:text-lg lg:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed mb-12 md:mb-16 font-medium"
+            className="text-base md:text-lg lg:text-xl text-gray-700 dark:text-gray-300 max-w-2xl mx-auto leading-relaxed mb-12 md:mb-16 font-medium"
           >
             You have brains in your head. You have feet in your shoes. You can steer yourself any direction you choose.
           </motion.p>
@@ -62,8 +62,8 @@ export default function Landing() {
       </main>
 
       {/* Footer */}
-      <footer className="text-center py-6 md:py-8 border-t border-indigo-100/50 bg-white/50">
-        <p className="text-sm md:text-base text-gray-500">
+      <footer className="text-center py-6 md:py-8 border-t border-indigo-200 dark:border-indigo-900 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm">
+        <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">
           © {new Date().getFullYear()} Collab Project. All rights reserved.
         </p>
       </footer>
