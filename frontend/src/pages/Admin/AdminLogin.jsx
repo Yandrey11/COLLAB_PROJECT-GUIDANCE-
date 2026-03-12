@@ -82,266 +82,99 @@ export default function AdminLogin() {
   };
 
   return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
-        * { box-sizing: border-box; }
-        html, body, #root {
-          height: 100%;
-          width: 100%;
-          margin: 0;
-          font-family: 'Montserrat', sans-serif;
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
-          background: linear-gradient(135deg, #e0e7ff, #ede9fe, #ddd6fe);
-          overflow-x: hidden;
-        }
-        .page {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 100vh;
-          padding: 32px 16px;
-        }
-        .card {
-          width: 100%;
-          max-width: 520px;
-          background: #fff;
-          border-radius: 24px;
-          padding: 48px 40px;
-          box-shadow: 0 25px 70px rgba(79, 70, 229, 0.15);
-          border: 1px solid rgba(226,232,240,0.8);
-          color: #111827;
-        }
-        .formSection {
-          display: flex;
-          flex-direction: column;
-          gap: 18px;
-        }
-        .heading h1 {
-          margin: 0;
-          font-size: 30px;
-          color: #111827;
-        }
-        .heading p {
-          color: #6b7280;
-          margin: 6px 0 0 0;
-          font-size: 15px;
-        }
-        form {
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
-        }
-        label {
-          font-size: 13px;
-          font-weight: 600;
-          color: #374151;
-          margin-bottom: 6px;
-          display: inline-block;
-        }
-        input {
-          width: 100%;
-          padding: 12px 14px;
-          border-radius: 12px;
-          border: 1px solid #e5e7eb;
-          background: #f9fafb;
-          color: #111827;
-          font-size: 15px;
-          transition: border 0.2s ease, background 0.2s ease;
-        }
-        input:focus {
-          outline: none;
-          border-color: #4f46e5;
-          background: #fff;
-        }
-        .primary {
-          width: 100%;
-          padding: 14px;
-          border: none;
-          border-radius: 12px;
-          font-weight: 700;
-          cursor: pointer;
-          background: linear-gradient(120deg,#4f46e5,#7c3aed);
-          color: #fff;
-          margin-top: 4px;
-          transition: transform 0.15s ease, box-shadow 0.15s ease;
-        }
-        .primary:disabled {
-          opacity: 0.65;
-          cursor: not-allowed;
-        }
-        .primary:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 15px 30px rgba(99,102,241,0.35);
-        }
-        .divider {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-size: 12px;
-          text-transform: uppercase;
-          color: #9ca3af;
-          letter-spacing: 0.08em;
-          margin-top: 14px;
-        }
-        .divider::before,
-        .divider::after {
-          content: "";
-          flex: 1;
-          height: 1px;
-          background: #e5e7eb;
-        }
-        .socialButtons {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-          gap: 10px;
-          margin-top: 16px;
-        }
-        .socialBtn,
-        .googleBtn {
-          flex: 1;
-          border: 1px solid #e5e7eb;
-          border-radius: 12px;
-          padding: 10px 14px;
-          background: #fff;
-          color: #374151;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          cursor: pointer;
-          font-weight: 600;
-          transition: transform 0.15s ease, border 0.15s ease;
-          text-decoration: none;
-        }
-        .socialBtn:hover,
-        .googleBtn:hover {
-          transform: translateY(-1px);
-          border-color: #c7d2fe;
-        }
-        .backBtn {
-          align-self: flex-start;
-          background: transparent;
-          color: #6b7280;
-          border: 1px solid #e5e7eb;
-          padding: 8px 16px;
-          border-radius: 999px;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .backBtn:hover {
-          color: #111827;
-          border-color: #c7d2fe;
-        }
-        .error {
-          margin-top: 14px;
-          padding: 10px 12px;
-          border-radius: 10px;
-          background: rgba(239,68,68,0.1);
-          text-align: left;
-          font-size: 13px;
-        }
-        .actions {
-          display: flex;
-          justify-content: flex-end;
-          font-size: 13px;
-        }
-        .link {
-          color: #4f46e5;
-          text-decoration: none;
-          font-weight: 600;
-        }
-        .status {
-          font-size: 13px;
-          color: #4f46e5;
-          margin-top: 10px;
-        }
-        @media (max-width: 520px) {
-          .card {
-            padding: 32px 24px;
-          }
-          .socialButtons {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
+    <div className="min-h-screen flex items-center justify-center page-bg font-sans p-4">
+      <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-8 md:p-12" role="main">
+        <section className="flex flex-col gap-6" aria-label="Admin login form">
+          <button
+            type="button"
+            className="self-start flex items-center gap-2 px-4 py-2 rounded-full border border-gray-200 text-gray-500 text-sm font-semibold hover:bg-gray-50 hover:text-gray-700 transition-all"
+            onClick={() => navigate("/")}
+          >
+            ← Go Back
+          </button>
 
-      <div className="page">
-        <div className="card" role="main">
-          <section className="formSection" aria-label="Admin login form">
-            <button className="backBtn" onClick={() => navigate("/")}>
-              ← Go Back 
-            </button>
-            <div className="heading">
-              <h1>Welcome back</h1>
-              <p>Sign in to access records, reports, notifications, and more.</p>
+          <div className="mb-2">
+            <h1 className="text-3xl font-bold text-gray-900">Welcome back</h1>
+            <p className="text-gray-500 mt-2 text-sm">Sign in to access records, reports, notifications, and more.</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+            <div>
+              <label htmlFor="admin-email" className="block text-sm font-semibold text-gray-700 mb-1">Admin email</label>
+              <input
+                id="admin-email"
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              />
+            </div>
+            <div>
+              <label htmlFor="admin-password" className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
+              <input
+                id="admin-password"
+                type="password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              />
             </div>
 
-            <form onSubmit={handleSubmit}>
-              <div>
-                <label htmlFor="admin-email">Admin email</label>
-                <input
-                  id="admin-email"
-                  type="email"
-                  placeholder="Email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                />
-              </div>
-              <div>
-                <label htmlFor="admin-password">Password</label>
-                <input
-                  id="admin-password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  autoComplete="current-password"
-                />
-              </div>
+            <ReCAPTCHA
+              sitekey="6Lf98vErAAAAAFBhvxrQnb4NCHHLXwYb-QOlKSQ3"
+              onChange={(token) => setCaptchaToken(token)}
+              style={{ alignSelf: "center" }}
+            />
 
-              <div style={{ display: "flex", justifyContent: "center", margin: "6px 0 4px 0" }}>
-                <ReCAPTCHA
-                  sitekey="6Lf98vErAAAAAFBhvxrQnb4NCHHLXwYb-QOlKSQ3"
-                  onChange={(token) => setCaptchaToken(token)}
+            <div className="flex justify-end text-sm">
+              <a className="text-indigo-600 font-semibold hover:text-indigo-500" href="/forgot-password?returnTo=admin">
+                Forgot password?
+              </a>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-65 disabled:cursor-not-allowed"
+              disabled={loading}
+            >
+              {loading ? "Authenticating..." : "Log in to Dashboard"}
+            </button>
+
+            <div className="relative flex items-center gap-4 py-2 text-xs uppercase text-gray-400 font-semibold tracking-wider before:h-px before:flex-1 before:bg-gray-200 after:h-px after:flex-1 after:bg-gray-200">
+              <span>or continue with</span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                type="button"
+                className="flex items-center justify-center gap-3 w-full py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 font-semibold hover:bg-gray-50 hover:border-indigo-100 transition-all"
+                onClick={handleGoogleLogin}
+                aria-label="Sign in with Google"
+              >
+                <img
+                  src="https://www.svgrepo.com/show/475656/google-color.svg"
+                  alt="Google"
+                  width="18"
                 />
-              </div>
-
-              <div className="actions">
-                <a className="link" href="/forgot-password?returnTo=admin">
-                  Forgot password?
-                </a>
-              </div>
-
-              <button type="submit" className="primary" disabled={loading}>
-                {loading ? "Authenticating..." : "Log in to Dashboard"}
+                Google
               </button>
+            </div>
+          </form>
 
-              <div className="divider">
-                <span>or continue with</span>
-              </div>
-
-              <div className="socialButtons">
-                <button className="googleBtn" onClick={handleGoogleLogin} aria-label="Sign in with Google">
-                  <img
-                    src="https://developers.google.com/identity/images/g-logo.png"
-                    alt="Google"
-                    style={{ width: "18px", height: "18px" }}
-                  />
-                  Google
-                </button>
-              </div>
-            </form>
-          </section>
-
-          {message && <p className="error">{message}</p>}
-          {!message && loading && <p className="status">Verifying credentials...</p>}
-        </div>
+          {message && (
+            <p className="mt-4 px-3 py-2.5 rounded-xl bg-red-50 text-red-600 text-sm">{message}</p>
+          )}
+          {!message && loading && (
+            <p className="mt-2 text-sm text-indigo-600">Verifying credentials...</p>
+          )}
+        </section>
       </div>
-    </>
+    </div>
   );
 }
