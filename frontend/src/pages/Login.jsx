@@ -50,6 +50,15 @@ function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!recaptchaToken) {
+      Swal.fire({
+        icon: "warning",
+        title: "Verification Required",
+        text: "Please complete the reCAPTCHA before logging in.",
+      });
+      return;
+    }
+
     try {
       const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
       const res = await axios.post(`${baseUrl}/api/auth/login`, {
@@ -143,7 +152,11 @@ function Login() {
               </a>
             </div>
 
-            <button type="submit" className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200">
+            <button
+              type="submit"
+              disabled={!recaptchaToken}
+              className="w-full py-3.5 rounded-xl font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none"
+            >
               Log in to Dashboard
             </button>
 

@@ -2,13 +2,39 @@ import Counselor from "../models/Counselor.js";
 import GoogleUser from "../models/GoogleUser.js";
 import jwt from "jsonwebtoken";
 import { createSession } from "./admin/sessionController.js";
+import axios from "axios";
+
+const verifyRecaptcha = async (token) => {
+  if (!token) return false;
+
+  try {
+    const secret = process.env.RECAPTCHA_SECRET_KEY;
+    if (!secret) return false;
+
+    const { data } = await axios.post(
+      "https://www.google.com/recaptcha/api/siteverify",
+      null,
+      { params: { secret, response: token } }
+    );
+
+    return data.success === true;
+  } catch (error) {
+    console.error("❌ reCAPTCHA verification error:", error.response?.data || error.message);
+    return false;
+  }
+};
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, recaptchaToken } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: "Email and password required" });
+    }
+
+    const captchaValid = await verifyRecaptcha(recaptchaToken);
+    if (!captchaValid) {
+      return res.status(400).json({ message: "reCAPTCHA verification failed" });
     }
 
     // ✅ Check if user exists in User collection (for email/password login)
