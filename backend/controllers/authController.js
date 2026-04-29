@@ -6,6 +6,7 @@ import mongoose from "mongoose";
 import { validatePassword } from "../utils/passwordValidation.js";
 import { createSession } from "./admin/sessionController.js";
 import { createNotification } from "./admin/notificationController.js";
+import { getFileUrl } from "../middleware/uploadMiddleware.js";
 
 // ===========================
 // 🔹 SIGNUP
@@ -215,6 +216,8 @@ export const getCurrentUser = async (req, res) => {
           email: googleUser.email,
           role: googleUser.role || "counselor",
           googleId: googleUser.googleId,
+          profilePicture: googleUser.profilePicture || null,
+          college: googleUser.college ?? null,
           googleCalendarAccessToken: googleUser.googleCalendarAccessToken || null,
           googleCalendarRefreshToken: googleUser.googleCalendarRefreshToken || null,
         };
@@ -232,6 +235,8 @@ export const getCurrentUser = async (req, res) => {
               email: googleUserByEmail.email,
               role: googleUserByEmail.role || "counselor",
               googleId: googleUserByEmail.googleId,
+              profilePicture: googleUserByEmail.profilePicture || null,
+              college: googleUserByEmail.college ?? null,
               googleCalendarAccessToken: googleUserByEmail.googleCalendarAccessToken || null,
               googleCalendarRefreshToken: googleUserByEmail.googleCalendarRefreshToken || null,
             };
@@ -271,6 +276,12 @@ export const getCurrentUser = async (req, res) => {
     const isGoogleUser = Boolean(user.googleId);
     const isDriveConnected = Boolean(user.googleCalendarAccessToken || user.googleCalendarRefreshToken);
 
+    const baseUrl =
+      process.env.API_URL || process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
+    const rawPicture = user.profilePicture ?? null;
+    const profilePicture = rawPicture ? getFileUrl(rawPicture, baseUrl) : null;
+    const college = user.college ?? null;
+
     res.status(200).json({
       user: {
         id: user._id || user.id,
@@ -280,6 +291,8 @@ export const getCurrentUser = async (req, res) => {
         googleId: user.googleId || null,
         isGoogleUser,
         isDriveConnected,
+        profilePicture,
+        college,
       },
     });
   } catch (err) {

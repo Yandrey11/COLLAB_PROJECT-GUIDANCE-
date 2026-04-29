@@ -3,56 +3,76 @@
  * Manages light/dark mode across the application
  */
 
+/** Normalize any stored/API value to a supported theme. */
+export const normalizeTheme = (value) => {
+  if (value === "dark" || value === "light") return value;
+  return "light";
+};
+
 /**
  * Apply theme to document
- * @param {string} theme - 'light' or 'dark'
+ * @param {string} theme - 'light' or 'dark' (invalid values become light)
  */
 export const applyTheme = (theme) => {
-  if (theme === "dark") {
+  const t = normalizeTheme(theme);
+  if (t === "dark") {
     document.documentElement.classList.add("dark");
   } else {
     document.documentElement.classList.remove("dark");
   }
-  // Store theme preference
-  localStorage.setItem("theme", theme);
+  localStorage.setItem("theme", t);
 };
 
 /**
  * Get current theme from localStorage or default to 'light'
  * @returns {string} - 'light' or 'dark'
  */
-export const getCurrentTheme = () => {
-  return localStorage.getItem("theme") || "light";
-};
+export const getCurrentTheme = () => normalizeTheme(localStorage.getItem("theme"));
 
 /**
  * Initialize theme on app load
- * Checks localStorage, settings API, or defaults to light mode
+ * Uses localStorage first, then counselor or admin settings API when no key is set.
  */
 export const initializeTheme = async () => {
-  // First check localStorage for immediate theme
-  const savedTheme = localStorage.getItem("theme");
-  if (savedTheme) {
-    applyTheme(savedTheme);
-    return savedTheme;
+  const raw = localStorage.getItem("theme");
+  if (raw !== null && raw !== "") {
+    const t = normalizeTheme(raw);
+    if (t !== raw) {
+      localStorage.setItem("theme", t);
+    }
+    applyTheme(t);
+    return t;
   }
 
-  // Try to fetch from settings API
-  try {
-    const token = localStorage.getItem("token");
-    if (token) {
-      const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-      const response = await fetch(`${BASE_URL}/api/counselor/settings`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+  const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const counselorToken = localStorage.getItem("token") || localStorage.getItem("authToken");
+  const adminToken = localStorage.getItem("adminToken");
 
+  try {
+    if (counselorToken) {
+      const response = await fetch(`${BASE_URL}/api/counselor/settings`, {
+        headers: { Authorization: `Bearer ${counselorToken}` },
+      });
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.settings?.display?.theme) {
-          applyTheme(data.settings.display.theme);
-          return data.settings.display.theme;
+        const apiTheme = data.settings?.display?.theme;
+        const t = normalizeTheme(apiTheme);
+        if (apiTheme && t === apiTheme) {
+          applyTheme(t);
+          return t;
+        }
+      }
+    } else if (adminToken) {
+      const response = await fetch(`${BASE_URL}/api/admin/settings`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const apiTheme = data.settings?.display?.theme;
+        const t = normalizeTheme(apiTheme);
+        if (apiTheme && t === apiTheme) {
+          applyTheme(t);
+          return t;
         }
       }
     }
@@ -60,7 +80,6 @@ export const initializeTheme = async () => {
     console.error("Error fetching theme from settings:", error);
   }
 
-  // Default to light mode
   applyTheme("light");
   return "light";
 };
@@ -75,4 +94,3 @@ export const toggleTheme = () => {
   applyTheme(newTheme);
   return newTheme;
 };
-

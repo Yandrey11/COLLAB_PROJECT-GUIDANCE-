@@ -1,71 +1,158 @@
 import { Link } from "react-router-dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { motion } from "framer-motion";
+import landingBg from "../assets/landing-bg.png";
+import buksuLogo from "../assets/buksu-logo.png";
+
+const heroContainer = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.09, delayChildren: 0.06 },
+  },
+};
+
+const heroItem = {
+  hidden: { opacity: 0, y: 14 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+  },
+};
 
 export default function Landing() {
   useDocumentTitle("Home");
-  return (
-    <div className="min-h-screen w-full flex flex-col overflow-x-hidden page-bg font-sans text-gray-900 dark:text-gray-100">
-      <main className="flex-1 flex flex-col justify-center items-center text-center px-4 md:px-6 lg:px-8 py-12 md:py-16 lg:py-20 max-w-6xl mx-auto w-full">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="max-w-4xl mx-auto"
-        >
-          <h2 className="text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold text-gray-900 dark:text-white mb-6 md:mb-8 leading-tight tracking-tight">
-            Guidance Counsel
-            <br />
-            <span className="bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-indigo-400 dark:to-violet-400 bg-clip-text text-transparent">
-              Record System
-            </span>
-          </h2>
-          
-          <motion.p 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-base md:text-lg lg:text-xl text-gray-700 dark:text-gray-300 max-w-2xl mx-auto leading-relaxed mb-12 md:mb-16 font-medium"
-          >
-            You have brains in your head. You have feet in your shoes. You can steer yourself any direction you choose.
-          </motion.p>
 
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.4 }}
-            className="flex flex-wrap gap-3 md:gap-4 justify-center items-center"
+  return (
+    <div className="relative flex min-h-screen w-full flex-col overflow-x-hidden bg-slate-950 font-sans text-white">
+      {/* Background */}
+      <img
+        src={landingBg}
+        alt=""
+        aria-hidden
+        className="absolute inset-0 h-full w-full object-cover opacity-[0.38]"
+      />
+      <div
+        className="absolute inset-0 bg-gradient-to-b from-slate-950/75 via-slate-950/55 to-slate-950/80"
+        aria-hidden
+      />
+      <div
+        className="absolute inset-0 bg-gradient-to-tr from-indigo-950/40 via-transparent to-violet-950/30"
+        aria-hidden
+      />
+
+      {/* Header */}
+      <header className="relative z-20 border-b border-white/10 backdrop-blur-md">
+        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 sm:py-5 lg:px-10">
+          <Link
+            to="/"
+            className="flex shrink-0 items-center gap-3 rounded-lg outline-none ring-offset-2 ring-offset-slate-950 transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-white/40"
+            aria-label="BuKSU Guidance — home"
           >
-            <Link
-              to="/about"
-              className="group relative px-8 md:px-10 py-3.5 md:py-4 rounded-xl font-semibold text-base md:text-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-2xl flex items-center justify-center bg-gradient-to-r from-indigo-600 via-indigo-600 to-violet-600 text-white hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50"
-            >
-              <span className="relative z-10">About Us</span>
-              <span className="absolute inset-0 rounded-xl bg-gradient-to-r from-indigo-700 to-violet-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></span>
+            <img
+              src={buksuLogo}
+              alt=""
+              width={132}
+              height={44}
+              className="h-9 w-auto sm:h-10"
+              decoding="async"
+            />
+            <span className="hidden text-sm font-semibold tracking-tight text-white/95 sm:inline">
+              Guidance
+              <span className="font-normal text-white/50"> · </span>
+              <span className="font-normal text-white/80">Records</span>
+            </span>
+          </Link>
+          <nav
+            className="flex flex-wrap items-center justify-end gap-x-6 gap-y-2 text-sm font-medium text-white/80"
+            aria-label="Primary"
+          >
+            <Link to="/about" className="transition-colors hover:text-white">
+              About
             </Link>
-            
-            <Link
-              to="/login"
-              className="px-8 md:px-10 py-3.5 md:py-4 rounded-xl font-semibold text-base md:text-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl flex items-center justify-center bg-white text-indigo-600 border-2 border-indigo-200 hover:border-indigo-300 hover:bg-indigo-50 shadow-md"
-            >
-              Log In
+            <Link to="/login" className="transition-colors hover:text-white">
+              Counselor login
             </Link>
-            
+            <Link to="/signup" className="transition-colors hover:text-white">
+              Sign up
+            </Link>
             <Link
               to="/adminlogin"
-              className="px-8 md:px-10 py-3.5 md:py-4 rounded-xl font-semibold text-base md:text-lg transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl flex items-center justify-center bg-white text-indigo-600 border-2 border-indigo-200 hover:border-indigo-300 hover:bg-indigo-50 shadow-md"
+              className="text-white/50 transition-colors hover:text-white/90"
             >
-              Admin Login
+              Admin
             </Link>
+          </nav>
+        </div>
+      </header>
+
+      {/* Hero */}
+      <main className="relative z-10 flex flex-1 flex-col justify-center px-4 py-14 sm:px-6 sm:py-16 lg:px-10 lg:py-20">
+        <div className="mx-auto w-full max-w-6xl">
+          <motion.div
+            className="mx-auto max-w-2xl text-center md:mx-0 md:text-left"
+            variants={heroContainer}
+            initial="hidden"
+            animate="show"
+          >
+            <motion.p variants={heroItem} className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55">
+              BuKSU · Counselors
+            </motion.p>
+
+            <motion.h1
+              variants={heroItem}
+              className="mt-4 text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl lg:mt-5 lg:text-[3.25rem] lg:leading-[1.08]"
+            >
+              Guidance Counsel
+              <br />
+              <span className="text-white/85">Record System</span>
+            </motion.h1>
+
+            <motion.p
+              variants={heroItem}
+              className="mx-auto mt-6 max-w-lg text-base leading-relaxed text-white/72 md:mx-0 lg:mt-8 lg:text-lg"
+            >
+              A calm place to manage counseling records, reports, and day-to-day workflows — built for
+              your team.
+            </motion.p>
+
+            <motion.div
+              variants={heroItem}
+              className="mt-10 flex flex-col items-stretch gap-3 sm:mt-12 sm:flex-row sm:flex-wrap sm:items-center sm:justify-center md:justify-start"
+            >
+              <Link
+                to="/login"
+                className="inline-flex min-h-[3rem] items-center justify-center rounded-xl bg-white px-8 text-[15px] font-medium text-slate-900 shadow-sm transition-[transform,box-shadow,background-color] hover:bg-white/95 hover:shadow-md active:scale-[0.99] sm:min-w-[9.5rem]"
+              >
+                Log in
+              </Link>
+              <Link
+                to="/signup"
+                className="inline-flex min-h-[3rem] items-center justify-center rounded-xl border border-white/35 bg-white/5 px-8 text-[15px] font-medium text-white backdrop-blur-sm transition-[border-color,background-color] hover:border-white/50 hover:bg-white/10 sm:min-w-[9.5rem]"
+              >
+                Create account
+              </Link>
+            </motion.div>
+
+            <motion.p variants={heroItem} className="mt-8 text-sm text-white/50 md:mt-10">
+              Administrators use a{" "}
+              <Link to="/adminlogin" className="font-medium text-white/70 underline decoration-white/25 underline-offset-4 transition-colors hover:text-white hover:decoration-white/50">
+                separate admin sign-in
+              </Link>
+              .
+            </motion.p>
           </motion.div>
-        </motion.div>
+        </div>
       </main>
 
-      {/* Footer */}
-      <footer className="text-center py-6 md:py-8 border-t border-indigo-200 dark:border-indigo-900 bg-white/70 dark:bg-gray-900/70 backdrop-blur-sm">
-        <p className="text-sm md:text-base text-gray-600 dark:text-gray-400">
-          © {new Date().getFullYear()} Collab Project. All rights reserved.
-        </p>
+      <footer className="relative z-10 border-t border-white/10 px-4 py-6 sm:px-6 lg:px-10">
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 text-center text-xs text-white/45 sm:flex-row sm:text-left">
+          <p>© {new Date().getFullYear()} Collab Project. All rights reserved.</p>
+          <Link to="/about" className="font-medium text-white/55 transition-colors hover:text-white/80">
+            About the project
+          </Link>
+        </div>
       </footer>
     </div>
   );

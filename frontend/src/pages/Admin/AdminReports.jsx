@@ -541,27 +541,28 @@ export default function AdminReports() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
+    <div className="min-h-screen w-full flex flex-col items-center page-bg admin-typography font-sans p-3 md:p-5 gap-5">
       {/* Top Progress Bar - Shows when loading */}
       {loading && (
         <div className="fixed top-0 left-0 w-full z-[9999] pointer-events-none">
           <div className="h-1 bg-indigo-500 rounded-b shadow-[0_0_8px_rgba(79,70,229,0.6)] animate-pulse" style={{ width: '100%' }} />
         </div>
       )}
-      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Sidebar */}
-        <AdminSidebar />
-
-        {/* Main Content */}
-        <main className="w-full">
+      <div className="w-full max-w-[1800px]">
+        <main className="w-full min-w-0">
           {/* Page Title */}
           <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-4">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 m-0">
-              Admin Reports
-            </h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1 text-xs">
-              Generate, view, and download system-wide reports for counseling records, activities, and analytics.
-            </p>
+            <div className="flex items-center gap-4 min-w-0">
+              <AdminSidebar variant="header" />
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 m-0">
+                  Admin Reports
+                </h1>
+                <p className="text-gray-500 dark:text-gray-400 mt-1 text-xs">
+                  Generate, view, and download system-wide reports for counseling records, activities, and analytics.
+                </p>
+              </div>
+            </div>
           </div>
 
           {/* Overview Cards */}

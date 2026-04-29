@@ -7,11 +7,36 @@ import { motion, AnimatePresence } from "framer-motion";
 import Swal from "sweetalert2";
 import { NotificationBadgeBadge } from "../components/NotificationBadge";
 import CounselorSidebar from "../components/CounselorSidebar";
+import CounselorHeaderProfile from "../components/CounselorHeaderProfile.jsx";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import {
+  addCounselorPdfHeaderFooter,
+  loadBuksuLogoDataUrl,
+  PDF_CONTENT_TOP_MM,
+  getPdfMaxContentY,
+} from "../utils/counselorPdfLetterhead.js";
 
 const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/reports`;
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const GENERATED_REPORTS_STORAGE_KEY = "counselorGeneratedReports";
+
+const pageStagger = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06, delayChildren: 0.04 },
+  },
+};
+
+const pageItem = {
+  hidden: { opacity: 0, y: 12 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] },
+  },
+};
 
 // Helper function to get full image URL from backend
 const getImageUrl = (imagePath) => {
@@ -24,6 +49,21 @@ const getImageUrl = (imagePath) => {
   }
   const path = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
   return `${BASE_URL}${path}`;
+};
+
+const saveGeneratedReportMetadata = (reportMetadata) => {
+  try {
+    const currentReports = JSON.parse(
+      localStorage.getItem(GENERATED_REPORTS_STORAGE_KEY) || "[]"
+    );
+    const reports = Array.isArray(currentReports) ? currentReports : [];
+    localStorage.setItem(
+      GENERATED_REPORTS_STORAGE_KEY,
+      JSON.stringify([reportMetadata, ...reports].slice(0, 10))
+    );
+  } catch (error) {
+    console.warn("Unable to save generated report metadata:", error);
+  }
 };
 
 const ReportsPage = () => {
@@ -274,34 +314,41 @@ const ReportsPage = () => {
   // Show error page if no permission (after user is loaded)
   if (user && !hasPermission) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-          {/* Left: Sidebar */}
-          <CounselorSidebar />
-          
-          {/* Right: Error Message */}
-          <div className="w-full flex items-center justify-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg max-w-lg w-full text-center"
+      <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+        <div className="mx-auto flex w-full max-w-[1800px] flex-col px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+          <header className="mb-10 flex flex-col gap-4 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-4 sm:gap-5">
+              <CounselorSidebar variant="header" />
+              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+              <div className="min-w-0">
+                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Reports
+                </p>
+                <h1 className="mt-1.5 m-0 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                  Counseling reports
+                </h1>
+                <p className="mt-2 m-0 text-sm text-gray-500 dark:text-gray-400">Access status</p>
+              </div>
+            </div>
+            <CounselorHeaderProfile />
+          </header>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mx-auto w-full max-w-md rounded-2xl border border-gray-200/90 bg-white px-6 py-10 text-center dark:border-gray-700/90 dark:bg-gray-800/80"
+          >
+            <h2 className="m-0 text-lg font-semibold text-red-600 dark:text-red-400">Access denied</h2>
+            <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+              You don&apos;t have permission to open this page. Contact an administrator if this is unexpected.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="mt-8 w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
             >
-              <div className="text-6xl mb-4">🚫</div>
-              <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">Access Denied</h1>
-              <p className="text-gray-600 dark:text-gray-400 mb-6 text-lg">
-                You don't have permission to access the Reports page.
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mb-8">
-                Your access to this page has been restricted by an administrator. Please contact your administrator if you believe this is an error.
-              </p>
-              <button
-                onClick={() => navigate("/dashboard")}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
-              >
-                Go to Dashboard
-              </button>
-            </motion.div>
-          </div>
+              Back to dashboard
+            </button>
+          </motion.div>
         </div>
       </div>
     );
@@ -339,57 +386,12 @@ const ReportsPage = () => {
     return `DOC-${timestamp}-${random}`;
   };
 
-  // ✅ Add header and footer to each page
-  const addHeaderFooter = (doc, pageNum, totalPages, trackingNumber, reportDate) => {
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-
-    // Header
-    doc.setFillColor(102, 126, 234); // #667eea
-    doc.rect(0, 0, pageWidth, 30, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text("COUNSELING RECORDS REPORT", pageWidth / 2, 12, { align: 'center' });
-    
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Document Tracking: ${trackingNumber}`, 14, 22);
-    doc.text(`Date: ${reportDate}`, pageWidth - 14, 22, { align: 'right' });
-
-    // Footer with comprehensive information
-    doc.setFillColor(102, 126, 234);
-    doc.rect(0, pageHeight - 35, pageWidth, 35, 'F');
-    
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    
-    // Footer line 1: Confidentiality notice
-    doc.text("CONFIDENTIAL - This document contains sensitive information and is protected under client confidentiality agreements.", 
-      pageWidth / 2, pageHeight - 28, { align: 'center' });
-    
-    // Footer line 2: Organization info and page number
-    doc.setFontSize(7);
-    doc.text("Counseling Services Management System", 14, pageHeight - 18);
-    doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, pageHeight - 18, { align: 'center' });
-    doc.text(`Tracking: ${trackingNumber}`, pageWidth - 14, pageHeight - 18, { align: 'right' });
-    
-    // Footer line 3: Contact and disclaimer
-    doc.setFontSize(6);
-    doc.text("For inquiries, contact your system administrator. This report is generated electronically.", 
-      pageWidth / 2, pageHeight - 10, { align: 'center' });
-    
-    // Reset text color for content
-    doc.setTextColor(0, 0, 0);
-  };
-
   // ✅ Generate and download PDF
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     const recordsToExport = selectedRecord ? [selectedRecord] : filteredRecords;
     if (recordsToExport.length === 0) return;
 
+    const logoDataUrl = await loadBuksuLogoDataUrl();
     const doc = new jsPDF();
     const trackingNumber = generateTrackingNumber();
     const reportDate = new Date().toLocaleDateString('en-US', { 
@@ -404,10 +406,10 @@ const ReportsPage = () => {
     if (recordsToExport.length === 1) estimatedPages = 2; // Force at least 2 pages for single record
 
     // Page 1: Cover/Summary Page
-    addHeaderFooter(doc, 1, estimatedPages, trackingNumber, reportDate);
-    
-    let finalY = 50; // Start below header (30px header)
-    const maxContentHeight = doc.internal.pageSize.getHeight() - 35 - 50; // Account for footer (35px) and bottom margin
+    addCounselorPdfHeaderFooter(doc, 1, estimatedPages, trackingNumber, reportDate, logoDataUrl);
+
+    let finalY = PDF_CONTENT_TOP_MM;
+    const maxContentHeight = getPdfMaxContentY(doc);
 
     // Title
     doc.setFont("helvetica", "bold");
@@ -457,8 +459,8 @@ const ReportsPage = () => {
 
     // Add second page for records
     doc.addPage();
-    addHeaderFooter(doc, 2, estimatedPages, trackingNumber, reportDate);
-    finalY = 50;
+    addCounselorPdfHeaderFooter(doc, 2, estimatedPages, trackingNumber, reportDate, logoDataUrl);
+    finalY = PDF_CONTENT_TOP_MM;
 
     // Records Details
     doc.setFont("helvetica", "bold");
@@ -471,8 +473,15 @@ const ReportsPage = () => {
       if (finalY > maxContentHeight && idx < recordsToExport.length - 1) {
         estimatedPages++;
         doc.addPage();
-        addHeaderFooter(doc, doc.internal.getNumberOfPages(), estimatedPages, trackingNumber, reportDate);
-        finalY = 50;
+        addCounselorPdfHeaderFooter(
+          doc,
+          doc.internal.getNumberOfPages(),
+          estimatedPages,
+          trackingNumber,
+          reportDate,
+          logoDataUrl
+        );
+        finalY = PDF_CONTENT_TOP_MM;
       }
 
       // Record separator
@@ -531,8 +540,8 @@ const ReportsPage = () => {
     // If we only have one page of records, add additional content to ensure 2 pages
     if (doc.internal.getNumberOfPages() < 2) {
       doc.addPage();
-      addHeaderFooter(doc, 2, 2, trackingNumber, reportDate);
-      finalY = 50;
+      addCounselorPdfHeaderFooter(doc, 2, 2, trackingNumber, reportDate, logoDataUrl);
+      finalY = PDF_CONTENT_TOP_MM;
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
@@ -563,12 +572,22 @@ const ReportsPage = () => {
     const totalPages = doc.internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
-      addHeaderFooter(doc, i, totalPages, trackingNumber, reportDate);
+      addCounselorPdfHeaderFooter(doc, i, totalPages, trackingNumber, reportDate, logoDataUrl);
     }
 
     const fileName = selectedRecord
       ? `${selectedRecord.clientName.replace(/\s+/g, '_')}_record_${trackingNumber}.pdf`
       : `counseling-records_${trackingNumber}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+    saveGeneratedReportMetadata({
+      id: `${trackingNumber}-${Date.now()}`,
+      fileName,
+      generatedAt: new Date().toISOString(),
+      reportType: selectedRecord ? "Single Record" : "Multiple Records",
+      recordCount: recordsToExport.length,
+      clientName: selectedRecord?.clientName || clientName || "Multiple clients",
+      trackingNumber,
+    });
 
     doc.save(fileName);
   };
@@ -622,180 +641,120 @@ const ReportsPage = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Left: Overview / Navigation */}
-        <CounselorSidebar />
-
-        {/* Right: Main content */}
-        <main className="w-full">
-          <div
-            style={{
-              width: "100%",
-              display: "flex",
-              flexDirection: "column",
-              gap: 20,
-            }}
-          >
-        {/* Header Card */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm"
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <motion.main
+          className="flex w-full min-w-0 flex-col gap-8"
+          variants={pageStagger}
+          initial="hidden"
+          animate="show"
         >
-            <div>
-              <h1 className="text-gray-900 dark:text-gray-100" style={{ margin: 0, fontSize: "clamp(1.5rem, 4vw, 2rem)" }}>
-                Counseling Reports
-              </h1>
-              <p className="text-gray-500 dark:text-gray-400" style={{ marginTop: 6, fontSize: 14 }}>
-                Generate and review comprehensive progress reports for counseling sessions.
-              </p>
+          <motion.header
+            variants={pageItem}
+            className="flex flex-col gap-5 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-between sm:gap-8 lg:pb-10"
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-5">
+              <CounselorSidebar variant="header" />
+              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+              <div className="min-w-0">
+                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Reports
+                </p>
+                <h1 className="mt-1.5 m-0 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-3xl">
+                  Counseling reports
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                  Filter sessions, review details, and export PDFs when allowed.
+                </p>
+              </div>
             </div>
-        </motion.div>
-        {/* Filter Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm"
+            <CounselorHeaderProfile />
+          </motion.header>
+
+        <motion.section
+          variants={pageItem}
+          className="rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80"
         >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-              gap: 16,
-              marginBottom: 20,
-            }}
-          >
+          <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-700/80 sm:px-6 sm:py-5">
+            <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Filters</h2>
+            <p className="mt-1 m-0 text-sm text-gray-500 dark:text-gray-400">
+              Client name and optional date range
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3 lg:gap-4">
             <input
               type="text"
-              placeholder="🔍 Search by client name"
+              placeholder="Client name…"
               value={clientName}
               onChange={(e) => setClientName(e.target.value)}
-              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 transition-all placeholder-gray-400 dark:placeholder-gray-500"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 transition-colors placeholder:text-gray-400 focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-gray-500 dark:focus:ring-white/10 lg:col-span-1"
             />
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 transition-all"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:focus:ring-white/10"
             />
             <input
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 transition-all"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:focus:ring-white/10"
             />
           </div>
-          
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+
+          <div className="flex flex-col gap-3 border-t border-gray-100 px-5 py-4 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-end sm:px-6 sm:py-5">
+            <button
+              type="button"
               onClick={handleFilter}
               disabled={loading}
-              style={{
-                background: "linear-gradient(90deg, #06b6d4, #3b82f6)",
-                color: "white",
-                padding: "12px 20px",
-                borderRadius: 10,
-                border: "none",
-                cursor: loading ? "not-allowed" : "pointer",
-                fontWeight: 600,
-                fontSize: 14,
-                boxShadow: "0 4px 12px rgba(6, 182, 212, 0.3)",
-                opacity: loading ? 0.7 : 1,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
+              className="w-full rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-60 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white sm:w-auto"
             >
-              {loading ? "⏳ Loading..." : "📊 Filter Records"}
-            </motion.button>
+              {loading ? "Applying…" : "Apply filters"}
+            </button>
             {canGenerateReports && (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+              <button
+                type="button"
                 onClick={handleDownloadPDF}
                 disabled={filteredRecords.length === 0}
-                style={{
-                  background: "linear-gradient(90deg, #10b981, #059669)",
-                  color: "white",
-                  padding: "12px 20px",
-                  borderRadius: 10,
-                  border: "none",
-                  cursor: filteredRecords.length === 0 ? "not-allowed" : "pointer",
-                  fontWeight: 600,
-                  fontSize: 14,
-                  boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
-                  opacity: filteredRecords.length === 0 ? 0.5 : 1,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
+                className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80 sm:w-auto"
               >
-                📥 Download PDF
-              </motion.button>
+                Download PDF
+              </button>
             )}
           </div>
 
           {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                marginTop: 20,
-                padding: 12,
-                background: "#fee",
-                color: "#c33",
-                borderRadius: 10,
-                textAlign: "center",
-                fontWeight: 500,
-                fontSize: 14,
-              }}
-            >
-              ❌ {error}
-            </motion.div>
+            <div className="mx-5 mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-medium text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200 sm:mx-6">
+              {error}
+            </div>
           )}
-        </motion.div>
+        </motion.section>
 
-        {/* Records Table */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm"
+        <motion.section
+          variants={pageItem}
+          className="rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80"
         >
+          <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-700/80 sm:px-6 sm:py-5">
+            <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Matching records</h2>
+            <p className="mt-1 m-0 text-sm text-gray-500 dark:text-gray-400">
+              Open a row for full session details
+            </p>
+          </div>
+          <div className="p-4 sm:p-6">
           {loading ? (
-            <div style={{ textAlign: "center", padding: "3rem 0" }}>
+            <div className="py-16 text-center">
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                style={{
-                  width: "3rem",
-                  height: "3rem",
-                  border: "4px solid #4f46e5",
-                  borderTopColor: "transparent",
-                  borderRadius: "9999px",
-                  margin: "0 auto",
-                }}
-              ></motion.div>
-              <p style={{ color: "#6b7280", marginTop: "1rem", fontSize: 14 }}>
-                Loading records...
-              </p>
+                className="mx-auto h-10 w-10 rounded-full border-2 border-gray-200 border-t-gray-800 dark:border-gray-600 dark:border-t-gray-200"
+              />
+              <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Loading records…</p>
             </div>
           ) : filteredRecords.length > 0 ? (
-            <div style={{ overflowX: "auto" }}>
-              <table className="w-full border-collapse text-gray-900 dark:text-gray-100">
-                <thead className="bg-gray-50 dark:bg-gray-700/50 border-b-2 border-gray-200 dark:border-gray-700">
+            <div className="-mx-1 overflow-x-auto sm:mx-0">
+              <table className="w-full min-w-[640px] border-collapse text-gray-900 dark:text-gray-100">
+                <thead className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-700 dark:bg-gray-900/20">
                   <tr>
                     <th className="p-3 text-left font-semibold text-xs text-gray-700 dark:text-gray-300">
                       Client Name
@@ -864,29 +823,14 @@ const ReportsPage = () => {
                           {record.counselor}
                         </td>
                         <td className="p-3">
-                          <div
-                            style={{
-                              display: "flex",
-                              justifyContent: "center",
-                            }}
-                          >
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
+                          <div className="flex justify-center">
+                            <button
+                              type="button"
                               onClick={() => setSelectedRecord(record)}
-                              style={{
-                                background: "#4f46e5",
-                                color: "white",
-                                padding: "6px 12px",
-                                borderRadius: 8,
-                                border: "none",
-                                cursor: "pointer",
-                                fontSize: 13,
-                                fontWeight: 600,
-                              }}
+                              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                             >
-                              View Details
-                            </motion.button>
+                              Details
+                            </button>
                           </div>
                         </td>
                       </motion.tr>
@@ -896,21 +840,15 @@ const ReportsPage = () => {
               </table>
             </div>
           ) : (
-            <div style={{ textAlign: "center", padding: "3rem 0" }}>
-              <p
-                style={{
-                  color: "#6b7280",
-                  fontSize: 14,
-                  fontStyle: "italic",
-                }}
-              >
-                📭 No records found matching your criteria.
+            <div className="py-16 text-center">
+              <p className="m-0 text-sm text-gray-500 dark:text-gray-400">
+                No records match your filters.
               </p>
             </div>
           )}
-        </motion.div>
-      </div>
-        </main>
+          </div>
+        </motion.section>
+        </motion.main>
       </div>
 
       {/* Modal for Detailed Record */}
@@ -939,10 +877,10 @@ const ReportsPage = () => {
               exit={{ scale: 0.9, opacity: 0 }}
               transition={{ type: "spring", damping: 20 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl"
+              className="w-full max-h-[90vh] max-w-lg overflow-y-auto rounded-2xl border border-gray-200/90 bg-white p-6 dark:border-gray-700/90 dark:bg-gray-800/95"
             >
-              <h2 className="text-gray-900 dark:text-gray-100 text-xl font-semibold mb-5">
-                {selectedRecord.clientName} — Session Details
+              <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {selectedRecord.clientName}
               </h2>
               <p className="text-gray-600 dark:text-gray-400 mb-5 text-sm">
                 Counselor: <strong>{selectedRecord.counselor}</strong> | Date:{" "}
@@ -990,24 +928,13 @@ const ReportsPage = () => {
                   Cancel
                 </motion.button>
                 {canGenerateReports && (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                  <button
+                    type="button"
                     onClick={handleDownloadPDF}
-                    style={{
-                      background: "linear-gradient(90deg, #10b981, #059669)",
-                      color: "white",
-                      padding: "10px 20px",
-                      borderRadius: 10,
-                      border: "none",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                      fontSize: 14,
-                      boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)",
-                    }}
+                    className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                   >
                     Download PDF
-                  </motion.button>
+                  </button>
                 )}
               </div>
             </motion.div>

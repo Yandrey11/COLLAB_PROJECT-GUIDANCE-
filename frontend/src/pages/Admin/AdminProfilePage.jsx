@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Swal from "sweetalert2";
 import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
@@ -43,7 +43,6 @@ export default function AdminProfilePage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [admin, setAdmin] = useState(null);
-  const [activeTab, setActiveTab] = useState("profile"); // profile only
 
   // Profile form state
   const [profileForm, setProfileForm] = useState({
@@ -353,309 +352,214 @@ export default function AdminProfilePage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Left: AdminSidebar */}
-        <AdminSidebar />
-
-        {/* Right: Main content */}
-        <main>
-          <div style={{ maxWidth: "100%", width: "100%" }}>
-            {/* Header */}
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm mb-6"
-            >
-              <div className="flex justify-between items-start gap-4 flex-wrap">
-                <div className="flex-1 min-w-[200px]">
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">
-                    Admin Profile & Settings
+    <div className="min-h-screen w-full flex flex-col items-stretch page-bg admin-typography font-sans p-3 md:p-5 gap-4">
+      <div className="w-full max-w-[1800px] mx-auto flex flex-1 flex-col min-h-0 min-w-0">
+        <main className="flex-1 flex flex-col min-w-0 min-h-0">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex-1 flex flex-col min-h-0 w-full bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700/80 overflow-hidden"
+          >
+            <div className="shrink-0 flex items-start justify-between gap-3 px-4 py-3 md:px-5 md:py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/30">
+              <div className="flex items-center gap-3 min-w-0">
+                <AdminSidebar variant="header" />
+                <div className="min-w-0">
+                  <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-gray-100 m-0 leading-tight">
+                    Admin profile
                   </h1>
-                  <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                    Manage your personal information and profile settings.
+                  <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm m-0">
+                    Photo and contact details
                   </p>
                 </div>
-                <button
-                  onClick={() => navigate("/admin/settings")}
-                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
-                >
-                  <span>⚙️</span>
-                  Settings
-                </button>
               </div>
-            </motion.div>
+              <button
+                type="button"
+                onClick={() => navigate("/admin/settings")}
+                className="shrink-0 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors inline-flex items-center gap-2"
+              >
+                <span className="text-base" aria-hidden>
+                  ⚙️
+                </span>
+                Settings
+              </button>
+            </div>
 
-            {/* Tabs */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-2 shadow-sm mb-6 flex gap-2 flex-wrap"
-            >
-              {[
-                { id: "profile", label: "Profile Information", icon: "👤" },
-              ].map((tab) => (
-                <motion.button
-                  key={tab.id}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setActiveTab(tab.id)}
-                  style={{
-                    flex: 1,
-                    minWidth: 120,
-                    padding: "12px 16px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: activeTab === tab.id ? "linear-gradient(90deg, #4f46e5, #7c3aed)" : "transparent",
-                    color: activeTab === tab.id ? "#fff" : undefined,
-                    cursor: "pointer",
-                    fontWeight: activeTab === tab.id ? 700 : 600,
-                    fontSize: 14,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 8,
-                    transition: "all 0.2s",
-                  }}
-                  className={activeTab !== tab.id ? "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200" : ""}
-                >
-                  <span>{tab.icon}</span>
-                  <span>{tab.label}</span>
-                </motion.button>
-              ))}
-            </motion.div>
+            <div className="flex-1 flex flex-col min-h-0 p-4 md:p-6 lg:p-8">
+              <div className="grid flex-1 min-h-0 grid-cols-1 gap-6 md:gap-8 lg:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] xl:grid-cols-[minmax(14rem,22rem)_minmax(0,1fr)] lg:items-stretch">
+                <div className="flex flex-col items-center lg:items-stretch pb-6 lg:pb-0 border-b border-gray-200 dark:border-gray-700 lg:border-b-0 lg:border-r lg:border-gray-200 dark:lg:border-gray-600 lg:pr-8">
+                  <div className="relative w-28 h-28 sm:w-32 sm:h-32 lg:w-40 lg:h-40 rounded-full overflow-hidden border-[3px] border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 shrink-0">
+                    {previewImage ? (
+                      <img
+                        src={previewImage}
+                        alt="Profile"
+                        onError={(e) => {
+                          console.error("❌ Error loading profile image");
+                          console.error("❌ Failed URL:", previewImage);
+                          console.error("❌ Profile picture from state:", profile?.profilePicture);
+                          console.error("❌ BASE_URL:", BASE_URL);
 
-            {/* Profile Information Tab */}
-            <AnimatePresence mode="wait">
-              {activeTab === "profile" && (
-                <motion.div
-                  key="profile"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm"
-                >
-                  <h2 className="text-gray-900 dark:text-gray-100" style={{ marginTop: 0, marginBottom: 24, fontSize: "1.5rem" }}>
-                    Profile Information
-                  </h2>
-
-                  {/* Profile Picture Section */}
-                  <div
-                    className="border-b border-gray-200 dark:border-gray-700"
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      marginBottom: 32,
-                      paddingBottom: 32,
-                    }}
-                  >
-                    <div
-                      className="border-4 border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700"
-                      style={{
-                        width: 150,
-                        height: 150,
-                        borderRadius: "50%",
-                        overflow: "hidden",
-                        marginBottom: 16,
-                        position: "relative",
-                      }}
-                    >
-                      {previewImage ? (
-                        <img
-                          src={previewImage}
-                          alt="Profile"
-                          onError={(e) => {
-                            console.error("❌ Error loading profile image");
-                            console.error("❌ Failed URL:", previewImage);
-                            console.error("❌ Profile picture from state:", profile?.profilePicture);
-                            console.error("❌ BASE_URL:", BASE_URL);
-
-                            // Try to reload with a fresh URL from profile state
-                            if (profile?.profilePicture) {
-                              const retryUrl = getImageUrl(profile.profilePicture);
-                              console.log("🔄 Retrying image load with URL:", retryUrl);
-                              setTimeout(() => {
-                                if (retryUrl && retryUrl !== previewImage) {
-                                  e.target.src = retryUrl + "?t=" + Date.now(); // Add timestamp to bypass cache
-                                  e.target.style.display = "block";
-                                  setPreviewImage(retryUrl);
-                                } else {
-                                  console.error("❌ Retry URL same as failed URL");
-                                  e.target.style.display = "none";
-                                }
-                              }, 500);
-                            } else {
-                              console.error("❌ No profile picture in state to retry");
-                              e.target.style.display = "none";
-                              setPreviewImage(null);
-                            }
-                          }}
-                          onLoad={() => {
-                            console.log("✅ Profile image loaded successfully:", previewImage);
-                          }}
-                          style={{
-                            width: "100%",
-                            height: "100%",
-                            objectFit: "cover",
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-5xl text-gray-400 dark:text-gray-500">
-                          👤
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-                      <motion.label
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        style={{
-                          padding: "10px 20px",
-                          borderRadius: 10,
-                          background: "linear-gradient(90deg, #4f46e5, #7c3aed)",
-                          color: "#fff",
-                          cursor: "pointer",
-                          fontWeight: 600,
-                          fontSize: 14,
-                          display: "inline-block",
+                          if (profile?.profilePicture) {
+                            const retryUrl = getImageUrl(profile.profilePicture);
+                            console.log("🔄 Retrying image load with URL:", retryUrl);
+                            setTimeout(() => {
+                              if (retryUrl && retryUrl !== previewImage) {
+                                e.target.src = retryUrl + "?t=" + Date.now();
+                                e.target.style.display = "block";
+                                setPreviewImage(retryUrl);
+                              } else {
+                                console.error("❌ Retry URL same as failed URL");
+                                e.target.style.display = "none";
+                              }
+                            }, 500);
+                          } else {
+                            console.error("❌ No profile picture in state to retry");
+                            e.target.style.display = "none";
+                            setPreviewImage(null);
+                          }
                         }}
-                      >
-                        {uploadingPicture ? "Uploading..." : "Upload Picture"}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleProfilePictureUpload}
-                          disabled={uploadingPicture}
-                          style={{ display: "none" }}
-                        />
-                      </motion.label>
-                      {profile?.profilePicture && (
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={handleRemoveProfilePicture}
-                          className="px-5 py-2.5 rounded-lg border border-red-500 dark:border-red-600 bg-white dark:bg-gray-700 text-red-600 dark:text-red-400 font-semibold text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                        >
-                          Remove Picture
-                        </motion.button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Profile Form */}
-                  <form onSubmit={handleProfileUpdate}>
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                        gap: 20,
-                        marginBottom: 20,
-                      }}
-                    >
-                      <div>
-                        <label
-                          className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300"
-                        >
-                          Full Name *
-                        </label>
-                        <input
-                          type="text"
-                          value={profileForm.name}
-                          onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                          required
-                          className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-                        />
-                      </div>
-                      <div>
-                        <label
-                          className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300"
-                        >
-                          Email Address *
-                        </label>
-                        <input
-                          type="email"
-                          value={profileForm.email}
-                          onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                          required
-                          className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-                        />
-                      </div>
-                      <div>
-                        <label
-                          className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300"
-                        >
-                          Phone Number
-                        </label>
-                        <input
-                          type="tel"
-                          value={profileForm.phoneNumber}
-                          onChange={(e) => setProfileForm({ ...profileForm, phoneNumber: e.target.value })}
-                          placeholder="+1 (555) 123-4567"
-                          className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 placeholder-gray-400 dark:placeholder-gray-500"
-                        />
-                      </div>
-                    </div>
-                    <div className="mb-5">
-                      <label
-                        className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300"
-                      >
-                        Bio
-                      </label>
-                      <textarea
-                        value={profileForm.bio}
-                        onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
-                        placeholder="Tell us about yourself..."
-                        rows="4"
-                        maxLength={500}
-                        className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 placeholder-gray-400 dark:placeholder-gray-500 resize-y"
+                        onLoad={() => {
+                          console.log("✅ Profile image loaded successfully:", previewImage);
+                        }}
+                        className="w-full h-full object-cover"
                       />
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        {profileForm.bio.length}/500 characters
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-4xl lg:text-5xl text-gray-400 dark:text-gray-500">
+                        👤
                       </div>
-                    </div>
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+                    )}
+                  </div>
+                  <p className="mt-3 text-xs text-center text-gray-500 dark:text-gray-400 lg:text-left w-full">
+                    JPG, PNG, GIF or WebP · max 5MB
+                  </p>
+                  <div className="mt-4 flex flex-col sm:flex-row lg:flex-col gap-2 w-full max-w-xs lg:max-w-none">
+                    <motion.label
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="text-center px-4 py-2.5 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 text-white cursor-pointer font-semibold text-sm shadow-sm"
+                    >
+                      {uploadingPicture ? "Uploading…" : "Upload picture"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfilePictureUpload}
+                        disabled={uploadingPicture}
+                        className="hidden"
+                      />
+                    </motion.label>
+                    {profile?.profilePicture && (
                       <motion.button
                         type="button"
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => {
+                        onClick={handleRemoveProfilePicture}
+                        className="px-4 py-2.5 rounded-lg border border-red-300 dark:border-red-800 bg-white dark:bg-gray-800 text-red-600 dark:text-red-400 font-semibold text-sm hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                      >
+                        Remove picture
+                      </motion.button>
+                    )}
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={handleProfileUpdate}
+                  className="min-w-0 min-h-0 flex flex-col gap-4 lg:gap-5"
+                >
+                  <h2 className="text-base font-semibold text-gray-800 dark:text-gray-200 m-0 shrink-0">
+                    Details
+                  </h2>
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 shrink-0">
+                    <div className="min-w-0 xl:col-span-1">
+                      <label className="block text-sm font-medium mb-1.5 text-gray-600 dark:text-gray-400">
+                        Full name *
+                      </label>
+                      <input
+                        type="text"
+                        value={profileForm.name}
+                        onChange={(e) =>
                           setProfileForm({
-                            name: profile?.name || "",
-                            email: profile?.email || "",
-                            phoneNumber: profile?.phoneNumber || "",
-                            bio: profile?.bio || "",
-                          });
-                        }}
-                        className="px-5 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                      >
-                        Cancel
-                      </motion.button>
-                      <motion.button
-                        type="submit"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        style={{
-                          padding: "10px 20px",
-                          borderRadius: 10,
-                          border: "none",
-                          background: "linear-gradient(90deg, #4f46e5, #7c3aed)",
-                          color: "#fff",
-                          cursor: "pointer",
-                          fontWeight: 600,
-                          fontSize: 14,
-                          boxShadow: "0 4px 12px rgba(79, 70, 229, 0.3)",
-                        }}
-                      >
-                        Save Changes
-                      </motion.button>
+                            ...profileForm,
+                            name: e.target.value.replace(/[0-9]/g, ""),
+                          })
+                        }
+                        required
+                        className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/80 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
+                      />
                     </div>
-                  </form>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                    <div className="min-w-0 sm:col-span-2 xl:col-span-2">
+                      <label className="block text-sm font-medium mb-1.5 text-gray-600 dark:text-gray-400">
+                        Email *
+                      </label>
+                      <input
+                        type="email"
+                        value={profileForm.email}
+                        onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                        required
+                        className="w-full border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/80 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
+                      />
+                    </div>
+                    <div className="min-w-0 sm:col-span-2 xl:col-span-3">
+                      <label className="block text-sm font-medium mb-1.5 text-gray-600 dark:text-gray-400">
+                        Phone
+                      </label>
+                      <input
+                        type="tel"
+                        value={profileForm.phoneNumber}
+                        onChange={(e) =>
+                          setProfileForm({
+                            ...profileForm,
+                            phoneNumber: e.target.value.replace(/[^0-9+\-\s()]/g, ""),
+                          })
+                        }
+                        placeholder="+1 (555) 123-4567"
+                        className="w-full max-w-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/80 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 placeholder-gray-400 dark:placeholder-gray-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col flex-1 min-h-[12rem] lg:min-h-[14rem]">
+                    <label className="block text-sm font-medium mb-1.5 text-gray-600 dark:text-gray-400 shrink-0">
+                      Bio
+                    </label>
+                    <textarea
+                      value={profileForm.bio}
+                      onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
+                      placeholder="Role, responsibilities, or how your team can reach you…"
+                      maxLength={500}
+                      className="w-full flex-1 min-h-[10rem] border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/80 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 placeholder-gray-400 dark:placeholder-gray-500 resize-y"
+                    />
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 shrink-0">
+                      {profileForm.bio.length}/500 characters
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-2 mt-auto border-t border-gray-100 dark:border-gray-700 shrink-0">
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => {
+                        setProfileForm({
+                          name: profile?.name || "",
+                          email: profile?.email || "",
+                          phoneNumber: profile?.phoneNumber || "",
+                          bio: profile?.bio || "",
+                        });
+                      }}
+                      className="px-5 py-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Cancel
+                    </motion.button>
+                    <motion.button
+                      type="submit"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="px-5 py-2.5 rounded-lg font-semibold text-sm text-white bg-gradient-to-r from-indigo-600 to-violet-600 shadow-md shadow-indigo-500/20"
+                    >
+                      Save changes
+                    </motion.button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </motion.div>
         </main>
       </div>
     </div>

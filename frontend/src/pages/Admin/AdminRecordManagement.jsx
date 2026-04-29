@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import { formatProblemsPresentedDisplay } from "../../constants/problemsPresented";
 
 const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/records`;
 
@@ -16,9 +17,6 @@ export default function AdminRecordManagement() {
   const [loading, setLoading] = useState(true);
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [recordToDelete, setRecordToDelete] = useState(null);
   const [admin, setAdmin] = useState(null);
 
   // Search and filters
@@ -43,28 +41,8 @@ export default function AdminRecordManagement() {
   // Available counselors for filter
   const [counselors, setCounselors] = useState([]);
 
-  // Edit form state
-  const [editForm, setEditForm] = useState({
-    clientName: "",
-    date: "",
-    sessionType: "",
-    sessionNumber: "",
-    status: "Ongoing",
-    notes: "",
-    outcomes: "",
-  });
-
-  // Loading states
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  // Lock management state
+  // Lock status (read-only — counselors use locks when editing)
   const [lockStatuses, setLockStatuses] = useState({}); // { recordId: { locked, lockedBy, canLock, canUnlock, isLockOwner } }
-  const [lockingRecordId, setLockingRecordId] = useState(null);
-  const [unlockingRecordId, setUnlockingRecordId] = useState(null);
-  const [showLockLogs, setShowLockLogs] = useState(false);
-  const [lockLogs, setLockLogs] = useState([]);
-  const [selectedRecordForLogs, setSelectedRecordForLogs] = useState(null);
   const [allLockLogs, setAllLockLogs] = useState([]); // All lock/unlock logs for the card
   const [lockLogFilter, setLockLogFilter] = useState("all"); // Filter: "all", "LOCK", "UNLOCK", "UPDATE"
   const [showLockLogsCard, setShowLockLogsCard] = useState(true); // Toggle to show/hide the lock logs card
@@ -200,22 +178,6 @@ export default function AdminRecordManagement() {
     }
   }, [records]);
 
-  // Fetch lock logs for a record
-  const fetchLockLogs = async (recordId) => {
-    try {
-      const token = localStorage.getItem("adminToken");
-      const response = await axios.get(`${API_URL}/${recordId}/lock-logs`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setLockLogs(response.data.logs || []);
-      return response.data.logs || [];
-    } catch (error) {
-      console.error("Error fetching lock logs:", error);
-      setLockLogs([]);
-      return [];
-    }
-  };
-
   // Fetch all lock/unlock logs
   const fetchAllLockLogs = async () => {
     try {
@@ -251,79 +213,6 @@ export default function AdminRecordManagement() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lockLogFilter]);
 
-  // Lock a record
-  const handleLockRecord = async (record) => {
-    try {
-      setLockingRecordId(record._id);
-      const token = localStorage.getItem("adminToken");
-      const response = await axios.post(`${API_URL}/${record._id}/lock`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (response.data.success) {
-        await fetchLockStatus(record._id);
-        Swal.fire({
-          icon: "success",
-          title: "Record Locked",
-          text: "Record has been locked successfully.",
-          timer: 2000,
-          showConfirmButton: false,
-        });
-        fetchRecords(); // Refresh to get updated lock info
-      }
-    } catch (error) {
-      console.error("Error locking record:", error);
-      const errorMessage = error.response?.data?.message || "Failed to lock record.";
-      Swal.fire({
-        icon: "error",
-        title: "Lock Failed",
-        text: errorMessage,
-      });
-    } finally {
-      setLockingRecordId(null);
-    }
-  };
-
-  // Unlock a record
-  const handleUnlockRecord = async (record) => {
-    try {
-      setUnlockingRecordId(record._id);
-      const token = localStorage.getItem("adminToken");
-      const response = await axios.post(`${API_URL}/${record._id}/unlock`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      
-      if (response.data.success) {
-        await fetchLockStatus(record._id);
-        Swal.fire({
-          icon: "success",
-          title: "Record Unlocked",
-          text: "Record has been unlocked successfully.",
-          timer: 2000,
-          showConfirmButton: false,
-        });
-        fetchRecords(); // Refresh to get updated lock info
-      }
-    } catch (error) {
-      console.error("Error unlocking record:", error);
-      const errorMessage = error.response?.data?.message || "Failed to unlock record.";
-      Swal.fire({
-        icon: "error",
-        title: "Unlock Failed",
-        text: errorMessage,
-      });
-    } finally {
-      setUnlockingRecordId(null);
-    }
-  };
-
-  // View lock logs
-  const handleViewLockLogs = async (record) => {
-    setSelectedRecordForLogs(record);
-    setShowLockLogs(true);
-    await fetchLockLogs(record._id);
-  };
-
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -348,167 +237,54 @@ export default function AdminRecordManagement() {
     setShowDetailModal(true);
   };
 
-  // Edit record - Auto-lock when clicking Edit button
-  const handleEditRecord = async (record) => {
+  /** Save admin recommendation without opening full edit / lock flow */
+  const handleQuickRecommendation = async (record) => {
+    setOpenDropdownId(null);
+    const token = localStorage.getItem("adminToken");
+    const result = await Swal.fire({
+      title: "Admin recommendation",
+      text: `${record.clientName || "Record"} · Session #${record.sessionNumber ?? 1}`,
+      input: "textarea",
+      inputPlaceholder: "Enter recommendation for this record…",
+      inputValue: record.recommendation || "",
+      showCancelButton: true,
+      confirmButtonText: "Save",
+      cancelButtonText: "Cancel",
+      confirmButtonColor: "#4f46e5",
+      cancelButtonColor: "#6b7280",
+      width: 560,
+    });
+
+    if (!result.isConfirmed) return;
+
     try {
-      const token = localStorage.getItem("adminToken");
-      
-      // STRICT 2PL: Auto-lock record atomically when clicking Edit button
-      try {
-        const lockResponse = await axios.post(`${API_URL}/${record._id}/start-editing`, {}, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      const { data } = await axios.patch(
+        `${API_URL}/${record._id}/recommendation`,
+        { recommendation: result.value ?? "" },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-        if (!lockResponse.data.success) {
-          throw new Error("Failed to acquire lock");
-        }
-
-        // Lock acquired successfully - open edit modal immediately
-        setSelectedRecord(record);
-        setEditForm({
-          clientName: record.clientName || "",
-          date: record.date ? new Date(record.date).toISOString().split("T")[0] : "",
-          sessionType: record.sessionType || "",
-          sessionNumber: record.sessionNumber || "",
-          status: record.status || "Ongoing",
-          notes: record.notes || "",
-          outcomes: record.outcomes || "",
-        });
-        setShowEditModal(true);
-        // Refresh lock status in the background (non-blocking)
-        fetchLockStatus(record._id);
-      } catch (lockError) {
-        // Lock acquisition failed
-        console.error("Lock acquisition error:", lockError);
-        if (lockError.response?.status === 423) {
-          const lockOwner = lockError.response?.data?.lockedBy;
-          Swal.fire({
-            icon: "warning",
-            title: "Record Locked",
-            text: `This record is locked by ${lockOwner?.userName || "another user"}. Only one user can edit at a time.`,
-          });
-          await fetchLockStatus(record._id);
-          return;
-        }
-        // If lock acquisition fails for other reasons, show error
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: lockError.response?.data?.message || "Failed to acquire lock. Please try again.",
-        });
+      if (showDetailModal && selectedRecord?._id === record._id && data?.record) {
+        setSelectedRecord(data.record);
       }
+
+      await Swal.fire({
+        icon: "success",
+        title: "Saved",
+        text: "Recommendation updated.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      fetchRecords();
     } catch (err) {
-      console.error("Error acquiring lock:", err);
+      console.error("Quick recommendation error:", err);
       Swal.fire({
         icon: "error",
-        title: "Error",
-        text: err.response?.data?.message || "Failed to start editing session.",
+        title: "Could not save",
+        text: err.response?.data?.message || err.response?.data?.error || "Failed to save recommendation.",
       });
     }
   };
-
-  // Save edited record (lock should already be acquired when Edit was clicked)
-  const handleSaveEdit = async () => {
-    try {
-      setSaving(true);
-      const token = localStorage.getItem("adminToken");
-      
-      // Update the record (lock should already be acquired when Edit was clicked)
-      console.log("🔍 Updating record with data:", editForm);
-      const updateResponse = await axios.put(`${API_URL}/${selectedRecord._id}`, editForm, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      console.log("✅ Update response:", updateResponse.data);
-
-      // Refresh lock status
-      await fetchLockStatus(selectedRecord._id);
-      
-      Swal.fire({
-        icon: "success",
-        title: "Success",
-        text: "Record updated successfully!",
-        timer: 2000,
-        showConfirmButton: false,
-      });
-      setShowEditModal(false);
-      fetchRecords();
-    } catch (error) {
-      console.error("Error updating record:", error);
-      console.error("Error response:", error.response?.data);
-      console.error("Error response status:", error.response?.status);
-      console.error("Full error:", error);
-      
-      // Handle 423 Locked status
-      if (error.response?.status === 423) {
-        Swal.fire({
-          icon: "warning",
-          title: "Record Locked",
-          text: error.response?.data?.message || "This record is locked by another user. You cannot edit it.",
-        });
-        await fetchLockStatus(selectedRecord._id);
-      } else if (error.response?.status === 404) {
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: "Record not found.",
-        });
-      } else if (error.response?.status === 500) {
-        // Show the actual error message from backend
-        const errorMsg = error.response?.data?.error || error.response?.data?.message || "Failed to update record";
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: errorMsg,
-          footer: process.env.NODE_ENV === 'development' ? error.response?.data?.stack : undefined,
-        });
-      } else {
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: error.response?.data?.message || error.message || "Failed to update record. Please try again.",
-        });
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Delete record
-  const handleDeleteClick = (record) => {
-    setRecordToDelete(record);
-    setShowDeleteConfirm(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    try {
-      setDeleting(true);
-      const token = localStorage.getItem("adminToken");
-      await axios.delete(`${API_URL}/${recordToDelete._id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      Swal.fire({
-        icon: "success",
-        title: "Success",
-        text: "Record deleted successfully!",
-        timer: 2000,
-        showConfirmButton: false,
-      });
-      setShowDeleteConfirm(false);
-      setRecordToDelete(null);
-      fetchRecords();
-    } catch (error) {
-      console.error("Error deleting record:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Failed to delete record",
-      });
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  // Upload/Download of PDFs for admin have been removed
 
   // Clear all filters
   const handleClearFilters = () => {
@@ -531,255 +307,221 @@ export default function AdminRecordManagement() {
   const getStatusColor = (status) => {
     switch (status) {
       case "Completed":
-        return "bg-green-100 text-green-800";
+        return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400";
       case "Ongoing":
-        return "bg-blue-100 text-blue-800";
+        return "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400";
       case "Referred":
-        return "bg-yellow-100 text-yellow-800";
+        return "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400";
       default:
-        return "bg-gray-100 text-gray-800";
+        return "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300";
     }
   };
 
-  return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        <AdminSidebar />
+  const inputClass =
+    "h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-indigo-400 dark:focus:ring-indigo-400";
+  const labelClass =
+    "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500";
+  const selectClass = `${inputClass} cursor-pointer`;
 
-        <div className="flex flex-col gap-5">
-          {/* Header */}
-          <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm"
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">Record Management</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1.5">
-                Manage all counseling records.
-              </p>
+  return (
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <div className="flex flex-col gap-8">
+          <motion.header
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col gap-6 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-start sm:justify-between lg:pb-10"
+          >
+            <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+              <AdminSidebar variant="header" />
+              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+              <div className="min-w-0 space-y-2">
+                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Administration
+                </p>
+                <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-3xl">
+                  Records
+                </h1>
+                <p className="mt-2 max-w-lg text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                  Browse sessions, inspect lock state, and add recommendations. Counselors edit session content.
+                </p>
+              </div>
             </div>
             {!showActions && (
               <button
+                type="button"
                 onClick={() => setShowActions(true)}
-                className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-semibold text-sm cursor-pointer transition-colors flex items-center gap-2"
-                title="Show action buttons"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-4 w-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                 </svg>
-                <span>Show Actions</span>
+                Show row actions
               </button>
             )}
-          </div>
-        </motion.div>
+          </motion.header>
 
-        {/* Search Bar - Always Visible */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm"
-        >
-          <div className="flex items-end gap-4">
-            <div className="flex-1">
-              <label className="block mb-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                Search
-              </label>
-              <input
-                type="text"
-                placeholder="Client name or counselor..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 placeholder-gray-400 dark:placeholder-gray-500"
-              />
-            </div>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 font-semibold text-sm cursor-pointer transition-colors flex items-center gap-2"
-            >
-              {showFilters ? (
-                <>
-                  <span>Hide Filters</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  </svg>
-                </>
-              ) : (
-                <>
-                  <span>Show Filters</span>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </>
-              )}
-            </button>
-          </div>
-        </motion.div>
-
-        {/* Filters - Collapsible */}
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3 }}
-              className="overflow-hidden"
-            >
-              <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm"
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80 sm:p-6"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
+              <div className="min-w-0 flex-1 space-y-2">
+                <label htmlFor="admin-record-search" className={labelClass}>
+                  Search
+                </label>
+                <input
+                  id="admin-record-search"
+                  type="text"
+                  placeholder="Client or counselor…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFilters(!showFilters)}
+                aria-expanded={showFilters}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm font-medium text-gray-800 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
               >
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                  {/* Status Filter */}
-                  <div>
-                    <label className="block mb-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Status
-                    </label>
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 cursor-pointer"
-                    >
-                      <option value="all">All Status</option>
-                      <option value="Ongoing">Ongoing</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Referred">Referred</option>
-                    </select>
+                {showFilters ? "Hide filters" : "Filters"}
+                <svg
+                  className={`h-4 w-4 text-gray-500 transition-transform ${showFilters ? "rotate-180" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </div>
+
+            <AnimatePresence>
+              {showFilters && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.22 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-6 border-t border-gray-200 pt-6 dark:border-gray-600">
+                    <p className={labelClass}>Refine</p>
+                    <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <label className={labelClass}>Status</label>
+                        <select
+                          value={statusFilter}
+                          onChange={(e) => setStatusFilter(e.target.value)}
+                          className={selectClass}
+                        >
+                          <option value="all">All</option>
+                          <option value="Ongoing">Ongoing</option>
+                          <option value="Completed">Completed</option>
+                          <option value="Referred">Referred</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Session type</label>
+                        <input
+                          type="text"
+                          placeholder="Filter by type…"
+                          value={sessionTypeFilter === "all" ? "" : sessionTypeFilter}
+                          onChange={(e) => setSessionTypeFilter(e.target.value || "all")}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div className="sm:col-span-2 lg:col-span-2">
+                        <label className={labelClass}>Counselor</label>
+                        <select
+                          value={counselorFilter}
+                          onChange={(e) => setCounselorFilter(e.target.value)}
+                          className={selectClass}
+                        >
+                          <option value="all">All counselors</option>
+                          {counselors.map((counselor) => (
+                            <option key={counselor} value={counselor}>
+                              {counselor}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <label className={labelClass}>Start date</label>
+                        <input
+                          type="date"
+                          value={startDate}
+                          onChange={(e) => setStartDate(e.target.value)}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>End date</label>
+                        <input
+                          type="date"
+                          value={endDate}
+                          onChange={(e) => setEndDate(e.target.value)}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Sort by</label>
+                        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={selectClass}>
+                          <option value="date">Date</option>
+                          <option value="clientName">Client name</option>
+                          <option value="counselor">Counselor</option>
+                          <option value="status">Status</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelClass}>Order</label>
+                        <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className={selectClass}>
+                          <option value="desc">Newest first</option>
+                          <option value="asc">Oldest first</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="mt-6 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleClearFilters}
+                        className="text-sm font-medium text-gray-600 underline-offset-4 hover:text-gray-900 hover:underline dark:text-gray-400 dark:hover:text-gray-200"
+                      >
+                        Clear all filters
+                      </button>
+                    </div>
                   </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.section>
 
-                  {/* Session Type Filter */}
-                  <div>
-                    <label className="block mb-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Session Type
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Session type..."
-                      value={sessionTypeFilter === "all" ? "" : sessionTypeFilter}
-                      onChange={(e) => setSessionTypeFilter(e.target.value || "all")}
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 placeholder-gray-400 dark:placeholder-gray-500"
-                    />
-                  </div>
-
-                  {/* Counselor Filter */}
-                  <div>
-                    <label className="block mb-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Counselor
-                    </label>
-                    <select
-                      value={counselorFilter}
-                      onChange={(e) => setCounselorFilter(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 cursor-pointer"
-                    >
-                      <option value="all">All Counselors</option>
-                      {counselors.map((counselor) => (
-                        <option key={counselor} value={counselor}>
-                          {counselor}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                  {/* Date Range */}
-                  <div>
-                    <label className="block mb-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Start Date
-                    </label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block mb-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      End Date
-                    </label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-                    />
-                  </div>
-
-                  {/* Sort */}
-                  <div>
-                    <label className="block mb-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Sort By
-                    </label>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 cursor-pointer"
-                    >
-                      <option value="date">Date</option>
-                      <option value="clientName">Client Name</option>
-                      <option value="counselor">Counselor</option>
-                      <option value="status">Status</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block mb-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                      Order
-                    </label>
-                    <select
-                      value={sortOrder}
-                      onChange={(e) => setSortOrder(e.target.value)}
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 cursor-pointer"
-                    >
-                      <option value="desc">Descending</option>
-                      <option value="asc">Ascending</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex gap-2.5 justify-end">
-                  <button
-                    onClick={handleClearFilters}
-                    className="px-5 py-2.5 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-semibold text-sm cursor-pointer transition-colors"
-                  >
-                    Clear Filters
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Records Table */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
+        {/* Records directory */}
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm"
+          className="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80"
         >
-          <div className="flex justify-between items-center mb-5">
-            <h2 className="text-xl font-bold m-0 text-gray-900 dark:text-gray-100">
-              Records ({totalRecords})
-            </h2>
-            <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-              <label style={{ fontWeight: "600", color: "var(--text-secondary)" }}>Page Size:</label>
+          <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-600 sm:flex-row sm:items-end sm:justify-between sm:px-6 sm:py-5">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-white">Directory</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {totalRecords === 1 ? "1 record" : `${totalRecords} records`}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-500">Rows</span>
               <select
                 value={pageSize}
                 onChange={(e) => {
                   setPageSize(Number(e.target.value));
                   setCurrentPage(1);
                 }}
-                style={{
-                  padding: "8px",
-                  border: "1px solid var(--muted-surface)",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                }}
+                className="h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-sm text-gray-900 shadow-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               >
                 <option value={10}>10</option>
                 <option value={25}>25</option>
@@ -789,32 +531,48 @@ export default function AdminRecordManagement() {
             </div>
           </div>
 
+          <div className="px-2 pb-6 pt-2 sm:px-4 sm:pb-8">
           {loading ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>Loading records...</div>
+            <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">Loading records…</div>
           ) : records.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "40px", color: "var(--text-secondary)" }}>No records found</div>
+            <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">No records match your filters.</div>
           ) : (
-            <div style={{ overflowX: "auto" }}>
-              <table className="w-full border-collapse">
+            <div className="-mx-2 overflow-x-auto sm:mx-0">
+              <table className="w-full min-w-[720px] border-collapse text-left text-sm text-gray-900 dark:text-gray-100">
                 <thead>
-                  <tr className="bg-gray-50 dark:bg-gray-700/50 border-b-2 border-gray-200 dark:border-gray-700">
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Client</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Date</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Session</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Type</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Status</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Counselor</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400">Lock Status</th>
+                  <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-600 dark:bg-gray-900/20">
+                    <th className="whitespace-nowrap px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:px-4">
+                      Client
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:px-4">
+                      Date
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:px-4">
+                      Session
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:px-4">
+                      Type
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:px-4">
+                      Status
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:px-4">
+                      Counselor
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:px-4">
+                      Lock
+                    </th>
                       {showActions && (
-                        <th className="px-3 py-3 text-center text-xs font-semibold text-gray-600 dark:text-gray-400">
+                        <th className="px-3 py-3 text-center text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:px-4">
                           <div className="flex items-center justify-center gap-2">
                             <span>Actions</span>
                             <button
+                              type="button"
                               onClick={() => setShowActions(false)}
-                              className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                              title="Hide actions"
+                              className="rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                              title="Hide actions column"
                             >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                               </svg>
                             </button>
@@ -827,124 +585,113 @@ export default function AdminRecordManagement() {
                   {records.map((record) => (
                     <tr
                       key={record._id}
-                      className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                      className="border-b border-gray-200 transition-colors last:border-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
                     >
-                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-gray-100">{record.clientName}</td>
-                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-gray-100">{formatDate(record.date)}</td>
-                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-gray-100">#{record.sessionNumber}</td>
-                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-gray-100">{record.sessionType}</td>
-                      <td className="px-3 py-3">
-                        <span className={`${getStatusColor(record.status)} px-3 py-1 rounded-full text-xs font-semibold`}>
+                      <td className="px-3 py-3.5 font-medium text-gray-900 dark:text-gray-100 sm:px-4">
+                        {record.clientName}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3.5 text-gray-600 dark:text-gray-300 sm:px-4">
+                        {formatDate(record.date)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-3.5 tabular-nums text-gray-600 dark:text-gray-300 sm:px-4">
+                        #{record.sessionNumber}
+                      </td>
+                      <td className="px-3 py-3.5 text-gray-600 dark:text-gray-300 sm:px-4">{record.sessionType}</td>
+                      <td className="px-3 py-3.5 sm:px-4">
+                        <span
+                          className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${getStatusColor(record.status)}`}
+                        >
                           {record.status}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-sm text-gray-900 dark:text-gray-100">{record.counselor}</td>
-                      <td className="px-3 py-3">
+                      <td className="max-w-[10rem] truncate px-3 py-3.5 text-gray-600 dark:text-gray-300 sm:max-w-none sm:px-4">
+                        {record.counselor}
+                      </td>
+                      <td className="px-3 py-3.5 sm:px-4">
                         {(() => {
                           const lockStatus = lockStatuses[record._id];
                           if (!lockStatus) {
                             return (
-                              <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
-                                Loading...
-                              </span>
+                              <span className="text-xs text-gray-400 dark:text-gray-500">…</span>
                             );
                           }
                           if (lockStatus.locked) {
                             const isOwner = lockStatus.isLockOwner;
                             return (
-                              <div className="flex flex-col gap-1">
+                              <div className="flex max-w-[11rem] flex-col gap-0.5">
                                 <span
-                                  className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                    isOwner
-                                      ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                                      : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                  className={`text-xs font-medium leading-snug ${
+                                    isOwner ? "text-emerald-700 dark:text-emerald-400" : "text-amber-800 dark:text-amber-400"
                                   }`}
                                 >
-                                  🔒 Locked by {lockStatus.lockedBy?.userName || "Unknown"}
+                                  Locked
+                                  <span className="font-normal text-gray-500 dark:text-gray-400">
+                                    {" · "}
+                                    {lockStatus.lockedBy?.userName || "—"}
+                                  </span>
                                 </span>
                                 {lockStatus.lockedBy?.userRole === "admin" && (
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">Admin</span>
+                                  <span className="text-[10px] uppercase tracking-wide text-gray-400">Admin</span>
                                 )}
                               </div>
                             );
                           }
                           return (
-                            <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
-                              🔓 Unlocked
-                            </span>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Open</span>
                           );
                         })()}
                       </td>
                       {showActions && (
-                        <td className="px-3 py-3 text-center">
-                          <div className="relative dropdown-container">
-                          <button
-                            onClick={() => setOpenDropdownId(openDropdownId === record._id ? null : record._id)}
-                            className="px-3 py-1.5 rounded-lg bg-gray-600 hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 text-white font-semibold text-xs cursor-pointer transition-colors flex items-center gap-1"
-                          >
-                            Actions
-                            <svg
-                              className={`w-3 h-3 transition-transform ${openDropdownId === record._id ? 'rotate-180' : ''}`}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
+                        <td className="px-3 py-3.5 text-center sm:px-4">
+                          <div className="relative inline-block text-left dropdown-container">
+                            <button
+                              type="button"
+                              onClick={() => setOpenDropdownId(openDropdownId === record._id ? null : record._id)}
+                              className="inline-flex h-8 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
                             >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </button>
-                          
-                          <AnimatePresence>
-                            {openDropdownId === record._id && (
-                              <motion.div
-                                initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                                animate={{ opacity: 1, y: 0, scale: 1 }}
-                                exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                                transition={{ duration: 0.2 }}
-                                className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 overflow-hidden"
-                                onClick={(e) => e.stopPropagation()}
+                              Menu
+                              <svg
+                                className={`h-3.5 w-3.5 text-gray-400 transition-transform ${openDropdownId === record._id ? "rotate-180" : ""}`}
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
                               >
-                                <div className="flex flex-col">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+
+                            <AnimatePresence>
+                              {openDropdownId === record._id && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                                  transition={{ duration: 0.15 }}
+                                  className="absolute right-0 z-50 mt-1 min-w-[10.5rem] overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg shadow-gray-900/10 dark:border-gray-700 dark:bg-gray-800"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
                                   <button
+                                    type="button"
                                     onClick={() => {
                                       handleViewRecord(record);
                                       setOpenDropdownId(null);
                                     }}
-                                    className="px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold text-xs cursor-pointer transition-colors flex items-center gap-2"
+                                    className="flex w-full px-3 py-2 text-left text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                                   >
-                                    <span>View</span>
+                                    View details
                                   </button>
-                                  {(() => {
-                                    const lockStatus = lockStatuses[record._id];
-                                    const isLocked = lockStatus?.locked;
-                                    const isLockOwner = lockStatus?.isLockOwner;
-                                    const canEdit = !isLocked || isLockOwner;
-                                    
-                                    return (
-                                      <>
-                                        <button
-                                          onClick={() => {
-                                            handleEditRecord(record);
-                                            setOpenDropdownId(null);
-                                          }}
-                                          disabled={!canEdit}
-                                          className={`px-4 py-2.5 font-semibold text-xs cursor-pointer transition-colors flex items-center gap-2 ${
-                                            canEdit
-                                              ? "bg-green-500 hover:bg-green-600 text-white"
-                                              : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-                                          }`}
-                                          title={!canEdit ? "Record is locked. Please unlock it first." : "Edit record"}
-                                        >
-                                          <span>Edit</span>
-                                        </button>
-                                      </>
-                                    );
-                                  })()}
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      </td>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickRecommendation(record)}
+                                    className="flex w-full px-3 py-2 text-left text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                                  >
+                                    Recommendation
+                                  </button>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </td>
                       )}
                     </tr>
                   ))}
@@ -952,852 +699,315 @@ export default function AdminRecordManagement() {
               </table>
             </div>
           )}
-        </motion.div>
-
-        {/* Lock/Unlock Activity Logs Card - Separate Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm"
-        >
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                  Lock/Unlock Activity Logs
-                </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Recent lock and unlock activities across all records
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowLockLogsCard(!showLockLogsCard)}
-                  className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
-                  title={showLockLogsCard ? "Hide logs" : "Show logs"}
-                >
-                  <svg 
-                    className={`w-4 h-4 transition-transform ${showLockLogsCard ? 'rotate-180' : ''}`}
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                  {showLockLogsCard ? "Hide" : "Show"}
-                </button>
-                <select
-                  value={lockLogFilter}
-                  onChange={(e) => setLockLogFilter(e.target.value)}
-                  className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 cursor-pointer"
-                >
-                  <option value="all">All Actions</option>
-                  <option value="LOCK">Lock Only</option>
-                  <option value="UNLOCK">Unlock Only</option>
-                  <option value="UPDATE">Update Only</option>
-                </select>
-                <button
-                  onClick={fetchAllLockLogs}
-                  className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-semibold text-sm cursor-pointer transition-colors flex items-center gap-2"
-                  title="Refresh logs"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Refresh
-                </button>
-              </div>
-            </div>
-
-            <AnimatePresence>
-              {showLockLogsCard && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3 }}
-                  style={{ overflow: "hidden" }}
-                >
-                  {(() => {
-                    // Filter logs based on lockLogFilter
-                    const filteredLogs = lockLogFilter === "all" 
-                      ? allLockLogs 
-                      : allLockLogs.filter(log => log.action === lockLogFilter);
-                    
-                    return filteredLogs.length === 0 ? (
-                      <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                        No lock/unlock activities found.
-                      </div>
-                    ) : (
-                      <div className="space-y-2 max-h-96 overflow-y-auto">
-                        {filteredLogs.map((log, index) => (
-                        <div
-                          key={index}
-                          className="border border-gray-200 dark:border-gray-700 rounded-md p-2 bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                        >
-                          <div className="flex justify-between items-center gap-2">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <span
-                                className={`px-2 py-0.5 rounded text-xs font-semibold whitespace-nowrap ${
-                                  log.action === "LOCK"
-                                    ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                                    : log.action === "UNLOCK"
-                                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                                    : log.action === "UPDATE"
-                                    ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
-                                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                                }`}
-                              >
-                                {log.action}
-                              </span>
-                              <span className="text-xs font-medium text-gray-900 dark:text-gray-100 truncate">
-                                {log.performedBy.userName} <span className="text-gray-500 dark:text-gray-400">({log.performedBy.userRole})</span>
-                              </span>
-                              {log.record && (
-                                <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                                  {log.record.clientName} - Session #{log.record.sessionNumber}
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                              {log.timestamp ? new Date(log.timestamp).toLocaleString() : log.createdAt ? new Date(log.createdAt).toLocaleString() : "N/A"}
-                            </span>
-                          </div>
-                          {log.reason && log.reason !== "Auto-locked when editing started" && (
-                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{log.reason}</p>
-                          )}
-                        </div>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex justify-center items-center gap-2.5 mt-5">
+            <div className="mt-6 flex items-center justify-center gap-3 border-t border-gray-200 pt-6 dark:border-gray-600">
               <button
+                type="button"
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                className={`h-9 rounded-lg px-4 text-sm font-medium transition ${
                   currentPage === 1
-                    ? "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-                    : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white cursor-pointer shadow-md hover:shadow-lg"
+                    ? "cursor-not-allowed text-gray-300 dark:text-gray-600"
+                    : "border border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                 }`}
               >
                 Previous
               </button>
-              <span className="text-gray-700 dark:text-gray-300 font-semibold text-sm">
-                Page {currentPage} of {totalPages}
+              <span className="min-w-[5.5rem] text-center text-xs font-medium text-gray-500 dark:text-gray-400">
+                {currentPage} / {totalPages}
               </span>
               <button
+                type="button"
                 onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                className={`h-9 rounded-lg px-4 text-sm font-medium transition ${
                   currentPage === totalPages
-                    ? "bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-                    : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white cursor-pointer shadow-md hover:shadow-lg"
+                    ? "cursor-not-allowed text-gray-300 dark:text-gray-600"
+                    : "border border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                 }`}
               >
                 Next
               </button>
             </div>
           )}
-        </motion.div>
+          </div>
+        </motion.section>
+
+        <motion.aside
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80 sm:p-6"
+        >
+          <div className="flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-gray-600 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Lock activity</h2>
+              <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                Recent lock, unlock, and update events across records.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowLockLogsCard(!showLockLogsCard)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+              >
+                <svg
+                  className={`h-3.5 w-3.5 text-gray-400 transition-transform ${showLockLogsCard ? "rotate-180" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+                {showLockLogsCard ? "Hide" : "Show"}
+              </button>
+              <select
+                value={lockLogFilter}
+                onChange={(e) => setLockLogFilter(e.target.value)}
+                className="h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+              >
+                <option value="all">All</option>
+                <option value="LOCK">Lock</option>
+                <option value="UNLOCK">Unlock</option>
+                <option value="UPDATE">Update</option>
+              </select>
+              <button
+                type="button"
+                onClick={fetchAllLockLogs}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          <AnimatePresence>
+            {showLockLogsCard && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.22 }}
+                className="overflow-hidden"
+              >
+                {(() => {
+                  const filteredLogs =
+                    lockLogFilter === "all"
+                      ? allLockLogs
+                      : allLockLogs.filter((log) => log.action === lockLogFilter);
+
+                  return filteredLogs.length === 0 ? (
+                    <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">No activity yet.</p>
+                  ) : (
+                    <ul className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
+                      {filteredLogs.map((log, index) => (
+                        <li
+                          key={index}
+                          className="rounded-xl border border-gray-200 bg-gray-50/60 px-3 py-2.5 dark:border-gray-600 dark:bg-gray-700/40"
+                        >
+                          <div className="flex flex-wrap items-baseline justify-between gap-2">
+                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                              <span
+                                className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                  log.action === "LOCK"
+                                    ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-400"
+                                    : log.action === "UNLOCK"
+                                      ? "bg-sky-500/15 text-sky-800 dark:text-sky-400"
+                                      : log.action === "UPDATE"
+                                        ? "bg-violet-500/15 text-violet-800 dark:text-violet-300"
+                                        : "bg-gray-500/10 text-gray-700 dark:text-gray-300"
+                                }`}
+                              >
+                                {log.action}
+                              </span>
+                              <span className="truncate text-xs font-medium text-gray-800 dark:text-gray-200">
+                                {log.performedBy.userName}
+                                <span className="font-normal text-gray-500 dark:text-gray-500">
+                                  {" · "}
+                                  {log.performedBy.userRole}
+                                </span>
+                              </span>
+                              {log.record && (
+                                <span className="truncate text-xs text-gray-500 dark:text-gray-400">
+                                  {log.record.clientName} · #{log.record.sessionNumber}
+                                </span>
+                              )}
+                            </div>
+                            <time className="shrink-0 text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
+                              {log.timestamp
+                                ? new Date(log.timestamp).toLocaleString()
+                                : log.createdAt
+                                  ? new Date(log.createdAt).toLocaleString()
+                                  : "—"}
+                            </time>
+                          </div>
+                          {log.reason && log.reason !== "Auto-locked when editing started" && (
+                            <p className="mt-1.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400">{log.reason}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  );
+                })()}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </motion.aside>
+        </div>
       </div>
 
-      {/* Close grid container */}
-      </div>
-
-      {/* Detail Modal */}
       <AnimatePresence>
         {showDetailModal && selectedRecord && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: "rgba(0,0,0,0.5)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1000,
-              padding: "20px",
-            }}
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-[2px]"
             onClick={() => setShowDetailModal(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.97, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+              exit={{ scale: 0.97, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 380, damping: 28 }}
               onClick={(e) => e.stopPropagation()}
-              style={{
-                background: "var(--surface-color)",
-                borderRadius: "12px",
-                padding: "30px",
-                maxWidth: "800px",
-                width: "100%",
-                maxHeight: "90vh",
-                overflowY: "auto",
-                boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-              }}
+              className="max-h-[min(90vh,720px)] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                <h2 style={{ fontSize: "24px", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
-                  Record Details
-                </h2>
+              <div className="sticky top-0 z-[1] flex items-start justify-between gap-4 border-b border-gray-200 bg-white/95 px-5 py-4 backdrop-blur-sm dark:border-gray-600 dark:bg-gray-800/95">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Session</p>
+                  <h2 className="mt-0.5 text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
+                    {selectedRecord.clientName}
+                  </h2>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    #{selectedRecord.sessionNumber} · {formatDate(selectedRecord.date)}
+                  </p>
+                </div>
                 <button
+                  type="button"
                   onClick={() => setShowDetailModal(false)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    fontSize: "24px",
-                    cursor: "pointer",
-                    color: "var(--text-secondary)",
-                  }}
+                  className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  aria-label="Close"
                 >
-                  ×
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
               </div>
 
-              <div style={{ display: "grid", gap: "15px" }}>
-                <div>
-                  <strong style={{ color: "var(--text-secondary)" }}>Client Name:</strong>
-                  <div style={{ marginTop: "5px", color: "#2d3748" }}>{selectedRecord.clientName}</div>
+              <dl className="grid gap-5 px-5 py-5 sm:px-6 sm:py-6">
+                <div className="grid gap-1">
+                  <dt className={labelClass}>Type</dt>
+                  <dd className="text-sm text-gray-800 dark:text-gray-200">{selectedRecord.sessionType}</dd>
                 </div>
-                <div>
-                  <strong style={{ color: "var(--text-secondary)" }}>Date:</strong>
-                  <div style={{ marginTop: "5px", color: "#2d3748" }}>{formatDate(selectedRecord.date)}</div>
-                </div>
-                <div>
-                  <strong style={{ color: "var(--text-secondary)" }}>Session Type:</strong>
-                  <div style={{ marginTop: "5px", color: "#2d3748" }}>{selectedRecord.sessionType}</div>
-                </div>
-                <div>
-                  <strong style={{ color: "var(--text-secondary)" }}>Session Number:</strong>
-                  <div style={{ marginTop: "5px", color: "#2d3748" }}>#{selectedRecord.sessionNumber}</div>
-                </div>
-                <div>
-                  <strong style={{ color: "var(--text-secondary)" }}>Status:</strong>
-                  <div style={{ marginTop: "5px" }}>
+                <div className="grid gap-1">
+                  <dt className={labelClass}>Status</dt>
+                  <dd>
                     <span
-                      className={getStatusColor(selectedRecord.status)}
-                      style={{
-                        padding: "4px 12px",
-                        borderRadius: "12px",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                      }}
+                      className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${getStatusColor(selectedRecord.status)}`}
                     >
                       {selectedRecord.status}
                     </span>
-                  </div>
+                  </dd>
                 </div>
-                <div>
-                  <strong style={{ color: "var(--text-secondary)" }}>Counselor:</strong>
-                  <div style={{ marginTop: "5px", color: "#2d3748" }}>{selectedRecord.counselor}</div>
+                <div className="grid gap-1">
+                  <dt className={labelClass}>Counselor</dt>
+                  <dd className="text-sm text-gray-800 dark:text-gray-200">{selectedRecord.counselor}</dd>
                 </div>
-                <div>
-                  <strong style={{ color: "var(--text-secondary)" }}>Notes:</strong>
-                  <div style={{ marginTop: "5px", color: "#2d3748", whiteSpace: "pre-wrap" }}>
-                    {selectedRecord.notes || "No notes"}
-                  </div>
+                <div className="grid gap-1">
+                  <dt className={labelClass}>Problems presented</dt>
+                  <dd className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                    {formatProblemsPresentedDisplay(selectedRecord)}
+                  </dd>
                 </div>
-                <div>
-                  <strong style={{ color: "var(--text-secondary)" }}>Outcomes:</strong>
-                  <div style={{ marginTop: "5px", color: "#2d3748", whiteSpace: "pre-wrap" }}>
-                    {selectedRecord.outcomes || "No outcomes"}
-                  </div>
+                <div className="grid gap-1">
+                  <dt className={labelClass}>Notes</dt>
+                  <dd className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                    {selectedRecord.notes || "—"}
+                  </dd>
+                </div>
+                <div className="grid gap-1">
+                  <dt className={labelClass}>Outcomes</dt>
+                  <dd className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                    {selectedRecord.outcomes || "—"}
+                  </dd>
+                </div>
+                <div className="grid gap-1 rounded-xl border border-violet-200/80 bg-violet-50/40 p-3 dark:border-violet-900/50 dark:bg-violet-950/20">
+                  <dt className={labelClass}>Admin recommendation</dt>
+                  <dd className="whitespace-pre-wrap text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+                    {selectedRecord.recommendation || "—"}
+                  </dd>
                 </div>
                 {selectedRecord.attachments && selectedRecord.attachments.length > 0 && (
-                  <div>
-                    <strong style={{ color: "var(--text-secondary)" }}>Attachments:</strong>
-                    <div style={{ marginTop: "5px" }}>
+                  <div className="grid gap-2">
+                    <dt className={labelClass}>Attachments</dt>
+                    <dd className="flex flex-col gap-1.5">
                       {selectedRecord.attachments.map((attachment, idx) => (
-                        <div key={idx} style={{ marginBottom: "5px" }}>
-                          <a
-                            href={attachment.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ color: "#4299e1", textDecoration: "underline" }}
-                          >
-                            {attachment.fileName}
-                          </a>
-                        </div>
+                        <a
+                          key={idx}
+                          href={attachment.fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-sky-700 underline-offset-2 hover:underline dark:text-sky-400"
+                        >
+                          {attachment.fileName}
+                        </a>
                       ))}
-                    </div>
+                    </dd>
                   </div>
                 )}
                 {selectedRecord.auditTrail && (
-                  <div>
-                    <strong style={{ color: "var(--text-secondary)" }}>Audit Trail:</strong>
-                    <div style={{ marginTop: "5px", fontSize: "14px", color: "#2d3748" }}>
-                      <div>Created by: {selectedRecord.auditTrail.createdBy?.userName || "N/A"}</div>
-                      <div>Created at: {formatDate(selectedRecord.auditTrail.createdAt)}</div>
-                      <div>Last modified by: {selectedRecord.auditTrail.lastModifiedBy?.userName || "N/A"}</div>
-                      <div>Last modified at: {formatDate(selectedRecord.auditTrail.lastModifiedAt)}</div>
+                  <div className="grid gap-2 border-t border-gray-200 pt-4 dark:border-gray-600">
+                    <dt className={labelClass}>Audit</dt>
+                    <dd className="space-y-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                      <div>Created · {selectedRecord.auditTrail.createdBy?.userName || "—"}</div>
+                      <div>{formatDate(selectedRecord.auditTrail.createdAt)}</div>
+                      <div className="pt-2">
+                        Modified · {selectedRecord.auditTrail.lastModifiedBy?.userName || "—"}
+                      </div>
+                      <div>{formatDate(selectedRecord.auditTrail.lastModifiedAt)}</div>
                       {selectedRecord.auditTrail.modificationHistory &&
                         selectedRecord.auditTrail.modificationHistory.length > 0 && (
-                          <div style={{ marginTop: "10px" }}>
-                            <strong>Modification History:</strong>
+                          <ul className="mt-2 space-y-1 border-t border-gray-200 pt-2 dark:border-gray-600">
                             {selectedRecord.auditTrail.modificationHistory.map((change, idx) => (
-                              <div key={idx} style={{ marginTop: "5px", paddingLeft: "10px", fontSize: "12px" }}>
-                                {change.field}: {String(change.oldValue)} → {String(change.newValue)} (by{" "}
-                                {change.changedBy?.userName || "N/A"} on {formatDate(change.changedAt)})
-                              </div>
+                              <li key={idx} className="pl-1 text-[11px]">
+                                <span className="font-medium text-gray-700 dark:text-gray-300">{change.field}</span>
+                                {": "}
+                                <span className="text-gray-500">{String(change.oldValue)}</span>
+                                {" → "}
+                                <span className="text-gray-500">{String(change.newValue)}</span>
+                                <span className="text-gray-400">
+                                  {" · "}
+                                  {change.changedBy?.userName || "—"}
+                                </span>
+                              </li>
                             ))}
-                          </div>
+                          </ul>
                         )}
-                    </div>
+                    </dd>
                   </div>
                 )}
-              </div>
+              </dl>
 
-              <div style={{ display: "flex", gap: "10px", marginTop: "20px", justifyContent: "flex-end" }}>
+              <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 bg-gray-50/80 px-5 py-4 dark:border-gray-600 dark:bg-gray-900/30 sm:px-6">
                 <button
-                  onClick={() => {
-                    setShowDetailModal(false);
-                    handleEditRecord(selectedRecord);
-                  }}
-                  style={{
-                    padding: "10px 20px",
-                    background: "#48bb78",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
-                >
-                  Edit
-                </button>
-                <button
+                  type="button"
                   onClick={() => setShowDetailModal(false)}
-                  style={{
-                    padding: "10px 20px",
-                    background: "var(--muted-surface)",
-                    color: "var(--text-secondary)",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
+                  className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
                 >
                   Close
                 </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Edit Modal */}
-      <AnimatePresence>
-        {showEditModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: "rgba(0,0,0,0.5)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1000,
-              padding: "20px",
-            }}
-            onClick={() => setShowEditModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                background: "var(--surface-color)",
-                borderRadius: "12px",
-                padding: "30px",
-                maxWidth: "600px",
-                width: "100%",
-                maxHeight: "90vh",
-                overflowY: "auto",
-                boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                <div>
-                  <h2 style={{ fontSize: "24px", fontWeight: "700", margin: 0, color: "var(--text-primary)" }}>
-                    Edit Record
-                  </h2>
-                  {(() => {
-                    const lockStatus = lockStatuses[selectedRecord?._id];
-                    if (lockStatus?.locked) {
-                      const isOwner = lockStatus.isLockOwner;
-                      return (
-                        <div className="mt-2">
-                          {isOwner ? (
-                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
-                              🔒 You have locked this record
-                            </span>
-                          ) : (
-                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-                              🔒 Locked by {lockStatus.lockedBy?.userName || "another user"} - Read Only
-                            </span>
-                          )}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
                 <button
-                  onClick={() => setShowEditModal(false)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    fontSize: "24px",
-                    cursor: "pointer",
-                    color: "var(--text-secondary)",
-                  }}
+                  type="button"
+                  onClick={() => handleQuickRecommendation(selectedRecord)}
+                  className="h-10 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                 >
-                  ×
+                  Add recommendation
                 </button>
               </div>
-
-              {(() => {
-                const lockStatus = lockStatuses[selectedRecord?._id];
-                const isLocked = lockStatus?.locked;
-                const isLockOwner = lockStatus?.isLockOwner;
-                const isReadOnly = isLocked && !isLockOwner;
-                
-                return (
-                  <div style={{ display: "grid", gap: "15px" }}>
-                    <div>
-                      <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
-                        Client Name *
-                      </label>
-                      <input
-                        type="text"
-                        value={editForm.clientName}
-                        onChange={(e) => setEditForm({ ...editForm, clientName: e.target.value })}
-                        disabled={isReadOnly}
-                        style={{
-                          width: "100%",
-                          padding: "10px",
-                          border: "1px solid var(--muted-surface)",
-                          borderRadius: "8px",
-                          fontSize: "14px",
-                          backgroundColor: isReadOnly ? "#f7fafc" : "white",
-                          color: isReadOnly ? "var(--text-secondary)" : "var(--text-primary)",
-                          cursor: isReadOnly ? "not-allowed" : "text",
-                        }}
-                      />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
-                    Date *
-                  </label>
-                  <input
-                    type="date"
-                    value={editForm.date}
-                    onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-                    disabled={isReadOnly}
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      border: "1px solid var(--muted-surface)",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      backgroundColor: isReadOnly ? "#f7fafc" : "white",
-                      color: isReadOnly ? "var(--text-secondary)" : "var(--text-primary)",
-                      cursor: isReadOnly ? "not-allowed" : "text",
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
-                    Session Type *
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.sessionType}
-                    onChange={(e) => setEditForm({ ...editForm, sessionType: e.target.value })}
-                    disabled={isReadOnly}
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      border: "1px solid var(--muted-surface)",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      backgroundColor: isReadOnly ? "#f7fafc" : "white",
-                      color: isReadOnly ? "var(--text-secondary)" : "var(--text-primary)",
-                      cursor: isReadOnly ? "not-allowed" : "text",
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
-                    Session Number
-                  </label>
-                  <input
-                    type="number"
-                    value={editForm.sessionNumber}
-                    onChange={(e) => setEditForm({ ...editForm, sessionNumber: e.target.value })}
-                    disabled={isReadOnly}
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      border: "1px solid var(--muted-surface)",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      backgroundColor: isReadOnly ? "#f7fafc" : "white",
-                      color: isReadOnly ? "var(--text-secondary)" : "var(--text-primary)",
-                      cursor: isReadOnly ? "not-allowed" : "text",
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
-                    Status *
-                  </label>
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    disabled={isReadOnly}
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      border: "1px solid var(--muted-surface)",
-                      borderRadius: "8px",
-                      fontSize: "14px",
-                      backgroundColor: isReadOnly ? "#f7fafc" : "white",
-                      color: isReadOnly ? "var(--text-secondary)" : "var(--text-primary)",
-                      cursor: isReadOnly ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    <option value="Ongoing">Ongoing</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Referred">Referred</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
-                    Notes
-                  </label>
-                  <textarea
-                    value={editForm.notes}
-                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                    disabled={isReadOnly}
-                    rows={4}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
-                    style={{ resize: "vertical" }}
-                    placeholder={(() => {
-                      const lockStatus = lockStatuses[selectedRecord?._id];
-                      if (lockStatus?.locked && !lockStatus?.isLockOwner) {
-                        return "Record is locked. Please unlock it first.";
-                      }
-                      return "";
-                    })()}
-                  />
-                </div>
-
-                <div>
-                  <label style={{ display: "block", marginBottom: "5px", fontWeight: "600", color: "var(--text-secondary)" }}>
-                    Outcomes
-                  </label>
-                  <textarea
-                    value={editForm.outcomes}
-                    onChange={(e) => setEditForm({ ...editForm, outcomes: e.target.value })}
-                    disabled={isReadOnly}
-                    rows={4}
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-500 dark:disabled:text-gray-400 disabled:cursor-not-allowed"
-                    style={{ resize: "vertical" }}
-                    placeholder={(() => {
-                      const lockStatus = lockStatuses[selectedRecord?._id];
-                      if (lockStatus?.locked && !lockStatus?.isLockOwner) {
-                        return "Record is locked. Please unlock it first.";
-                      }
-                      return "";
-                    })()}
-                  />
-                </div>
-                  </div>
-                );
-              })()}
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "20px", justifyContent: "flex-end" }}>
-                {/* STRICT 2PL: Show unlock button only if user owns the lock */}
-                {(() => {
-                  const lockStatus = lockStatuses[selectedRecord?._id];
-                  const isLocked = lockStatus?.locked;
-                  const isLockOwner = lockStatus?.isLockOwner;
-                  
-                  if (isLocked && isLockOwner) {
-                    return (
-                      <button
-                        onClick={async () => {
-                          await handleUnlockRecord(selectedRecord);
-                          setShowEditModal(false);
-                        }}
-                        disabled={unlockingRecordId === selectedRecord?._id}
-                        style={{
-                          padding: "10px 20px",
-                          background: "#f59e0b",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "8px",
-                          cursor: unlockingRecordId === selectedRecord?._id ? "not-allowed" : "pointer",
-                          fontWeight: "600",
-                          opacity: unlockingRecordId === selectedRecord?._id ? 0.5 : 1,
-                        }}
-                        title="Unlock record after finishing editing"
-                      >
-                        {unlockingRecordId === selectedRecord?._id ? "Unlocking..." : "🔓 Unlock"}
-                      </button>
-                    );
-                  }
-                  return null;
-                })()}
-                <button
-                  onClick={() => setShowEditModal(false)}
-                  style={{
-                    padding: "10px 20px",
-                    background: "var(--muted-surface)",
-                    color: "var(--text-secondary)",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
-                >
-                  Cancel
-                </button>
-                {(() => {
-                  const lockStatus = lockStatuses[selectedRecord?._id];
-                  const isLocked = lockStatus?.locked;
-                  const isLockOwner = lockStatus?.isLockOwner;
-                  const canEdit = !isLocked || isLockOwner;
-                  
-                  return (
-                    <button
-                      onClick={handleSaveEdit}
-                      disabled={saving || !canEdit}
-                      style={{
-                        padding: "10px 20px",
-                        background: saving || !canEdit ? "#cbd5e0" : "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "8px",
-                        cursor: saving || !canEdit ? "not-allowed" : "pointer",
-                        fontWeight: "600",
-                      }}
-                      title={!canEdit ? "Record is locked. Please unlock it first." : ""}
-                    >
-                      {saving ? "Saving..." : "Save Changes"}
-                    </button>
-                  );
-                })()}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {showDeleteConfirm && recordToDelete && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: "rgba(0,0,0,0.5)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1000,
-            }}
-            onClick={() => setShowDeleteConfirm(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                background: "var(--surface-color)",
-                borderRadius: "12px",
-                padding: "30px",
-                maxWidth: "500px",
-                width: "100%",
-                boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
-              }}
-            >
-              <h2 style={{ fontSize: "20px", fontWeight: "700", marginBottom: "15px", color: "var(--text-primary)" }}>
-                Confirm Deletion
-              </h2>
-              <p style={{ color: "var(--text-secondary)", marginBottom: "20px" }}>
-                Are you sure you want to delete the record for <strong>{recordToDelete.clientName}</strong> - Session{" "}
-                #{recordToDelete.sessionNumber}? This action cannot be undone.
-              </p>
-              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-                <button
-                  onClick={() => {
-                    setShowDeleteConfirm(false);
-                    setRecordToDelete(null);
-                  }}
-                  style={{
-                    padding: "10px 20px",
-                    background: "var(--muted-surface)",
-                    color: "var(--text-secondary)",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleConfirmDelete}
-                  disabled={deleting}
-                  style={{
-                    padding: "10px 20px",
-                    background: deleting ? "#cbd5e0" : "#f56565",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "8px",
-                    cursor: deleting ? "not-allowed" : "pointer",
-                    fontWeight: "600",
-                  }}
-                >
-                  {deleting ? "Deleting..." : "Delete"}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Lock Logs Modal */}
-      <AnimatePresence>
-        {showLockLogs && selectedRecordForLogs && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              background: "rgba(0,0,0,0.5)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1000,
-              padding: "20px",
-            }}
-            onClick={() => setShowLockLogs(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                  Lock Event Logs
-                </h2>
-                <button
-                  onClick={() => setShowLockLogs(false)}
-                  className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-2xl font-bold"
-                >
-                  ×
-                </button>
-              </div>
-
-              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  <strong>Record:</strong> {selectedRecordForLogs.clientName} - Session {selectedRecordForLogs.sessionNumber}
-                </p>
-              </div>
-
-              {lockLogs.length === 0 ? (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  No lock events found.
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {lockLogs.map((log, index) => (
-                    <div
-                      key={index}
-                      className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-700"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-semibold ${
-                              log.action === "LOCK"
-                                ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                                : log.action === "UNLOCK"
-                                ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                                : log.action === "UPDATE"
-                                ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
-                                : "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                            }`}
-                          >
-                            {log.action}
-                          </span>
-                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {log.performedBy.userName} ({log.performedBy.userRole})
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {new Date(log.timestamp).toLocaleString()}
-                        </span>
-                      </div>
-                      {log.reason && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{log.reason}</p>
-                      )}
-                      {log.metadata && log.metadata.changedFields && log.metadata.changedFields.length > 0 && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          Changed fields: {log.metadata.changedFields.join(", ")}
-                        </p>
-                      )}
-                      {log.lockOwner && log.lockOwner.userName !== log.performedBy.userName && (
-                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                          Lock owner: {log.lockOwner.userName}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
             </motion.div>
           </motion.div>
         )}

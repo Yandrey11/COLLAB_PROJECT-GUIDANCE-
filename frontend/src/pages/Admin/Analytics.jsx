@@ -150,23 +150,22 @@ export default function Analytics() {
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Left: Sidebar */}
-        <AdminSidebar />
-
-        {/* Right: Main content */}
-        <main className="w-full space-y-6">
+    <div className="min-h-screen w-full flex flex-col items-center page-bg admin-typography font-sans p-3 md:p-5 gap-5">
+      <div className="w-full max-w-[1800px]">
+        <main className="w-full min-w-0 space-y-5">
           {/* Header */}
           <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm">
             <div className="flex justify-between items-center flex-wrap gap-4">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">
-                  Analytics Dashboard
-                </h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                  System-wide usage analytics and insights
-                </p>
+              <div className="flex items-center gap-4 min-w-0">
+                <AdminSidebar variant="header" />
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">
+                    Analytics Dashboard
+                  </h1>
+                  <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
+                    System-wide usage analytics and insights
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -250,7 +249,7 @@ export default function Analytics() {
           </div>
 
           {/* Charts Row 1 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
             {/* Daily Records Chart */}
             <ChartCard title="Daily Records Created">
               <LineChart data={dailyRecords} />
@@ -263,7 +262,7 @@ export default function Analytics() {
           </div>
 
           {/* Charts Row 2 */}
-          <div className="grid grid-cols-1 gap-6">
+          <div className="grid grid-cols-1 gap-4">
             {/* Page Visits Chart */}
             <ChartCard title="Page Visits by Module">
               <BarChart data={pageVisits.byPage} />

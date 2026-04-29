@@ -3,6 +3,7 @@ import GoogleUser from "../models/GoogleUser.js";
 import ActivityLog from "../models/ActivityLog.js";
 import bcrypt from "bcryptjs";
 import { validatePassword } from "../utils/passwordValidation.js";
+import { isValidCollege } from "../utils/counselorColleges.js";
 import { getFileUrl, deleteProfilePictureFile } from "../middleware/uploadMiddleware.js";
 import path from "path";
 import fs from "fs";
@@ -95,6 +96,7 @@ export const getProfile = async (req, res) => {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       isGoogleUser: userModel === "GoogleUser",
+      college: user.college ?? null,
     };
 
     res.status(200).json({
@@ -130,7 +132,7 @@ export const updateProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const { name, email, phoneNumber, bio } = req.body;
+    const { name, email, phoneNumber, bio, college } = req.body;
     const updates = {};
     const metadata = {};
 
@@ -159,15 +161,22 @@ export const updateProfile = async (req, res) => {
         });
       }
 
-      // Check if email already exists (in both User and GoogleUser collections)
-      const existingUser = await Counselor.findOne({ email, _id: { $ne: user._id } });
-      const existingGoogleUser = await GoogleUser.findOne({ email, _id: { $ne: user._id } });
+      const normalizedIncoming = String(email).toLowerCase().trim();
+      const normalizedCurrent = String(user.email || "").toLowerCase().trim();
+      const sameEmailAsSelf = normalizedIncoming === normalizedCurrent;
 
-      if (existingUser || existingGoogleUser) {
-        return res.status(400).json({
-          success: false,
-          message: "Email already in use by another account",
-        });
+      // Only check other accounts when the email is actually changing (avoids false
+      // positives when the same address exists on the other collection with a different _id).
+      if (!sameEmailAsSelf) {
+        const existingUser = await Counselor.findOne({ email, _id: { $ne: user._id } });
+        const existingGoogleUser = await GoogleUser.findOne({ email, _id: { $ne: user._id } });
+
+        if (existingUser || existingGoogleUser) {
+          return res.status(400).json({
+            success: false,
+            message: "Email already in use by another account",
+          });
+        }
       }
 
       if (user.email !== email.toLowerCase().trim()) {
@@ -212,6 +221,20 @@ export const updateProfile = async (req, res) => {
       }
     }
 
+    if (college !== undefined && (userModel === "Counselor" || userModel === "GoogleUser")) {
+      if (!isValidCollege(college)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid college selection",
+        });
+      }
+      if (user.college !== college) {
+        updates.college = college;
+        metadata.oldCollege = user.college;
+        metadata.newCollege = college;
+      }
+    }
+
     // If no updates, return early
     if (Object.keys(updates).length === 0) {
       return res.status(200).json({
@@ -223,6 +246,8 @@ export const updateProfile = async (req, res) => {
           email: user.email,
           phoneNumber: user.phoneNumber || null,
           bio: user.bio || null,
+          college: user.college ?? null,
+          isGoogleUser: userModel === "GoogleUser",
         },
       });
     }
@@ -251,6 +276,8 @@ export const updateProfile = async (req, res) => {
         email: user.email,
         phoneNumber: user.phoneNumber || null,
         bio: user.bio || null,
+        college: user.college ?? null,
+        isGoogleUser: userModel === "GoogleUser",
         profilePicture: user.profilePicture ? getFileUrl(user.profilePicture, baseUrl) : null,
         updatedAt: user.updatedAt,
       },

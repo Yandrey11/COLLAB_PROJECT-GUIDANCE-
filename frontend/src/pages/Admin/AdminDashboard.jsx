@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
@@ -468,323 +468,371 @@ export default function AdminDashboard() {
   };
 
 
+  const cardSurface =
+    "rounded-2xl border border-gray-200/90 bg-white shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80";
+  const selectField =
+    "h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400";
+  const filterLabel =
+    "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500";
+
   if (accessDenied) {
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100vh",
-          fontFamily: "'Montserrat', sans-serif",
-          flexDirection: "column",
-          gap: 12,
-          background: "linear-gradient(135deg, #eef2ff, #c7d2fe)",
-        }}
-      >
-        <h2 style={{ color: "#dc2626" }}>Access Denied</h2>
-        <p style={{ color: "#6b7280" }}>You do not have permission to access the Admin Dashboard. Redirecting...</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-gradient-to-b from-gray-50 to-gray-100 px-6 text-center dark:from-gray-900 dark:to-gray-950 counselor-typography font-sans">
+        <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">Access denied</h2>
+        <p className="max-w-md text-sm text-gray-600 dark:text-gray-400">
+          You do not have permission to access the admin dashboard. Redirecting…
+        </p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center page-bg counselor-typography font-sans">
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="h-9 w-9 animate-spin rounded-full border-2 border-gray-200 border-t-indigo-600 dark:border-gray-600 dark:border-t-indigo-400"
+            aria-hidden
+          />
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading dashboard…</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Left: Overview / Navigation */}
-        <AdminSidebar />
-
-        {/* Right: Main content */}
-        <main>
-          {/* Welcome Header */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-4">
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-gray-900 dark:text-gray-100 m-0 text-2xl font-bold">
-                  Welcome{admin?.name ? `, ${admin.name}` : ""} 🎉
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <div className="flex flex-col gap-10">
+          <motion.header
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col gap-6 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 lg:flex-row lg:items-start lg:justify-between lg:pb-10"
+          >
+            <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+              <AdminSidebar variant="header" />
+              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+              <div className="min-w-0 space-y-2">
+                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Administration
+                </p>
+                <h1 className="m-0 text-2xl font-semibold tracking-tight sm:text-3xl">
+                  Welcome{admin?.name ? `, ${admin.name}` : ""}
                 </h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                  Manage users, monitor system activity, and access administrative tools.
+                <p className="m-0 max-w-xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                  Review analytics, watch recent activity, and broadcast updates to counselors.
                 </p>
               </div>
-              
-              {/* Profile Picture, Name, and Role */}
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <div className="font-semibold text-gray-900 dark:text-gray-100 text-base">
-                    {adminProfile?.name || admin?.name || "Admin"}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 capitalize">
-                    {adminProfile?.role || admin?.role || "Administrator"}
-                  </div>
+            </div>
+
+            <div
+              className={`flex shrink-0 items-center gap-3 self-start rounded-2xl border border-gray-200/90 bg-white px-4 py-3 dark:border-gray-700/90 dark:bg-gray-800/80 lg:self-center`}
+            >
+              <div className="min-w-0 text-right">
+                <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {adminProfile?.name || admin?.name || "Admin"}
+                </p>
+                <p className="text-xs capitalize text-gray-500 dark:text-gray-400">
+                  {adminProfile?.role || admin?.role || "Administrator"}
+                </p>
+              </div>
+              {adminProfile?.profilePicture || admin?.profilePicture ? (
+                <img
+                  src={adminProfile?.profilePicture || getImageUrl(admin?.profilePicture)}
+                  alt=""
+                  className="h-11 w-11 shrink-0 rounded-full border border-gray-200 object-cover dark:border-gray-600"
+                  onError={(e) => {
+                    e.target.style.display = "none";
+                  }}
+                />
+              ) : (
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-50 dark:border-gray-600 dark:bg-gray-700/80">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    className="h-5 w-5 text-gray-500 dark:text-gray-400"
+                  >
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
                 </div>
-                {adminProfile?.profilePicture || admin?.profilePicture ? (
-                  <img
-                    src={adminProfile?.profilePicture || getImageUrl(admin?.profilePicture)}
-                    alt="Admin Profile"
-                    className="w-12 h-12 rounded-full object-cover border-2 border-indigo-200 dark:border-indigo-700"
-                    onError={(e) => {
-                      // Hide broken image and show placeholder
-                      e.target.style.display = "none";
-                    }}
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900 border-2 border-indigo-200 dark:border-indigo-700 flex items-center justify-center">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="w-6 h-6 text-indigo-600 dark:text-indigo-400"
-                    >
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                      <circle cx="12" cy="7" r="4"></circle>
-                    </svg>
-                  </div>
+              )}
+            </div>
+          </motion.header>
+
+          <section className="flex flex-col gap-8">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
+              className={`${cardSurface} p-5 sm:p-6`}
+            >
+              <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-white">Analytics</h2>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Date range and filters apply to charts and the activity log below.
+                  </p>
+                </div>
+                {analyticsLoading && (
+                  <span className="text-xs font-medium text-gray-400 dark:text-gray-500">Refreshing…</span>
                 )}
               </div>
-            </div>
-          </div>
-
-          {/* Analytics Dashboard */}
-          <section className="space-y-6">
-            {/* Filters */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm">
-              <div className="flex gap-3 items-center flex-wrap">
-                <label className="text-xs font-medium text-gray-700 dark:text-gray-300">Date Range:</label>
-                <select
-                  value={dateRange}
-                  onChange={(e) => {
-                    setDateRange(e.target.value);
-                    setRecentEventsPage(1); // Reset to first page when filter changes
-                  }}
-                  className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="7d">Last 7 Days</option>
-                  <option value="30d">Last 30 Days</option>
-                  <option value="90d">Last 90 Days</option>
-                  <option value="1y">Last Year</option>
-                </select>
-
-                <label className="text-xs font-medium text-gray-700 dark:text-gray-300 ml-4">
-                  Event Type:
-                </label>
-                <select
-                  value={eventTypeFilter}
-                  onChange={(e) => {
-                    setEventTypeFilter(e.target.value);
-                    setRecentEventsPage(1); // Reset to first page when filter changes
-                  }}
-                  className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">All Events</option>
-                  <option value="record_created">Records Created</option>
-                  <option value="record_updated">Records Updated</option>
-                  <option value="pdf_generated">PDFs Generated</option>
-                  <option value="drive_uploaded">Drive Uploads</option>
-                  <option value="page_visit">Page Visits</option>
-                  <option value="user_login">User Logins</option>
-                </select>
-
-                <label className="text-xs font-medium text-gray-700 dark:text-gray-300 ml-4">
-                  Page:
-                </label>
-                <select
-                  value={pageNameFilter}
-                  onChange={(e) => {
-                    setPageNameFilter(e.target.value);
-                    setRecentEventsPage(1); // Reset to first page when filter changes
-                  }}
-                  className="px-3 py-1.5 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">All Pages</option>
-                  <option value="Dashboard">Dashboard</option>
-                  <option value="Records Page">Records Page</option>
-                  <option value="Reports Page">Reports Page</option>
-                  <option value="Notification Center">Notification Center</option>
-                  <option value="Settings">Settings</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Announcement Card */}
-            <div className="mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-lg p-4 border border-blue-200 dark:border-gray-700 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="bg-blue-500 dark:bg-blue-600 p-2 rounded-lg">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Send Announcement</h3>
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Notify all counselors with important updates</p>
-                  </div>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <label htmlFor="admin-dash-range" className={filterLabel}>
+                    Date range
+                  </label>
+                  <select
+                    id="admin-dash-range"
+                    value={dateRange}
+                    onChange={(e) => {
+                      setDateRange(e.target.value);
+                      setRecentEventsPage(1);
+                    }}
+                    className={selectField}
+                  >
+                    <option value="7d">Last 7 days</option>
+                    <option value="30d">Last 30 days</option>
+                    <option value="90d">Last 90 days</option>
+                    <option value="1y">Last year</option>
+                  </select>
                 </div>
-                <button
-                  onClick={handleOpenAnnouncementModal}
-                  className="px-4 py-2 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Create Announcement
-                </button>
+                <div>
+                  <label htmlFor="admin-dash-event" className={filterLabel}>
+                    Event type
+                  </label>
+                  <select
+                    id="admin-dash-event"
+                    value={eventTypeFilter}
+                    onChange={(e) => {
+                      setEventTypeFilter(e.target.value);
+                      setRecentEventsPage(1);
+                    }}
+                    className={selectField}
+                  >
+                    <option value="">All events</option>
+                    <option value="record_created">Records created</option>
+                    <option value="record_updated">Records updated</option>
+                    <option value="pdf_generated">PDFs generated</option>
+                    <option value="drive_uploaded">Drive uploads</option>
+                    <option value="page_visit">Page visits</option>
+                    <option value="user_login">User logins</option>
+                  </select>
+                </div>
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <label htmlFor="admin-dash-page" className={filterLabel}>
+                    Page
+                  </label>
+                  <select
+                    id="admin-dash-page"
+                    value={pageNameFilter}
+                    onChange={(e) => {
+                      setPageNameFilter(e.target.value);
+                      setRecentEventsPage(1);
+                    }}
+                    className={selectField}
+                  >
+                    <option value="">All pages</option>
+                    <option value="Dashboard">Dashboard</option>
+                    <option value="Records Page">Records page</option>
+                    <option value="Reports Page">Reports page</option>
+                    <option value="Notification Center">Notification center</option>
+                    <option value="Settings">Settings</option>
+                  </select>
+                </div>
               </div>
-            </div>
+            </motion.div>
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.08 }}
+              className={`${cardSurface} flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6`}
+            >
+              <div className="flex min-w-0 items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-700/80">
+                  <svg className="h-5 w-5 text-gray-600 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
+                    />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Announcements</h2>
+                  <p className="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                    Push a notification to all counselors or to a chosen list.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenAnnouncementModal}
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white sm:ml-4"
+              >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                New announcement
+              </button>
+            </motion.div>
+
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <SummaryCard title="Total records" value={analyticsOverview.totalRecords.toLocaleString()} accent="indigo" />
+              <SummaryCard title="PDFs generated" value={analyticsOverview.totalPDFsGenerated.toLocaleString()} accent="emerald" />
+              <SummaryCard title="Drive uploads" value={analyticsOverview.totalDriveUploads.toLocaleString()} accent="violet" />
               <SummaryCard
-                title="Total Records"
-                value={analyticsOverview.totalRecords.toLocaleString()}
-                icon="📋"
-                color="blue"
-              />
-              <SummaryCard
-                title="PDFs Generated"
-                value={analyticsOverview.totalPDFsGenerated.toLocaleString()}
-                icon="📄"
-                color="green"
-              />
-              <SummaryCard
-                title="Drive Uploads"
-                value={analyticsOverview.totalDriveUploads.toLocaleString()}
-                icon="☁️"
-                color="purple"
-              />
-              <SummaryCard
-                title="Active Counselors"
+                title="Active counselors (week)"
                 value={analyticsOverview.activeCounselorsThisWeek.toLocaleString()}
-                icon="👥"
-                color="orange"
+                accent="amber"
               />
             </div>
 
-            {/* Charts Row 1 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {/* Daily Records Chart */}
-              <ChartCard title="Daily Records Created">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+              <ChartCard title="Daily records created">
                 <LineChart data={dailyRecords} />
               </ChartCard>
-
-              {/* Record Status Distribution */}
-              <ChartCard title="Record Status Distribution">
+              <ChartCard title="Record status distribution">
                 <PieChart data={recordStatusDistribution} />
               </ChartCard>
             </div>
 
-            {/* Recent Activities Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-sm font-bold text-gray-900 dark:text-gray-100">Recent Activities</h2>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className={`overflow-hidden ${cardSurface}`}
+            >
+              <div className="flex flex-col gap-1 border-b border-gray-200 px-5 py-4 dark:border-gray-600 sm:flex-row sm:items-end sm:justify-between sm:px-6 sm:py-5">
+                <div>
+                  <h2 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-white">Recent activity</h2>
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Latest events matching your filters.</p>
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-[10px] font-medium text-gray-700 dark:text-gray-300 uppercase">
-                        Event
-                      </th>
-                      <th className="px-4 py-2 text-left text-[10px] font-medium text-gray-700 dark:text-gray-300 uppercase">
-                        User
-                      </th>
-                      <th className="px-4 py-2 text-left text-[10px] font-medium text-gray-700 dark:text-gray-300 uppercase">
-                        Page/Module
-                      </th>
-                      <th className="px-4 py-2 text-left text-[10px] font-medium text-gray-700 dark:text-gray-300 uppercase">
-                        Timestamp
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {recentEvents.length === 0 ? (
-                      <tr>
-                        <td colSpan="4" className="px-4 py-4 text-center text-xs text-gray-500 dark:text-gray-400">
-                          {analyticsLoading ? "Loading..." : "No recent activities found"}
-                        </td>
+              <div className="px-2 pb-2 pt-0 sm:px-4">
+                <div className="-mx-2 overflow-x-auto sm:mx-0">
+                  <table className="w-full min-w-[640px] border-collapse text-left text-sm text-gray-900 dark:text-gray-100">
+                    <thead>
+                      <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-600 dark:bg-gray-900/20">
+                        <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Event
+                        </th>
+                        <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          User
+                        </th>
+                        <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Page / module
+                        </th>
+                        <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Time
+                        </th>
                       </tr>
-                    ) : (
-                      recentEvents.map((event) => (
-                        <tr key={event.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            <span className="text-xs font-medium text-gray-900 dark:text-gray-100">
-                              {formatEventType(event.eventType)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            <div className="text-xs text-gray-900 dark:text-gray-100">
-                              {event.userName || "System"}
-                            </div>
-                            <div className="text-[10px] text-gray-500 dark:text-gray-400">
-                              {event.userRole || "N/A"}
-                            </div>
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                            {event.pageName || "N/A"}
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                            {formatDate(event.timestamp)}
+                    </thead>
+                    <tbody>
+                      {recentEvents.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                            {analyticsLoading ? "Loading events…" : "No events match these filters."}
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : (
+                        recentEvents.map((event) => (
+                          <tr
+                            key={event.id}
+                            className="border-b border-gray-200 transition-colors last:border-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
+                          >
+                            <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {formatEventType(event.eventType)}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3">
+                              <div className="text-sm text-gray-900 dark:text-gray-100">{event.userName || "System"}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400">{event.userRole || "—"}</div>
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                              {event.pageName || "—"}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
+                              {formatDate(event.timestamp)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              {/* Pagination Controls */}
               {recentEventsTotalPages > 1 && (
-                <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-600 sm:px-6">
+                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                     Page {recentEventsPage} of {recentEventsTotalPages}
-                  </div>
+                  </p>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => {
-                        if (recentEventsPage > 1) {
-                          setRecentEventsPage(recentEventsPage - 1);
-                        }
-                      }}
+                      type="button"
+                      onClick={() => recentEventsPage > 1 && setRecentEventsPage(recentEventsPage - 1)}
                       disabled={recentEventsPage === 1}
-                      className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                     >
                       Previous
                     </button>
                     <button
-                      onClick={() => {
-                        if (recentEventsPage < recentEventsTotalPages) {
-                          setRecentEventsPage(recentEventsPage + 1);
-                        }
-                      }}
+                      type="button"
+                      onClick={() => recentEventsPage < recentEventsTotalPages && setRecentEventsPage(recentEventsPage + 1)}
                       disabled={recentEventsPage >= recentEventsTotalPages}
-                      className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                     >
                       Next
                     </button>
                   </div>
                 </div>
               )}
-            </div>
+            </motion.div>
           </section>
-        </main>
+        </div>
       </div>
 
-      {/* Announcement Modal */}
-      {showAnnouncementModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 dark:bg-opacity-70">
+      <AnimatePresence>
+        {showAnnouncementModal && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-[2px]"
+            onClick={() => {
+              setShowAnnouncementModal(false);
+              setAnnouncementData({
+                title: "",
+                message: "",
+                priority: "medium",
+                targetAudience: "all",
+                selectedCounselorIds: [],
+              });
+            }}
           >
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Send Announcement</h2>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[min(90vh,720px)] w-full max-w-2xl overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+            >
+            <div className="sticky top-0 z-[1] flex flex-col gap-2 border-b border-gray-200 bg-white/95 px-6 py-5 backdrop-blur-sm dark:border-gray-600 dark:bg-gray-800/95">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Broadcast</p>
+                  <h2 className="mt-0.5 text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Send announcement</h2>
+                </div>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowAnnouncementModal(false);
                     setAnnouncementData({ 
@@ -795,21 +843,21 @@ export default function AdminDashboard() {
                       selectedCounselorIds: []
                     });
                   }}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+              <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                 {announcementData.targetAudience === "all" 
-                  ? "Send an important message to all counselors" 
-                  : "Send an important message to selected counselors"}
+                  ? "Delivered to every counselor as a notification." 
+                  : "Delivered only to the counselors you select."}
               </p>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="space-y-5 px-6 py-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Title <span className="text-red-500">*</span>
@@ -819,7 +867,7 @@ export default function AdminDashboard() {
                   value={announcementData.title}
                   onChange={(e) => setAnnouncementData({ ...announcementData, title: e.target.value })}
                   placeholder="Enter announcement title..."
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                 />
               </div>
 
@@ -832,7 +880,7 @@ export default function AdminDashboard() {
                   onChange={(e) => setAnnouncementData({ ...announcementData, message: e.target.value })}
                   placeholder="Enter announcement message..."
                   rows={6}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  className="w-full resize-none rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                 />
               </div>
 
@@ -852,9 +900,9 @@ export default function AdminDashboard() {
                         targetAudience: e.target.value,
                         selectedCounselorIds: []
                       })}
-                      className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                      className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">All Counselors</span>
+                    <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">All counselors</span>
                   </label>
                   <label className="flex items-center cursor-pointer">
                     <input
@@ -866,9 +914,9 @@ export default function AdminDashboard() {
                         ...announcementData, 
                         targetAudience: e.target.value 
                       })}
-                      className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                      className="h-4 w-4 border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     />
-                    <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Specific Counselors</span>
+                    <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">Specific counselors</span>
                   </label>
                 </div>
               </div>
@@ -881,7 +929,7 @@ export default function AdminDashboard() {
                   {loadingCounselors ? (
                     <div className="text-sm text-gray-500 dark:text-gray-400 py-2">Loading counselors...</div>
                   ) : (
-                    <div className="border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 max-h-48 overflow-y-auto">
+                    <div className="max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50/80 dark:border-gray-600 dark:bg-gray-900/30">
                       {counselors.length === 0 ? (
                         <div className="p-4 text-sm text-gray-500 dark:text-gray-400 text-center">
                           No counselors found
@@ -891,7 +939,7 @@ export default function AdminDashboard() {
                           {counselors.map((counselor) => (
                             <label
                               key={counselor.id || counselor._id}
-                              className="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded cursor-pointer"
+                              className="flex cursor-pointer items-center rounded-lg p-2 transition hover:bg-white dark:hover:bg-gray-800"
                             >
                               <input
                                 type="checkbox"
@@ -914,7 +962,7 @@ export default function AdminDashboard() {
                                     });
                                   }
                                 }}
-                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                               />
                               <div className="ml-3 flex-1">
                                 <div className="text-sm font-medium text-gray-900 dark:text-white">
@@ -931,7 +979,7 @@ export default function AdminDashboard() {
                     </div>
                   )}
                   {announcementData.selectedCounselorIds.length > 0 && (
-                    <div className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+                    <div className="mt-2 text-xs font-medium text-indigo-600 dark:text-indigo-400">
                       {announcementData.selectedCounselorIds.length} counselor(s) selected
                     </div>
                   )}
@@ -945,7 +993,7 @@ export default function AdminDashboard() {
                 <select
                   value={announcementData.priority}
                   onChange={(e) => setAnnouncementData({ ...announcementData, priority: e.target.value })}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-gray-900 transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                 >
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
@@ -954,13 +1002,13 @@ export default function AdminDashboard() {
                 </select>
               </div>
 
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="rounded-xl border border-gray-200 bg-gray-50/90 p-4 dark:border-gray-600 dark:bg-gray-900/40">
                 <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="mt-0.5 h-5 w-5 shrink-0 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="text-sm text-blue-800 dark:text-blue-300">
-                    <p className="font-medium mb-1">Note:</p>
+                  <div className="text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                    <p className="mb-1 font-medium text-gray-800 dark:text-gray-200">Note</p>
                     <p>
                       {announcementData.targetAudience === "all"
                         ? "This announcement will be sent as a notification to all counselors in the system. They will see it in their notification center."
@@ -971,8 +1019,9 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+            <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 bg-gray-50/80 px-6 py-4 dark:border-gray-600 dark:bg-gray-900/30">
               <button
+                type="button"
                 onClick={() => {
                   setShowAnnouncementModal(false);
                   setAnnouncementData({ 
@@ -984,14 +1033,15 @@ export default function AdminDashboard() {
                   });
                 }}
                 disabled={sendingAnnouncement}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={sendAnnouncement}
                 disabled={sendingAnnouncement || !announcementData.title.trim() || !announcementData.message.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
               >
                 {sendingAnnouncement ? (
                   <>
@@ -1011,37 +1061,32 @@ export default function AdminDashboard() {
                 )}
               </button>
             </div>
+            </motion.div>
           </motion.div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
 // Summary Card Component
-function SummaryCard({ title, value, icon, color }) {
-  const colorClasses = {
-    blue: "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200",
-    green: "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200",
-    purple: "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200",
-    orange: "bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200",
+function SummaryCard({ title, value, accent }) {
+  const accentBar = {
+    indigo: "bg-indigo-500 dark:bg-indigo-400",
+    emerald: "bg-emerald-500 dark:bg-emerald-400",
+    violet: "bg-violet-500 dark:bg-violet-400",
+    amber: "bg-amber-500 dark:bg-amber-400",
   };
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm"
+      className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80"
     >
-      <div className="flex items-center justify-between">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-medium text-gray-600 dark:text-gray-400 truncate">{title}</p>
-          <p className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">{value}</p>
-        </div>
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ml-2 flex-shrink-0 ${colorClasses[color]}`}>
-          {icon}
-        </div>
-      </div>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{title}</p>
+      <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-gray-900 dark:text-gray-100">{value}</p>
+      <div className={`mt-4 h-0.5 w-10 rounded-full ${accentBar[accent] || accentBar.indigo}`} />
     </motion.div>
   );
 }
@@ -1050,12 +1095,12 @@ function SummaryCard({ title, value, icon, color }) {
 function ChartCard({ title, children }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm"
+      className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80 sm:p-6"
     >
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">{title}</h3>
-      <div className="h-48">{children}</div>
+      <h3 className="mb-4 text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-100">{title}</h3>
+      <div className="h-52 min-h-[12rem]">{children}</div>
     </motion.div>
   );
 }

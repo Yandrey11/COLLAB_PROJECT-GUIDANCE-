@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { createNotification } from "./notificationController.js";
+import { isValidCollege } from "../../utils/counselorColleges.js";
 
 // Get all users with filters and pagination
 export const getAllUsers = async (req, res) => {
@@ -126,6 +127,7 @@ export const getAllUsers = async (req, res) => {
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         userType: user.userType || "regular", // Track user type: "regular", "google", or "admin"
+        college: user.userType === "regular" ? user.college || null : null,
       };
     });
 
@@ -207,7 +209,7 @@ const sendPasswordSetupEmail = async (email, name, token) => {
 // Create a new user
 export const createUser = async (req, res) => {
   try {
-    const { name, email, role } = req.body;
+    const { name, email, role, college } = req.body;
 
     // Validation
     if (!name || !email) {
@@ -260,6 +262,9 @@ export const createUser = async (req, res) => {
       await newAccount.save();
       accountType = "admin";
     } else {
+      if (!isValidCollege(college)) {
+        return res.status(400).json({ message: "A valid college is required for counselor accounts" });
+      }
       // Save to Counselor collection (for counselor roles)
       newAccount = new Counselor({
         name,
@@ -267,6 +272,7 @@ export const createUser = async (req, res) => {
         password: tempPassword, // Temporary password, will be changed
         role: userRole,
         accountStatus: "active",
+        college,
         resetPasswordCode: setupToken,
         resetPasswordExpires: new Date(tokenExpires),
       });
@@ -308,6 +314,7 @@ export const createUser = async (req, res) => {
         email: newAccount.email,
         role: newAccount.role || userRole,
         accountStatus: newAccount.accountStatus || "active",
+        college: newAccount.college ?? null,
       },
     });
   } catch (error) {
@@ -323,7 +330,7 @@ export const createUser = async (req, res) => {
 export const updateUser = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { name, email, role } = req.body;
+    const { name, email, role, college } = req.body;
 
     // Check all collections: User, GoogleUser, Admin
     let user = await Counselor.findById(userId);
@@ -378,6 +385,11 @@ export const updateUser = async (req, res) => {
       // If changing to admin role, need to move to Admin collection
       // If changing from admin to user/counselor, need to move to Counselor collection
       else if (userType === "admin" && role !== "admin") {
+        if (!isValidCollege(college)) {
+          return res.status(400).json({
+            message: "A valid college is required when converting an admin account to counselor",
+          });
+        }
         // Move from Admin to Counselor collection
         const newUser = new Counselor({
           name: user.name,
@@ -385,6 +397,7 @@ export const updateUser = async (req, res) => {
           password: user.password, // Keep existing password
           role: role,
           accountStatus: "active",
+          college,
         });
         await newUser.save();
         await Admin.findByIdAndDelete(userId);
@@ -409,6 +422,13 @@ export const updateUser = async (req, res) => {
     }
     // Note: accountStatus is no longer editable - status is based on active sessions
 
+    if (college !== undefined && userType === "regular") {
+      if (!isValidCollege(college)) {
+        return res.status(400).json({ message: "Invalid college" });
+      }
+      user.college = college;
+    }
+
     await user.save();
 
     // Create notification
@@ -431,6 +451,7 @@ export const updateUser = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role || (userType === "admin" ? "admin" : userType === "google" ? "counselor" : "counselor"),
+        college: user.college ?? null,
       },
     });
   } catch (error) {

@@ -14,6 +14,8 @@ const googleUserSchema = new mongoose.Schema(
     googleCalendarRefreshToken: { type: String },
     googleCalendarTokenExpires: { type: Date },
     profilePicture: { type: String, default: null },
+    /** BuKSU college (same allowed list as Counselor); set at profile or admin */
+    college: { type: String, default: null },
     phoneNumber: { type: String },
     bio: { type: String, maxLength: 500 },
     // RBAC Permissions

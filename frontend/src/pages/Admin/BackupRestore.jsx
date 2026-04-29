@@ -328,7 +328,7 @@ export default function BackupRestore() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
+    <div className="min-h-screen w-full flex flex-col items-center page-bg admin-typography font-sans p-3 md:p-5 gap-5">
       {/* Top Progress Bar - page-level loading indicator */}
       {loading && (
         <div className="fixed top-0 left-0 w-full z-[9999] pointer-events-none">
@@ -339,23 +339,22 @@ export default function BackupRestore() {
         </div>
       )}
 
-      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Left: Sidebar */}
-        <AdminSidebar />
-
-        {/* Right: Main content */}
-        <main className="w-full">
+      <div className="w-full max-w-[1800px]">
+        <main className="w-full min-w-0">
           {/* Header */}
           <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm mb-4">
             <div className="flex justify-between items-center flex-wrap gap-4">
-              <div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 m-0">
-                  Backup & Restore
-                </h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1 text-xs">
-                  Create backups of your system data and restore from previous
-                  backups.
-                </p>
+              <div className="flex items-center gap-4 min-w-0">
+                <AdminSidebar variant="header" />
+                <div className="min-w-0">
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 m-0">
+                    Backup & Restore
+                  </h1>
+                  <p className="text-gray-500 dark:text-gray-400 mt-1 text-xs">
+                    Create backups of your system data and restore from previous
+                    backups.
+                  </p>
+                </div>
               </div>
               <button
                 onClick={handleCreateBackup}

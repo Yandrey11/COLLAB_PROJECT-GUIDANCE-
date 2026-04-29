@@ -4,7 +4,9 @@ import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import Swal from "sweetalert2";
 import AdminSidebar from "../../components/AdminSidebar";
+import PasswordStrengthMeter from "../../components/PasswordStrengthMeter.jsx";
 import { applyTheme, initializeTheme } from "../../utils/themeUtils";
+import { validatePassword } from "../../utils/passwordValidation";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const PROFILE_API_URL = `${BASE_URL}/api/admin/profile`;
@@ -27,7 +29,7 @@ export default function AdminProfileSettingsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState("account"); // account, display, notifications, privacy
+  const [activeTab, setActiveTab] = useState("account"); // account, display, privacy
   const [admin, setAdmin] = useState(null);
   const [profile, setProfile] = useState(null);
 
@@ -238,11 +240,15 @@ export default function AdminProfileSettingsPage() {
       return;
     }
 
-    if (passwordForm.newPassword.length < 8) {
+    const validation = validatePassword(passwordForm.newPassword, {
+      email: profile?.email || admin?.email || "",
+      name: profile?.name || admin?.name || "",
+    });
+    if (!validation.isValid) {
       Swal.fire({
         icon: "error",
-        title: "Weak Password",
-        text: "Password must be at least 8 characters long.",
+        title: "Password Requirements Not Met",
+        html: `<ul style="text-align:left;margin:0;padding-left:1.2rem;">${validation.hints.length > 0 ? validation.hints.map((hint) => `<li>${hint}</li>`).join("") : validation.errors.map((err) => `<li>${err}</li>`).join("")}</ul>`,
       });
       return;
     }
@@ -281,6 +287,11 @@ export default function AdminProfileSettingsPage() {
         icon: "error",
         title: "Error",
         text: error.response?.data?.message || "Failed to change password",
+        footer: error.response?.data?.errors
+          ? `<ul style="text-align: left; margin-top: 10px;">${error.response.data.errors
+              .map((err) => `<li>${err}</li>`)
+              .join("")}</ul>`
+          : undefined,
       });
     } finally {
       setSaving(false);
@@ -441,40 +452,6 @@ export default function AdminProfileSettingsPage() {
     }
   };
 
-  // Save notification settings
-  const handleSaveNotificationSettings = async () => {
-    try {
-      setSaving(true);
-      const token = localStorage.getItem("adminToken");
-      const response = await axios.put(
-        `${SETTINGS_API_URL}/notifications`,
-        settings.notifications,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (response.data.success) {
-        await Swal.fire({
-          icon: "success",
-          title: "Settings Saved!",
-          text: "Notification settings have been updated successfully.",
-          timer: 2000,
-          showConfirmButton: false,
-        });
-      }
-    } catch (error) {
-      console.error("Error saving notification settings:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: error.response?.data?.message || "Failed to save notification settings",
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   // Save privacy settings
   const handleSavePrivacySettings = async () => {
     try {
@@ -544,6 +521,7 @@ export default function AdminProfileSettingsPage() {
 
   return (
     <div
+      className="admin-typography"
       style={{
         width: "100vw",
         minHeight: "100vh",
@@ -558,26 +536,22 @@ export default function AdminProfileSettingsPage() {
     >
       <div
         style={{
-          maxWidth: 1400,
+          maxWidth: 1800,
           width: "100%",
-          display: "grid",
-          gridTemplateColumns: "360px 1fr",
-          gap: 24,
         }}
       >
-        {/* Left: AdminSidebar */}
-        <AdminSidebar />
-
-        {/* Right: Main content */}
-        <main>
+        <main className="min-w-0">
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-              Profile & Settings
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Manage your profile information, preferences, and account settings.
-            </p>
+          <div className="mb-8 flex items-center gap-4 min-w-0">
+            <AdminSidebar variant="header" />
+            <div className="min-w-0">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                Profile & Settings
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400">
+                Manage your profile information, preferences, and account settings.
+              </p>
+            </div>
           </div>
 
           {/* Tabs */}
@@ -586,7 +560,6 @@ export default function AdminProfileSettingsPage() {
               {[
                 { id: "account", label: "Account Settings" },
                 { id: "display", label: "Display & Interface" },
-                { id: "notifications", label: "Notifications" },
                 { id: "privacy", label: "Privacy" },
               ].map((tab) => (
                 <button
@@ -671,7 +644,10 @@ export default function AdminProfileSettingsPage() {
                             type="text"
                             value={profileForm.name}
                             onChange={(e) =>
-                              setProfileForm({ ...profileForm, name: e.target.value })
+                              setProfileForm({
+                                ...profileForm,
+                                name: e.target.value.replace(/[0-9]/g, ""),
+                              })
                             }
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             required
@@ -699,7 +675,10 @@ export default function AdminProfileSettingsPage() {
                             type="tel"
                             value={profileForm.phoneNumber}
                             onChange={(e) =>
-                              setProfileForm({ ...profileForm, phoneNumber: e.target.value })
+                              setProfileForm({
+                                ...profileForm,
+                                phoneNumber: e.target.value.replace(/[^0-9+\-\s()]/g, ""),
+                              })
                             }
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             placeholder="+1 (555) 123-4567"
@@ -767,6 +746,11 @@ export default function AdminProfileSettingsPage() {
                             }
                             className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-400 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                             required
+                          />
+                          <PasswordStrengthMeter
+                            password={passwordForm.newPassword}
+                            email={profile?.email || admin?.email || ""}
+                            name={profile?.name || admin?.name || ""}
                           />
                         </div>
                         <div className="md:col-span-2">
@@ -931,97 +915,6 @@ export default function AdminProfileSettingsPage() {
                           className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {saving ? "Saving..." : "Save Display Settings"}
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {activeTab === "notifications" && (
-                  <motion.div
-                    key="notifications"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-6">
-                      Notification Settings
-                    </h2>
-
-                    <div className="space-y-6">
-                      {/* Notification Toggles */}
-                      {[
-                        {
-                          key: "newUserCreations",
-                          label: "New User Creations",
-                          description: "Receive notifications when new users are created",
-                        },
-                        {
-                          key: "recordUpdates",
-                          label: "Record Updates",
-                          description: "Receive notifications when counseling records are updated",
-                        },
-                        {
-                          key: "criticalSystemAlerts",
-                          label: "Critical System Alerts",
-                          description: "Receive notifications for critical system events",
-                        },
-                        {
-                          key: "pdfGenerations",
-                          label: "PDF Generations",
-                          description: "Receive notifications when PDFs are generated",
-                        },
-                        {
-                          key: "loginAttempts",
-                          label: "Login Attempts",
-                          description: "Receive notifications for login attempts (admin only)",
-                        },
-                        {
-                          key: "soundEnabled",
-                          label: "Notification Sound",
-                          description: "Play sound when notifications are received",
-                        },
-                      ].map((item) => (
-                        <div
-                          key={item.key}
-                          className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
-                        >
-                          <div>
-                            <p className="font-medium text-gray-900 dark:text-gray-100">
-                              {item.label}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              {item.description}
-                            </p>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={settings.notifications[item.key]}
-                              onChange={(e) =>
-                                setSettings({
-                                  ...settings,
-                                  notifications: {
-                                    ...settings.notifications,
-                                    [item.key]: e.target.checked,
-                                  },
-                                })
-                              }
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
-                          </label>
-                        </div>
-                      ))}
-
-                      <div>
-                        <button
-                          onClick={handleSaveNotificationSettings}
-                          disabled={saving}
-                          className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {saving ? "Saving..." : "Save Notification Settings"}
                         </button>
                       </div>
                     </div>

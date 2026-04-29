@@ -3,6 +3,7 @@ import GoogleUser from "../models/GoogleUser.js";
 import jwt from "jsonwebtoken";
 import { createSession } from "./admin/sessionController.js";
 import axios from "axios";
+import { getFileUrl } from "../middleware/uploadMiddleware.js";
 
 const verifyRecaptcha = async (token) => {
   if (!token) return false;
@@ -80,6 +81,11 @@ export const login = async (req, res) => {
       // Continue with login even if session creation fails
     }
 
+    const baseUrl =
+      process.env.API_URL || process.env.BACKEND_URL || `${req.protocol}://${req.get("host")}`;
+    const rawPicture = user.profilePicture ?? null;
+    const profilePicture = rawPicture ? getFileUrl(rawPicture, baseUrl) : null;
+
     res.status(200).json({
       message: "Login successful",
       token,
@@ -88,6 +94,8 @@ export const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
+        college: user.college ?? null,
+        profilePicture,
       },
     });
   } catch (error) {

@@ -1,7 +1,10 @@
 # Environment variables (never commit credentials)
 .env
-.env.*
 .env.local
+.env.*.local
+# Allow committing .env.example as a template
+.env.*
+!.env.example
 
 # Logs
 logs

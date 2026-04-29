@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import Swal from "sweetalert2";
 import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import { COUNSELOR_COLLEGES } from "../../constants/counselorColleges";
 
 export default function UserManagement() {
   useDocumentTitle("Admin User Management");
@@ -29,11 +31,13 @@ export default function UserManagement() {
     name: "",
     email: "",
     role: "counselor",
+    college: "",
   });
   const [editForm, setEditForm] = useState({
     name: "",
     email: "",
     role: "counselor",
+    college: "",
   });
   const [permissionsForm, setPermissionsForm] = useState({
     can_view_records: true,
@@ -44,6 +48,10 @@ export default function UserManagement() {
   const [loadingPermissions, setLoadingPermissions] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [showActionsColumn, setShowActionsColumn] = useState(true);
+
+  useEffect(() => {
+    initializeTheme();
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem("adminToken");
@@ -104,6 +112,7 @@ export default function UserManagement() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
+  const containsNumbers = (value) => /\d/.test(value);
 
 
   const handleAddUser = async (e) => {
@@ -111,11 +120,18 @@ export default function UserManagement() {
     const errors = {};
 
     // Validation
-    if (!addForm.name.trim()) errors.name = "Name is required";
+    if (!addForm.name.trim()) {
+      errors.name = "Name is required";
+    } else if (containsNumbers(addForm.name)) {
+      errors.name = "Name cannot contain numbers";
+    }
     if (!addForm.email.trim()) {
       errors.email = "Email is required";
     } else if (!validateEmail(addForm.email)) {
       errors.email = "Invalid email format";
+    }
+    if (addForm.role === "counselor" && !addForm.college) {
+      errors.college = "College is required for counselors";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -135,7 +151,7 @@ export default function UserManagement() {
 
       setMessage({ type: "success", text: res.data.message || "User created successfully. Password setup link has been sent to their email." });
       setShowAddModal(false);
-      setAddForm({ name: "", email: "", role: "counselor" });
+      setAddForm({ name: "", email: "", role: "counselor", college: "" });
       setFormErrors({});
       await fetchUsers(token, currentPage, searchQuery, roleFilter, statusFilter);
       setTimeout(() => setMessage({ type: "", text: "" }), 3000);
@@ -154,11 +170,29 @@ export default function UserManagement() {
     const errors = {};
 
     // Validation
-    if (!editForm.name.trim()) errors.name = "Name is required";
+    if (!editForm.name.trim()) {
+      errors.name = "Name is required";
+    } else if (containsNumbers(editForm.name)) {
+      errors.name = "Name cannot contain numbers";
+    }
     if (!editForm.email.trim()) {
       errors.email = "Email is required";
     } else if (!validateEmail(editForm.email)) {
       errors.email = "Invalid email format";
+    }
+    if (
+      selectedUser?.userType === "regular" &&
+      editForm.role === "counselor" &&
+      !editForm.college
+    ) {
+      errors.college = "College is required for counselor accounts";
+    }
+    if (
+      selectedUser?.userType === "admin" &&
+      editForm.role === "counselor" &&
+      !editForm.college
+    ) {
+      errors.college = "College is required when changing role to counselor";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -235,6 +269,7 @@ export default function UserManagement() {
       name: user.name,
       email: user.email,
       role: user.role,
+      college: user.college || "",
     });
     setFormErrors({});
     setShowEditModal(true);
@@ -390,698 +425,700 @@ export default function UserManagement() {
     });
   };
 
-  const getRoleBadgeColor = (role) => {
-    switch (role) {
-      case "admin":
-        return { bg: "rgba(239,68,68,0.1)", color: "#dc2626" };
-      case "counselor":
-        return { bg: "rgba(59,130,246,0.1)", color: "#2563eb" };
-      default:
-        return { bg: "rgba(107,114,128,0.1)", color: "#4b5563" };
-    }
-  };
+  const cardSurface =
+    "rounded-2xl border border-gray-200/90 bg-white shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80";
+  const labelClass =
+    "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500";
+  const inputClass =
+    "h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-indigo-400 dark:focus:ring-indigo-400";
+  const selectClass = `${inputClass} cursor-pointer`;
+  const permPill =
+    "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium";
+  const actionBtn =
+    "inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80";
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen w-full items-center justify-center page-bg counselor-typography font-sans">
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="h-9 w-9 animate-spin rounded-full border-2 border-gray-200 border-t-indigo-600 dark:border-gray-600 dark:border-t-indigo-400"
+            aria-hidden
+          />
+          <p className="text-sm text-gray-500 dark:text-gray-400">Loading users…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        <AdminSidebar />
-
-        <div className="flex flex-col gap-5">
-          {/* Header */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm">
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">User Management</h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1.5">
-                  Manage system users, control access, and ensure proper role assignment.
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <div className="flex flex-col gap-8">
+          <motion.header
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col gap-6 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-start sm:justify-between sm:pb-10"
+          >
+            <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+              <AdminSidebar variant="header" />
+              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+              <div className="min-w-0 space-y-2">
+                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Administration
+                </p>
+                <h1 className="m-0 text-2xl font-semibold tracking-tight sm:text-3xl">User management</h1>
+                <p className="m-0 max-w-xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                  Search accounts, adjust roles and colleges, permissions, and account lifecycle.
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setShowAddModal(true);
-                  setAddForm({ name: "", email: "", role: "counselor" });
-                  setFormErrors({});
-                }}
-                className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold text-sm cursor-pointer transition-all shadow-md hover:shadow-lg"
-              >
-                + Add New User
-              </button>
             </div>
-          </div>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddModal(true);
+                setAddForm({ name: "", email: "", role: "counselor", college: "" });
+                setFormErrors({});
+              }}
+              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 self-start rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white sm:self-center"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add user
+            </button>
+          </motion.header>
 
-        {/* Message Alert */}
-        {message.text && (
-          <div
-            className={`px-5 py-3 rounded-lg font-medium text-sm ${
-              message.type === "success"
-                ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
-                : "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300"
-            }`}
+          {message.text && (
+            <div
+              role="status"
+              className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+                message.type === "success"
+                  ? "border-green-200/90 bg-green-50/90 text-green-800 dark:border-green-800/80 dark:bg-green-950/30 dark:text-green-300"
+                  : "border-red-200/90 bg-red-50/90 text-red-800 dark:border-red-800/80 dark:bg-red-950/30 dark:text-red-300"
+              }`}
+            >
+              {message.text}
+            </div>
+          )}
+
+          <motion.section
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.04 }}
+            className={`${cardSurface} p-5 sm:p-6`}
           >
-            {message.text}
-          </div>
-        )}
-
-          {/* Search and Filter */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm">
-            <form onSubmit={handleSearch} className="flex gap-3 items-center flex-wrap">
-              <input
-                type="text"
-                placeholder="Search by name or email..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 min-w-[200px] px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 placeholder-gray-400 dark:placeholder-gray-500"
-              />
-              <select
-                value={roleFilter}
-                onChange={(e) => {
-                  const newRole = e.target.value;
-                  setRoleFilter(newRole);
-                  const token = localStorage.getItem("adminToken");
-                  fetchUsers(token, 1, searchQuery, newRole, statusFilter);
-                }}
-                className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-indigo-600 dark:bg-indigo-600 text-white text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="all">All Roles</option>
-                <option value="admin">Admin</option>
-                <option value="counselor">Counselor</option>
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => {
-                  const newStatus = e.target.value;
-                  setStatusFilter(newStatus);
-                  const token = localStorage.getItem("adminToken");
-                  fetchUsers(token, 1, searchQuery, roleFilter, newStatus);
-                }}
-                className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-indigo-600 dark:bg-indigo-600 text-white text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active (Online)</option>
-                <option value="offline">Offline</option>
-              </select>
-              <button
-                type="submit"
-                className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold text-sm cursor-pointer transition-all shadow-md hover:shadow-lg"
-              >
-                Search
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const token = localStorage.getItem("adminToken");
-                  setSearchQuery("");
-                  setRoleFilter("counselor");
-                  setStatusFilter("all");
-                  fetchUsers(token, 1, "", "counselor", "all");
-                }}
-                className="px-5 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-              >
-                Reset
-              </button>
+            <div className="mb-5">
+              <h2 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-white">Search & filters</h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Narrow the directory, then run search.</p>
+            </div>
+            <form onSubmit={handleSearch} className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-end">
+              <div className="min-w-0 flex-1 lg:min-w-[240px]">
+                <label htmlFor="user-mgmt-search" className={labelClass}>
+                  Search
+                </label>
+                <input
+                  id="user-mgmt-search"
+                  type="text"
+                  placeholder="Name or email…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div className="w-full sm:w-[200px]">
+                <label htmlFor="user-mgmt-role" className={labelClass}>
+                  Role
+                </label>
+                <select
+                  id="user-mgmt-role"
+                  value={roleFilter}
+                  onChange={(e) => {
+                    const newRole = e.target.value;
+                    setRoleFilter(newRole);
+                    const token = localStorage.getItem("adminToken");
+                    fetchUsers(token, 1, searchQuery, newRole, statusFilter);
+                  }}
+                  className={selectClass}
+                >
+                  <option value="all">All roles</option>
+                  <option value="admin">Admin</option>
+                  <option value="counselor">Counselor</option>
+                </select>
+              </div>
+              <div className="w-full sm:w-[200px]">
+                <label htmlFor="user-mgmt-status" className={labelClass}>
+                  Status
+                </label>
+                <select
+                  id="user-mgmt-status"
+                  value={statusFilter}
+                  onChange={(e) => {
+                    const newStatus = e.target.value;
+                    setStatusFilter(newStatus);
+                    const token = localStorage.getItem("adminToken");
+                    fetchUsers(token, 1, searchQuery, roleFilter, newStatus);
+                  }}
+                  className={selectClass}
+                >
+                  <option value="all">All status</option>
+                  <option value="active">Active (online)</option>
+                  <option value="offline">Offline</option>
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1 lg:ml-auto">
+                <button
+                  type="submit"
+                  className="inline-flex h-10 items-center justify-center rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                >
+                  Search
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const token = localStorage.getItem("adminToken");
+                    setSearchQuery("");
+                    setRoleFilter("counselor");
+                    setStatusFilter("all");
+                    fetchUsers(token, 1, "", "counselor", "all");
+                  }}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-gray-200 bg-white px-4 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
+                >
+                  Reset
+                </button>
+              </div>
             </form>
-          </div>
+          </motion.section>
 
-          {/* Users Table */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-indigo-600 dark:text-indigo-400">All Users</h2>
+          <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.06 }}
+            className={`overflow-hidden ${cardSurface}`}
+          >
+            <div className="flex flex-col gap-3 border-b border-gray-200 px-5 py-4 dark:border-gray-600 sm:flex-row sm:items-end sm:justify-between sm:px-6 sm:py-5">
+              <div className="space-y-1">
+                <h2 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-white">Directory</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {users.length === 1 ? "1 user on this page" : `${users.length} users on this page`}
+                </p>
+              </div>
               {!showActionsColumn && (
                 <button
+                  type="button"
                   onClick={() => setShowActionsColumn(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 font-semibold text-sm transition-colors shadow-sm"
+                  className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 text-xs font-medium text-gray-800 shadow-sm transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                   title="Show actions column"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  <svg className="h-4 w-4 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
                   </svg>
-                  Show Actions
+                  Show row actions
                 </button>
               )}
             </div>
-          {users.length === 0 ? (
-            <div className="py-10 text-center text-gray-400 dark:text-gray-500">
-              No users found.
-            </div>
-          ) : (
-            <>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="text-left border-b-2 border-gray-200 dark:border-gray-700">
-                      <th className="px-3 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 text-left">
-                        Full Name
-                      </th>
-                      <th className="px-3 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 text-left">
-                        Email
-                      </th>
-                      <th className="px-3 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 text-left">
-                        Role
-                      </th>
-                      <th className="px-3 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 text-left">
-                        Online Status
-                      </th>
-                      <th className="px-3 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 text-left">
-                        Date Created
-                      </th>
-                      <th className="px-3 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 text-left">
-                        Permissions
-                      </th>
-                      {showActionsColumn && (
-                        <th className="px-3 py-3 text-xs font-semibold text-gray-600 dark:text-gray-400 text-left">
-                          <div className="flex items-center gap-2">
-                            Actions
-                            <button
-                              onClick={() => setShowActionsColumn(false)}
-                              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                              title="Hide actions"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        </th>
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((user) => {
-                      const roleColors = getRoleBadgeColor(user.role);
-                      return (
-                        <tr key={user.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                          <td className="px-3 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">
-                            {user.name}
-                          </td>
-                          <td className="px-3 py-3.5 text-sm text-gray-600 dark:text-gray-400">{user.email}</td>
-                          <td className="px-3 py-3.5">
-                            <span
-                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold capitalize ${
-                                user.role === "admin"
-                                  ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                                  : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                              }`}
-                            >
-                              {user.role === "admin" ? "Admin" : "Counselor"}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3.5">
-                            <span
-                              className={`px-2.5 py-1 rounded-lg text-xs font-semibold capitalize ${
-                                user.isOnline
-                                  ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                                  : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
-                              }`}
-                            >
-                              {user.isOnline ? "Active" : "Offline"}
-                            </span>
-                          </td>
-                          <td style={{ padding: "14px 8px", color: "#6b7280", fontSize: 13 }}>
-                            {formatDate(user.createdAt)}
-                          </td>
-                          <td style={{ padding: "16px 12px" }}>
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                              {user.role === "admin" ? (
-                                <span
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-gradient-to-r from-purple-100 to-purple-50 dark:from-purple-900/40 dark:to-purple-800/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-700/50 shadow-sm"
-                                  title="Admin has all permissions"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                                  </svg>
-                                  Admin
-                                </span>
-                              ) : (
-                                <>
-                                  {user.permissions?.can_view_records !== false && (
-                                    <span
-                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-gradient-to-r from-green-100 to-emerald-50 dark:from-green-900/40 dark:to-emerald-800/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700/50 shadow-sm"
-                                      title="Can view records"
-                                    >
-                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                      </svg>
-                                      Records
-                                    </span>
-                                  )}
-                                  {user.permissions?.can_edit_records && (
-                                    <span
-                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-gradient-to-r from-blue-100 to-sky-50 dark:from-blue-900/40 dark:to-sky-800/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700/50 shadow-sm"
-                                      title="Can edit records"
-                                    >
-                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                      </svg>
-                                      Edit
-                                    </span>
-                                  )}
-                                  {user.permissions?.can_view_reports !== false && (
-                                    <span
-                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-gradient-to-r from-indigo-100 to-violet-50 dark:from-indigo-900/40 dark:to-violet-800/30 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700/50 shadow-sm"
-                                      title="Can view reports"
-                                    >
-                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                      </svg>
-                                      Reports
-                                    </span>
-                                  )}
-                                  {(user.permissions?.can_view_records === false || 
-                                    user.permissions?.can_view_reports === false) && (
-                                    <span
-                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-gradient-to-r from-red-100 to-rose-50 dark:from-red-900/40 dark:to-rose-800/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700/50 shadow-sm"
-                                      title="Some permissions restricted"
-                                    >
-                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                      </svg>
-                                      Restricted
-                                    </span>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </td>
-                          {showActionsColumn && (
-                            <td style={{ padding: "16px 12px" }}>
-                              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                                <button
-                                  onClick={() => openEditModal(user)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-indigo-600 dark:text-indigo-400 font-semibold text-xs hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:border-indigo-400 dark:hover:border-indigo-500 transition-all duration-200 shadow-sm hover:shadow"
-                                  title="Edit user details"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                  Edit
-                                </button>
-                                {user.role !== "admin" && (
-                                  <button
-                                    onClick={() => openPermissionsModal(user)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-purple-600 dark:text-purple-400 font-semibold text-xs hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-400 dark:hover:border-purple-500 transition-all duration-200 shadow-sm hover:shadow"
-                                    title="Manage user permissions"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                    </svg>
-                                    Permissions
-                                  </button>
-                                )}
-                                <button
-                                  onClick={() => handleSendResetLink(user)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-blue-600 dark:text-blue-400 font-semibold text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-200 shadow-sm hover:shadow"
-                                  title="Send password reset link"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                  </svg>
-                                  Reset
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteUser(user.id, user.email)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white font-semibold text-xs transition-all duration-200 shadow-sm hover:shadow-md"
-                                  title="Delete user"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
 
-              {/* Pagination */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginTop: 20,
-                  paddingTop: 16,
-                  borderTop: "1px solid #f3f4f6",
-                }}
-              >
-                <div style={{ color: "#6b7280", fontSize: 14 }}>
-                  Page {currentPage} of {totalPages}
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => {
-                      const token = localStorage.getItem("adminToken");
-                      if (currentPage > 1) {
-                        fetchUsers(token, currentPage - 1, searchQuery, roleFilter, statusFilter);
-                      }
-                    }}
-                    disabled={currentPage <= 1}
-                    style={{
-                      padding: "8px 16px",
-                      borderRadius: 10,
-                      className: `border border-gray-200 dark:border-gray-700 ${currentPage <= 1 ? "bg-gray-100 dark:bg-gray-700 cursor-not-allowed" : "bg-white dark:bg-gray-700 cursor-pointer"}`,
-                      color: currentPage <= 1 ? "#9ca3af" : "#111827",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Prev
-                  </button>
-                  <button
-                    onClick={() => {
-                      const token = localStorage.getItem("adminToken");
-                      if (currentPage < totalPages) {
-                        fetchUsers(token, currentPage + 1, searchQuery, roleFilter, statusFilter);
-                      }
-                    }}
-                    disabled={currentPage >= totalPages}
-                    style={{
-                      padding: "8px 16px",
-                      borderRadius: 10,
-                      className: `border border-gray-200 dark:border-gray-700 ${currentPage >= totalPages ? "bg-gray-100 dark:bg-gray-700 cursor-not-allowed" : "bg-white dark:bg-gray-700 cursor-pointer"}`,
-                      color: currentPage >= totalPages ? "#9ca3af" : "#111827",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Close grid container */}
-      </div>
-
-      {/* Add User Modal */}
-      {showAddModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => {
-            setShowAddModal(false);
-            setFormErrors({});
-          }}
-        >
-          <div
-            className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md"
-            style={{
-              width: "90%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ color: "#4f46e5", marginTop: 0 }}>Add New User</h2>
-            <form onSubmit={handleAddUser}>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", color: "#6b7280", fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  value={addForm.name}
-                  onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
-                  style={{
-                    width: "100%",
-                    padding: "10px 15px",
-                    borderRadius: 10,
-                    border: formErrors.name ? "1px solid #ef4444" : "1px solid #e6e9ef",
-                    outline: "none",
-                    fontSize: 14,
-                  }}
-                />
-                {formErrors.name && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>{formErrors.name}</p>}
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", color: "#6b7280", fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  value={addForm.email}
-                  onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
-                  style={{
-                    width: "100%",
-                    padding: "10px 15px",
-                    borderRadius: 10,
-                    border: formErrors.email ? "1px solid #ef4444" : "1px solid #e6e9ef",
-                    outline: "none",
-                    fontSize: 14,
-                  }}
-                />
-                {formErrors.email && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>{formErrors.email}</p>}
-                <p style={{ color: "#9ca3af", fontSize: 12, marginTop: 4 }}>
-                  A password setup link will be sent to the user's email address.
-                </p>
-              </div>
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: "block", color: "#6b7280", fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-                  Role *
-                </label>
-                <select
-                  value={addForm.role}
-                  onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
-                  style={{
-                    width: "100%",
-                    padding: "10px 15px",
-                    borderRadius: 10,
-                    border: "1px solid #e6e9ef",
-                    outline: "none",
-                    fontSize: 14,
-                  }}
-                >
-                  <option value="counselor">Counselor</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div style={{ display: "flex", gap: 12 }}>
-                <button
-                  type="submit"
-                  style={{
-                    flex: 1,
-                    padding: "10px 20px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: "linear-gradient(90deg,#06b6d4,#3b82f6)",
-                    color: "#fff",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                >
-                  Create User
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setFormErrors({});
-                  }}
-                  style={{
-                    padding: "10px 20px",
-                    className: "rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer font-semibold hover:bg-gray-50 dark:hover:bg-gray-600",
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit User Modal */}
-      {showEditModal && selectedUser && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => {
-            setShowEditModal(false);
-            setFormErrors({});
-          }}
-        >
-          <div
-            className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md"
-            style={{
-              width: "90%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ color: "#4f46e5", marginTop: 0 }}>Edit User</h2>
-            <form onSubmit={handleEditUser}>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", color: "#6b7280", fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-                  Full Name *
-                </label>
-                <input
-                  type="text"
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  style={{
-                    width: "100%",
-                    padding: "10px 15px",
-                    borderRadius: 10,
-                    border: formErrors.name ? "1px solid #ef4444" : "1px solid #e6e9ef",
-                    outline: "none",
-                    fontSize: 14,
-                  }}
-                />
-                {formErrors.name && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>{formErrors.name}</p>}
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", color: "#6b7280", fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-                  Email *
-                </label>
-                <input
-                  type="email"
-                  value={editForm.email}
-                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
-                  style={{
-                    width: "100%",
-                    padding: "10px 15px",
-                    borderRadius: 10,
-                    border: formErrors.email ? "1px solid #ef4444" : "1px solid #e6e9ef",
-                    outline: "none",
-                    fontSize: 14,
-                  }}
-                />
-                {formErrors.email && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 4 }}>{formErrors.email}</p>}
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", color: "#6b7280", fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
-                  Role *
-                </label>
-                <select
-                  value={editForm.role}
-                  onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
-                  style={{
-                    width: "100%",
-                    padding: "10px 15px",
-                    borderRadius: 10,
-                    border: "1px solid #e6e9ef",
-                    outline: "none",
-                    fontSize: 14,
-                  }}
-                >
-                  <option value="counselor">Counselor</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div style={{ display: "flex", gap: 12 }}>
-                <button
-                  type="submit"
-                  style={{
-                    flex: 1,
-                    padding: "10px 20px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: "linear-gradient(90deg,#06b6d4,#3b82f6)",
-                    color: "#fff",
-                    cursor: "pointer",
-                    fontWeight: 600,
-                  }}
-                >
-                  Update User
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setFormErrors({});
-                  }}
-                  style={{
-                    padding: "10px 20px",
-                    className: "rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer font-semibold hover:bg-gray-50 dark:hover:bg-gray-600",
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Permissions Modal */}
-      {showPermissionsModal && selectedUser && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-          onClick={() => {
-            setShowPermissionsModal(false);
-            setFormErrors({});
-          }}
-        >
-          <div
-            className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-lg"
-            style={{
-              width: "90%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ color: "#4f46e5", marginTop: 0, marginBottom: 8 }}>
-              Edit Permissions — {selectedUser.name}
-            </h2>
-            <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 24 }}>
-              Manage access permissions for this user. Changes take effect immediately.
-            </p>
-
-            {loadingPermissions ? (
-              <div style={{ textAlign: "center", padding: "40px 0", color: "#6b7280" }}>
-                Loading permissions...
+            {users.length === 0 ? (
+              <div className="px-5 py-16 text-center text-sm text-gray-500 dark:text-gray-400 sm:px-6">
+                No users match your filters.
               </div>
             ) : (
-              <form onSubmit={handleUpdatePermissions}>
-                <div style={{ marginBottom: 24 }}>
-                  {/* Records Page Access */}
-                  <div style={{ marginBottom: 20 }}>
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        cursor: "pointer",
-                      }}
+              <>
+                <div className="px-2 pb-2 pt-0 sm:px-4 sm:pb-6">
+                  <div className="-mx-2 overflow-x-auto sm:mx-0">
+                    <table className="w-full min-w-[960px] border-collapse text-left text-sm text-gray-900 dark:text-gray-100">
+                      <thead>
+                        <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-600 dark:bg-gray-900/20">
+                          <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            Name
+                          </th>
+                          <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            Email
+                          </th>
+                          <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            Role
+                          </th>
+                          <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            College
+                          </th>
+                          <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            Status
+                          </th>
+                          <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            Created
+                          </th>
+                          <th className="min-w-[8rem] px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            Access
+                          </th>
+                          {showActionsColumn && (
+                            <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                              <div className="flex items-center justify-end gap-2">
+                                <span>Actions</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowActionsColumn(false)}
+                                  className="rounded p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                                  title="Hide actions column"
+                                >
+                                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </th>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.map((user) => (
+                          <tr
+                            key={user.id}
+                            className="border-b border-gray-200 transition-colors last:border-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
+                          >
+                            <td className="whitespace-nowrap px-4 py-3.5 text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {user.name}
+                            </td>
+                            <td className="max-w-[14rem] truncate px-4 py-3.5 text-sm text-gray-600 dark:text-gray-300">
+                              {user.email}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3.5">
+                              <span
+                                className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium capitalize ${
+                                  user.role === "admin"
+                                    ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300"
+                                    : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300"
+                                }`}
+                              >
+                                {user.role === "admin" ? "Admin" : "Counselor"}
+                              </span>
+                            </td>
+                            <td className="max-w-[12rem] truncate px-4 py-3.5 text-xs text-gray-600 dark:text-gray-300">
+                              {user.role === "admin" ? "—" : user.college || "—"}
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3.5">
+                              <span
+                                className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${
+                                  user.isOnline
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+                                    : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                                }`}
+                              >
+                                {user.isOnline ? "Online" : "Offline"}
+                              </span>
+                            </td>
+                            <td className="whitespace-nowrap px-4 py-3.5 text-sm text-gray-600 dark:text-gray-300">
+                              {formatDate(user.createdAt)}
+                            </td>
+                            <td className="px-4 py-3.5 align-top">
+                              <div className="flex max-w-[220px] flex-wrap gap-1.5">
+                                {user.role === "admin" ? (
+                                  <span
+                                    className={`${permPill} border-purple-200/80 bg-purple-50 text-purple-800 dark:border-purple-800/60 dark:bg-purple-950/40 dark:text-purple-300`}
+                                    title="Full access"
+                                  >
+                                    Admin
+                                  </span>
+                                ) : (
+                                  <>
+                                    {user.permissions?.can_view_records !== false && (
+                                      <span
+                                        className={`${permPill} border-green-200/80 bg-green-50 text-green-800 dark:border-green-800/60 dark:bg-green-950/40 dark:text-green-300`}
+                                        title="Records"
+                                      >
+                                        Records
+                                      </span>
+                                    )}
+                                    {user.permissions?.can_edit_records && (
+                                      <span
+                                        className={`${permPill} border-sky-200/80 bg-sky-50 text-sky-900 dark:border-sky-800/60 dark:bg-sky-950/40 dark:text-sky-300`}
+                                        title="Edit"
+                                      >
+                                        Edit
+                                      </span>
+                                    )}
+                                    {user.permissions?.can_view_reports !== false && (
+                                      <span
+                                        className={`${permPill} border-indigo-200/80 bg-indigo-50 text-indigo-900 dark:border-indigo-800/60 dark:bg-indigo-950/40 dark:text-indigo-300`}
+                                        title="Reports"
+                                      >
+                                        Reports
+                                      </span>
+                                    )}
+                                    {(user.permissions?.can_view_records === false ||
+                                      user.permissions?.can_view_reports === false) && (
+                                      <span
+                                        className={`${permPill} border-amber-200/80 bg-amber-50 text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-200`}
+                                        title="Limited access"
+                                      >
+                                        Limited
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            </td>
+                            {showActionsColumn && (
+                              <td className="whitespace-nowrap px-4 py-3.5 text-right">
+                                <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                  <button type="button" onClick={() => openEditModal(user)} className={actionBtn} title="Edit">
+                                    Edit
+                                  </button>
+                                  {user.role !== "admin" && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openPermissionsModal(user)}
+                                      className={actionBtn}
+                                      title="Manage permissions"
+                                    >
+                                      Permissions
+                                    </button>
+                                  )}
+                                  <button type="button" onClick={() => handleSendResetLink(user)} className={actionBtn} title="Reset password">
+                                    Reset
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteUser(user.id, user.email)}
+                                    className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 text-xs font-medium text-red-800 transition hover:bg-red-100 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-950/60"
+                                    title="Delete user"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-600 sm:px-6">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                      Page {currentPage} of {totalPages}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const token = localStorage.getItem("adminToken");
+                          if (currentPage > 1) {
+                            fetchUsers(token, currentPage - 1, searchQuery, roleFilter, statusFilter);
+                          }
+                        }}
+                        disabled={currentPage <= 1}
+                        className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
+                      >
+                        Previous
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const token = localStorage.getItem("adminToken");
+                          if (currentPage < totalPages) {
+                            fetchUsers(token, currentPage + 1, searchQuery, roleFilter, statusFilter);
+                          }
+                        }}
+                        disabled={currentPage >= totalPages}
+                        className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </motion.section>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {showAddModal && (
+          <motion.div
+            key="add-user-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-[2px]"
+            onClick={() => {
+              setShowAddModal(false);
+              setFormErrors({});
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[min(90vh,720px)] w-full max-w-md overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+            >
+              <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-600">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">New account</p>
+                <h2 className="mt-0.5 text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Add user</h2>
+              </div>
+              <form onSubmit={handleAddUser} className="space-y-5 px-6 py-6">
+                <div>
+                  <label htmlFor="add-name" className={labelClass}>
+                    Full name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="add-name"
+                    type="text"
+                    value={addForm.name}
+                    onChange={(e) =>
+                      setAddForm({
+                        ...addForm,
+                        name: e.target.value.replace(/[0-9]/g, ""),
+                      })
+                    }
+                    className={`${inputClass} ${formErrors.name ? "border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-500" : ""}`}
+                  />
+                  {formErrors.name && <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{formErrors.name}</p>}
+                </div>
+                <div>
+                  <label htmlFor="add-email" className={labelClass}>
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="add-email"
+                    type="email"
+                    value={addForm.email}
+                    onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                    className={`${inputClass} ${formErrors.email ? "border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-500" : ""}`}
+                  />
+                  {formErrors.email && <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{formErrors.email}</p>}
+                  <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                    A password setup link is emailed to this address.
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="add-role" className={labelClass}>
+                    Role <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="add-role"
+                    value={addForm.role}
+                    onChange={(e) =>
+                      setAddForm({
+                        ...addForm,
+                        role: e.target.value,
+                        college: e.target.value === "admin" ? "" : addForm.college,
+                      })
+                    }
+                    className={selectClass}
+                  >
+                    <option value="counselor">Counselor</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                {addForm.role === "counselor" && (
+                  <div>
+                    <label htmlFor="add-college" className={labelClass}>
+                      College <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      id="add-college"
+                      value={addForm.college}
+                      onChange={(e) => setAddForm({ ...addForm, college: e.target.value })}
+                      className={`${selectClass} ${formErrors.college ? "border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-500" : ""}`}
                     >
+                      <option value="">Select college</option>
+                      {COUNSELOR_COLLEGES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    {formErrors.college && (
+                      <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{formErrors.college}</p>
+                    )}
+                  </div>
+                )}
+                <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-5 dark:border-gray-600">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddModal(false);
+                      setFormErrors({});
+                    }}
+                    className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="h-10 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                  >
+                    Create user
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {showEditModal && selectedUser && (
+          <motion.div
+            key="edit-user-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-[2px]"
+            onClick={() => {
+              setShowEditModal(false);
+              setFormErrors({});
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[min(90vh,720px)] w-full max-w-md overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+            >
+              <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-600">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Edit account</p>
+                <h2 className="mt-0.5 text-lg font-semibold tracking-tight text-gray-900 dark:text-white">{selectedUser.name}</h2>
+              </div>
+              <form onSubmit={handleEditUser} className="space-y-5 px-6 py-6">
+                <div>
+                  <label htmlFor="edit-name" className={labelClass}>
+                    Full name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="edit-name"
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        name: e.target.value.replace(/[0-9]/g, ""),
+                      })
+                    }
+                    className={`${inputClass} ${formErrors.name ? "border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-500" : ""}`}
+                  />
+                  {formErrors.name && <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{formErrors.name}</p>}
+                </div>
+                <div>
+                  <label htmlFor="edit-email" className={labelClass}>
+                    Email <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    id="edit-email"
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    className={`${inputClass} ${formErrors.email ? "border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-500" : ""}`}
+                  />
+                  {formErrors.email && <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{formErrors.email}</p>}
+                </div>
+                <div>
+                  <label htmlFor="edit-role" className={labelClass}>
+                    Role <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="edit-role"
+                    value={editForm.role}
+                    onChange={(e) =>
+                      setEditForm({
+                        ...editForm,
+                        role: e.target.value,
+                        college: e.target.value === "admin" ? "" : editForm.college,
+                      })
+                    }
+                    className={selectClass}
+                  >
+                    <option value="counselor">Counselor</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                {editForm.role === "counselor" && (
+                  <div>
+                    <label htmlFor="edit-college" className={labelClass}>
+                      College <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      id="edit-college"
+                      value={editForm.college}
+                      onChange={(e) => setEditForm({ ...editForm, college: e.target.value })}
+                      className={`${selectClass} ${formErrors.college ? "border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-500" : ""}`}
+                    >
+                      <option value="">Select college</option>
+                      {COUNSELOR_COLLEGES.map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                    {formErrors.college && (
+                      <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">{formErrors.college}</p>
+                    )}
+                  </div>
+                )}
+                <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-5 dark:border-gray-600">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowEditModal(false);
+                      setFormErrors({});
+                    }}
+                    className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="h-10 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                  >
+                    Save changes
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {showPermissionsModal && selectedUser && (
+          <motion.div
+            key="perms-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-[2px]"
+            onClick={() => {
+              setShowPermissionsModal(false);
+              setFormErrors({});
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-[min(90vh,720px)] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+            >
+              <div className="border-b border-gray-200 px-6 py-5 dark:border-gray-600">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Access</p>
+                <h2 className="mt-0.5 text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
+                  Permissions · {selectedUser.name}
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                  Changes apply as soon as you save.
+                </p>
+              </div>
+
+              {loadingPermissions ? (
+                <div className="px-6 py-16 text-center text-sm text-gray-500 dark:text-gray-400">Loading permissions…</div>
+              ) : (
+                <form onSubmit={handleUpdatePermissions} className="px-6 py-6">
+                  <div className="space-y-3">
+                    <label className="flex cursor-pointer gap-3 rounded-xl border border-gray-200 p-4 transition hover:bg-gray-50/80 dark:border-gray-600 dark:hover:bg-gray-900/30">
                       <input
                         type="checkbox"
                         checked={permissionsForm.can_view_records}
@@ -1089,50 +1126,25 @@ export default function UserManagement() {
                           setPermissionsForm({
                             ...permissionsForm,
                             can_view_records: e.target.checked,
-                            // If removing view access, also remove edit access
-                            can_edit_records: e.target.checked
-                              ? permissionsForm.can_edit_records
-                              : false,
+                            can_edit_records: e.target.checked ? permissionsForm.can_edit_records : false,
                           })
                         }
-                        style={{
-                          width: 20,
-                          height: 20,
-                          cursor: "pointer",
-                        }}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                       />
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            color: "#111827",
-                            fontSize: 14,
-                            marginBottom: 4,
-                          }}
-                          className="dark:text-gray-100"
-                        >
-                          Allow Records Page Access
-                        </div>
-                        <div
-                          style={{ color: "#6b7280", fontSize: 12 }}
-                          className="dark:text-gray-400"
-                        >
-                          Grants access to view the Records page and browse session records.
-                        </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Records page</p>
+                        <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                          View the Records page and browse session records.
+                        </p>
                       </div>
                     </label>
-                  </div>
 
-                  {/* Edit Records */}
-                  <div style={{ marginBottom: 20, paddingLeft: 32 }}>
                     <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        cursor: permissionsForm.can_view_records ? "pointer" : "not-allowed",
-                        opacity: permissionsForm.can_view_records ? 1 : 0.5,
-                      }}
+                      className={`ml-1 flex gap-3 rounded-xl border p-4 dark:border-gray-600 ${
+                        permissionsForm.can_view_records
+                          ? "cursor-pointer border-gray-200 hover:bg-gray-50/80 dark:hover:bg-gray-900/30"
+                          : "cursor-not-allowed border-gray-100 opacity-50 dark:border-gray-700"
+                      }`}
                     >
                       <input
                         type="checkbox"
@@ -1144,44 +1156,17 @@ export default function UserManagement() {
                             can_edit_records: e.target.checked,
                           })
                         }
-                        style={{
-                          width: 20,
-                          height: 20,
-                          cursor: permissionsForm.can_view_records ? "pointer" : "not-allowed",
-                        }}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 disabled:cursor-not-allowed"
                       />
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            color: "#111827",
-                            fontSize: 14,
-                            marginBottom: 4,
-                          }}
-                          className="dark:text-gray-100"
-                        >
-                          Allow Edit Records
-                        </div>
-                        <div
-                          style={{ color: "#6b7280", fontSize: 12 }}
-                          className="dark:text-gray-400"
-                        >
-                          Allows creating, editing, and deleting session records.
-                        </div>
+                      <div className="min-w-0 pl-2 sm:border-l sm:border-gray-200 sm:pl-4 dark:sm:border-gray-600">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Edit records</p>
+                        <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                          Create, update, and delete session records.
+                        </p>
                       </div>
                     </label>
-                  </div>
 
-                  {/* Reports Page Access */}
-                  <div style={{ marginBottom: 20 }}>
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        cursor: "pointer",
-                      }}
-                    >
+                    <label className="flex cursor-pointer gap-3 rounded-xl border border-gray-200 p-4 transition hover:bg-gray-50/80 dark:border-gray-600 dark:hover:bg-gray-900/30">
                       <input
                         type="checkbox"
                         checked={permissionsForm.can_view_reports}
@@ -1191,71 +1176,41 @@ export default function UserManagement() {
                             can_view_reports: e.target.checked,
                           })
                         }
-                        style={{
-                          width: 20,
-                          height: 20,
-                          cursor: "pointer",
-                        }}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                       />
-                      <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            fontWeight: 600,
-                            color: "#111827",
-                            fontSize: 14,
-                            marginBottom: 4,
-                          }}
-                          className="dark:text-gray-100"
-                        >
-                          Allow Reports Page Access
-                        </div>
-                        <div
-                          style={{ color: "#6b7280", fontSize: 12 }}
-                          className="dark:text-gray-400"
-                        >
-                          Grants access to view the Reports page and browse generated reports.
-                        </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Reports page</p>
+                        <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                          View reports and generated outputs.
+                        </p>
                       </div>
                     </label>
                   </div>
 
-                </div>
-
-                <div style={{ display: "flex", gap: 12 }}>
-                  <button
-                    type="submit"
-                    style={{
-                      flex: 1,
-                      padding: "10px 20px",
-                      borderRadius: 10,
-                      border: "none",
-                      background: "linear-gradient(90deg,#06b6d4,#3b82f6)",
-                      color: "#fff",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                    }}
-                  >
-                    Save Permissions
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPermissionsModal(false);
-                      setFormErrors({});
-                    }}
-                    style={{
-                      padding: "10px 20px",
-                      className: "rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer font-semibold hover:bg-gray-50 dark:hover:bg-gray-600",
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+                  <div className="mt-8 flex flex-wrap justify-end gap-2 border-t border-gray-200 pt-5 dark:border-gray-600">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPermissionsModal(false);
+                        setFormErrors({});
+                      }}
+                      className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="h-10 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                    >
+                      Save permissions
+                    </button>
+                  </div>
+                </form>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

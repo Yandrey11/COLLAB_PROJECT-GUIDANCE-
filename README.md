@@ -223,10 +223,9 @@ cd ../frontend
 # Install dependencies
 npm install
 
-# Create .env file for frontend (optional)
-cat > .env.local << EOF
-VITE_API_URL=http://localhost:5000
-EOF
+# Environment file (recommended)
+cp .env.example .env
+# Edit .env: set VITE_API_URL and VITE_RECAPTCHA_SITE_KEY (reCAPTCHA v2 site key from Google Admin Console).
 
 # Start development server
 npm run dev
@@ -235,6 +234,10 @@ npm run dev
 **Frontend runs on**: `http://localhost:5173` (or provided Vite URL)
 
 If your backend runs on a different port (for example `5050`), set `VITE_API_URL` to that exact backend URL.
+
+**reCAPTCHA (local email/password login)**  
+- Frontend (public): `VITE_RECAPTCHA_SITE_KEY` in `frontend/.env` (see `frontend/.env.example`).  
+- Backend (secret): `RECAPTCHA_SECRET_KEY` in `backend/.env` — must be the **secret** for the same reCAPTCHA site as the site key. Never put the secret in the frontend.
 
 ### Step 4: Verify Setup
 
@@ -397,9 +400,21 @@ EMAIL_PASS=your_app_specific_password
 CLIENT_URL=http://localhost:5173
 FRONTEND_URL=http://localhost:5173
 
+# Google reCAPTCHA v2 (counselor login + admin login)
+RECAPTCHA_SECRET_KEY=your_recaptcha_secret_key
+
 # Node Environment
 NODE_ENV=development
 ```
+
+### Frontend (`frontend/.env`)
+
+Vite only exposes variables prefixed with `VITE_`. Copy `frontend/.env.example` to `frontend/.env` and set at least:
+
+| Variable | Purpose |
+|----------|---------|
+| `VITE_API_URL` | Backend base URL (e.g. `http://localhost:5000`) |
+| `VITE_RECAPTCHA_SITE_KEY` | reCAPTCHA v2 **site** key (public; pairs with `RECAPTCHA_SECRET_KEY` on the server) |
 
 ## Running the System
 
@@ -489,6 +504,11 @@ See [RBAC_DOCUMENTATION.md](RBAC_DOCUMENTATION.md) for:
 - Check client IDs and secrets in `.env`
 - Clear browser cookies and try again
 
+### reCAPTCHA / Login Verification
+- Counselor login (`/login`) and admin login (`/adminlogin`) require a valid **site key** in `frontend/.env` (`VITE_RECAPTCHA_SITE_KEY`) and **secret** in `backend/.env` (`RECAPTCHA_SECRET_KEY`).
+- After changing `.env`, restart Vite and the backend.
+- Admin accounts stored as **Counselor users with role `admin`** use the same admin API; profile and change-password resolve both `Admin` and `Counselor` records.
+
 ### File Upload Failures
 - Verify `uploads/` directory exists and is writable
 - Check file size doesn't exceed 10MB limit
@@ -512,14 +532,17 @@ See [RBAC_DOCUMENTATION.md](RBAC_DOCUMENTATION.md) for:
 
 ## Security Best Practices
 
-1. **Never commit `.env`** to version control
-2. **Use strong secrets**: Minimum 32 random characters
-3. **Enable HTTPS** in production
-4. **Validate all inputs** on frontend and backend
-5. **Implement rate limiting** for auth endpoints
-6. **Regular backups** of MongoDB data
-7. **Monitor audit logs** for suspicious activity
-8. **Update dependencies** regularly
+1. **Never commit `.env`** to version control (templates like `frontend/.env.example` without secrets are fine)
+2. **Never put `RECAPTCHA_SECRET_KEY` in the frontend** — only the site key belongs in `VITE_*` variables
+3. **Use strong secrets**: Minimum 32 random characters
+4. **Enable HTTPS** in production
+5. **Validate all inputs** on frontend and backend
+6. **Implement rate limiting** for auth endpoints
+7. **Regular backups** of MongoDB data
+8. **Monitor audit logs** for suspicious activity
+9. **Update dependencies** regularly
+
+The root `.gitignore` includes `.cursor` so local Cursor IDE metadata is not committed.
 
 ## Contributing
 
@@ -553,9 +576,10 @@ For issues, feature requests, or questions:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | 2026-02-13 | Initial release |
+| 1.1.0 | 2026-04-25 | reCAPTCHA site key via `VITE_RECAPTCHA_SITE_KEY` and `frontend/.env.example`; admin profile/password APIs resolve Admin or Counselor-with-admin-role; README env and troubleshooting updates |
 
 ## System Status
 
 - **Status**: Active Development
-- **Last Updated**: March 11, 2026
+- **Last Updated**: April 25, 2026
 - **Maintenance Window**: None scheduled

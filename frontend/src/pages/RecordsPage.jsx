@@ -7,11 +7,40 @@ import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import { NotificationBadgeBadge } from "../components/NotificationBadge";
 import CounselorSidebar from "../components/CounselorSidebar";
+import CounselorHeaderProfile from "../components/CounselorHeaderProfile.jsx";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import {
+  addCounselorPdfHeaderFooter,
+  loadBuksuLogoDataUrl,
+  PDF_CONTENT_TOP_MM,
+  getPdfMaxContentY,
+} from "../utils/counselorPdfLetterhead.js";
+import {
+  formatProblemsPresentedDisplay,
+  problemsPresentedFieldValue,
+} from "../constants/problemsPresented";
+import ProblemsPresentedCheckboxes from "../components/ProblemsPresentedCheckboxes";
 
 const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/records`;
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+const pageStagger = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06, delayChildren: 0.04 },
+  },
+};
+
+const pageItem = {
+  hidden: { opacity: 0, y: 12 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] },
+  },
+};
 
 // Helper function to get full image URL from backend
 const getImageUrl = (imagePath) => {
@@ -66,11 +95,18 @@ const RecordsPage = () => {
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [newRecord, setNewRecord] = useState({
     clientName: "",
+    schoolYear: "",
+    gender: "",
+    course: "",
+    yearLevel: "",
+    section: "",
     date: "",
     sessionType: "",
     status: "Ongoing",
+    problemsPresented: "",
     notes: "",
     outcomes: "",
+    remarks: "",
     driveLink: "",
   });
   const [search, setSearch] = useState("");
@@ -101,52 +137,6 @@ const RecordsPage = () => {
       .toString()
       .padStart(4, "0");
     return `DOC-${timestamp}-${random}`;
-  };
-
-  const addHeaderFooter = (doc, pageNum, totalPages, trackingNumber, reportDate) => {
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-
-    doc.setFillColor(102, 126, 234);
-    doc.rect(0, 0, pageWidth, 30, "F");
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text("COUNSELING RECORDS REPORT", pageWidth / 2, 12, { align: "center" });
-
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Document Tracking: ${trackingNumber}`, 14, 22);
-    doc.text(`Date: ${reportDate}`, pageWidth - 14, 22, { align: "right" });
-
-    doc.setFillColor(102, 126, 234);
-    doc.rect(0, pageHeight - 35, pageWidth, 35, "F");
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      "CONFIDENTIAL - This document contains sensitive information and is protected under client confidentiality agreements.",
-      pageWidth / 2,
-      pageHeight - 28,
-      { align: "center" }
-    );
-
-    doc.setFontSize(7);
-    doc.text("Counseling Services Management System", 14, pageHeight - 18);
-    doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, pageHeight - 18, { align: "center" });
-    doc.text(`Tracking: ${trackingNumber}`, pageWidth - 14, pageHeight - 18, { align: "right" });
-
-    doc.setFontSize(6);
-    doc.text(
-      "For inquiries, contact your system administrator. This report is generated electronically.",
-      pageWidth / 2,
-      pageHeight - 10,
-      { align: "center" }
-    );
-
-    doc.setTextColor(0, 0, 0);
   };
 
   useEffect(() => {
@@ -606,34 +596,41 @@ const RecordsPage = () => {
   // Show immediately when permission is denied
   if (user && !hasPermission) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-          {/* Left: Sidebar */}
-          <CounselorSidebar />
-          
-          {/* Right: Error Message */}
-          <div className="w-full flex items-center justify-center">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-lg max-w-lg w-full text-center"
+      <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+        <div className="mx-auto flex w-full max-w-[1800px] flex-col px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+          <header className="mb-10 flex flex-col gap-4 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-4 sm:gap-5">
+              <CounselorSidebar variant="header" />
+              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+              <div className="min-w-0">
+                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Records
+                </p>
+                <h1 className="mt-1.5 m-0 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                  Counseling records
+                </h1>
+                <p className="mt-2 m-0 text-sm text-gray-500 dark:text-gray-400">Access status</p>
+              </div>
+            </div>
+            <CounselorHeaderProfile />
+          </header>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mx-auto w-full max-w-md rounded-2xl border border-gray-200/90 bg-white px-6 py-10 text-center dark:border-gray-700/90 dark:bg-gray-800/80"
+          >
+            <h2 className="m-0 text-lg font-semibold text-red-600 dark:text-red-400">Access denied</h2>
+            <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+              You don&apos;t have permission to open this page. Contact an administrator if this is unexpected.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="mt-8 w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
             >
-              <div className="text-6xl mb-4">🚫</div>
-              <h1 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-2">Access Denied</h1>
-              <p className="text-gray-600 dark:text-gray-400 mb-6 text-lg">
-                You don't have permission to access the Records page.
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mb-8">
-                Your access to this page has been restricted by an administrator. Please contact your administrator if you believe this is an error.
-              </p>
-              <button
-                onClick={() => navigate("/dashboard")}
-                className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
-              >
-                Go to Dashboard
-              </button>
-            </motion.div>
-          </div>
+              Back to dashboard
+            </button>
+          </motion.div>
         </div>
       </div>
     );
@@ -737,11 +734,18 @@ const RecordsPage = () => {
       });
       setNewRecord({
         clientName: "",
+        schoolYear: "",
+        gender: "",
+        course: "",
+        yearLevel: "",
+        section: "",
         date: "",
         sessionType: "",
         status: "Ongoing",
+        problemsPresented: "",
         notes: "",
         outcomes: "",
+        remarks: "",
         driveLink: "",
       });
       setShowForm(false);
@@ -807,9 +811,13 @@ const RecordsPage = () => {
   const handleSave = async () => {
     try {
       const token = localStorage.getItem("token") || localStorage.getItem("authToken");
-      
+
+      // Counselors must not overwrite admin-only recommendation
+      const counselorUpdatePayload = { ...selectedRecord };
+      delete counselorUpdatePayload.recommendation;
+
       // Update the record (lock should already be acquired when Edit was clicked)
-      await axios.put(`${API_URL}/${selectedRecord._id}`, selectedRecord, {
+      await axios.put(`${API_URL}/${selectedRecord._id}`, counselorUpdatePayload, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
 
@@ -952,10 +960,11 @@ const RecordsPage = () => {
     }
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     const recordsToExport = selectedRecord ? [selectedRecord] : filteredRecords;
     if (recordsToExport.length === 0) return;
 
+    const logoDataUrl = await loadBuksuLogoDataUrl();
     const doc = new jsPDF();
     const trackingNumber = generateTrackingNumber();
     const reportDate = new Date().toLocaleDateString("en-US", {
@@ -968,9 +977,9 @@ const RecordsPage = () => {
     let estimatedPages = Math.max(2, Math.ceil(recordsToExport.length / 2));
     if (recordsToExport.length === 1) estimatedPages = 2;
 
-    addHeaderFooter(doc, 1, estimatedPages, trackingNumber, reportDate);
-    let finalY = 50;
-    const maxContentHeight = doc.internal.pageSize.getHeight() - 35 - 50;
+    addCounselorPdfHeaderFooter(doc, 1, estimatedPages, trackingNumber, reportDate, logoDataUrl);
+    let finalY = PDF_CONTENT_TOP_MM;
+    const maxContentHeight = getPdfMaxContentY(doc);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
@@ -1005,8 +1014,8 @@ const RecordsPage = () => {
     finalY += 20;
 
     doc.addPage();
-    addHeaderFooter(doc, 2, estimatedPages, trackingNumber, reportDate);
-    finalY = 50;
+    addCounselorPdfHeaderFooter(doc, 2, estimatedPages, trackingNumber, reportDate, logoDataUrl);
+    finalY = PDF_CONTENT_TOP_MM;
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
@@ -1019,8 +1028,15 @@ const RecordsPage = () => {
       if (finalY > maxContentHeight && idx < recordsToExport.length - 1) {
         estimatedPages++;
         doc.addPage();
-        addHeaderFooter(doc, doc.internal.getNumberOfPages(), estimatedPages, trackingNumber, reportDate);
-        finalY = 50;
+        addCounselorPdfHeaderFooter(
+          doc,
+          doc.internal.getNumberOfPages(),
+          estimatedPages,
+          trackingNumber,
+          reportDate,
+          logoDataUrl
+        );
+        finalY = PDF_CONTENT_TOP_MM;
       }
 
       if (idx > 0) {
@@ -1037,44 +1053,51 @@ const RecordsPage = () => {
       doc.setFontSize(11);
       doc.setFont("helvetica", "normal");
 
-      const details = [
-        { label: "Client Name", value: record.clientName || "N/A" },
+      const detailRows = [
+        { label: "Student name", value: record.clientName || "N/A" },
+        { label: "School year", value: record.schoolYear || "—" },
+        { label: "Gender", value: record.gender || "—" },
+        { label: "Course", value: record.course || "—" },
+        { label: "Year", value: record.yearLevel || "—" },
+        { label: "Section", value: record.section || "—" },
         { label: "Date", value: record.date ? new Date(record.date).toLocaleDateString() : "N/A" },
+        { label: "Session no.", value: String(record.sessionNumber ?? "—") },
+        { label: "Session type", value: record.sessionType || "N/A" },
         { label: "Status", value: record.status || "N/A" },
         { label: "Counselor", value: record.counselor || "N/A" },
       ];
 
-      details.forEach((detail) => {
+      detailRows.forEach((detail) => {
         doc.setFont("helvetica", "bold");
         doc.text(`${detail.label}:`, 14, finalY);
         doc.setFont("helvetica", "normal");
-        doc.text(detail.value, 64, finalY);
+        doc.text(String(detail.value), 64, finalY);
         finalY += 7;
       });
 
-      doc.setFont("helvetica", "bold");
-      doc.text("Notes:", 14, finalY);
-      finalY += 7;
-      doc.setFont("helvetica", "normal");
-      const notes = record.notes || "No notes available";
-      const splitNotes = doc.splitTextToSize(notes, 180);
-      doc.text(splitNotes, 14, finalY);
-      finalY += splitNotes.length * 5 + 5;
+      const pdfBlock = (title, body, emptyMsg) => {
+        doc.setFont("helvetica", "bold");
+        doc.text(`${title}:`, 14, finalY);
+        finalY += 7;
+        doc.setFont("helvetica", "normal");
+        const text = body || emptyMsg;
+        const split = doc.splitTextToSize(text, 180);
+        doc.text(split, 14, finalY);
+        finalY += split.length * 5 + 4;
+      };
 
-      doc.setFont("helvetica", "bold");
-      doc.text("Outcome:", 14, finalY);
-      finalY += 7;
-      doc.setFont("helvetica", "normal");
-      const outcome = record.outcomes || record.outcome || "No outcome recorded";
-      const splitOutcome = doc.splitTextToSize(outcome, 180);
-      doc.text(splitOutcome, 14, finalY);
-      finalY += splitOutcome.length * 5 + 10;
+      pdfBlock("Problems presented", formatProblemsPresentedDisplay(record), "—");
+      pdfBlock("Session notes", record.notes, "No session notes");
+      pdfBlock("Outcome", record.outcomes || record.outcome, "No outcome recorded");
+      pdfBlock("Remarks", record.remarks, "—");
+      pdfBlock("Administrative recommendation", record.recommendation, "—");
+      finalY += 6;
     });
 
     if (doc.internal.getNumberOfPages() < 2) {
       doc.addPage();
-      addHeaderFooter(doc, 2, 2, trackingNumber, reportDate);
-      finalY = 50;
+      addCounselorPdfHeaderFooter(doc, 2, 2, trackingNumber, reportDate, logoDataUrl);
+      finalY = PDF_CONTENT_TOP_MM;
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(14);
@@ -1104,7 +1127,7 @@ const RecordsPage = () => {
     const totalPages = doc.internal.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
-      addHeaderFooter(doc, i, totalPages, trackingNumber, reportDate);
+      addCounselorPdfHeaderFooter(doc, i, totalPages, trackingNumber, reportDate, logoDataUrl);
     }
 
     const fileName = selectedRecord
@@ -1115,120 +1138,71 @@ const RecordsPage = () => {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Left: Overview / Navigation */}
-        <CounselorSidebar />
-
-        {/* Right: Main content */}
-        <main className="w-full">
-          <div
-            style={{
-              width: "100%",
-              display: "flex",
-              flexDirection: "column",
-              gap: 20,
-            }}
-          >
-        {/* Header Card */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm"
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <motion.main
+          className="flex w-full min-w-0 flex-col gap-8"
+          variants={pageStagger}
+          initial="hidden"
+          animate="show"
         >
-          <div className="flex flex-col gap-3">
-            <div>
-              <h1 className="text-gray-900 dark:text-gray-100 m-0 text-2xl md:text-3xl lg:text-4xl">
-                Counseling Records
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-1.5 text-sm">
-                Manage and track all counseling session records, notes, and outcomes. Records are automatically uploaded to Google Drive when you sign in with Google.
-              </p>
+          {/* Page intro */}
+          <motion.header
+            variants={pageItem}
+            className="flex flex-col gap-6 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-start sm:justify-between sm:gap-8 lg:pb-10"
+          >
+            <div className="flex min-w-0 flex-1 flex-col gap-5">
+              <div className="flex min-w-0 items-center gap-4 sm:gap-5">
+                <CounselorSidebar variant="header" />
+                <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+                <div className="min-w-0">
+                  <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                    Records
+                  </p>
+                  <h1 className="mt-1.5 m-0 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-3xl">
+                    Counseling records
+                  </h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                    Session notes, outcomes, and Drive backups—organized in one list.
+                  </p>
+                </div>
+              </div>
+              {!user?.isGoogleUser && !user?.isDriveConnected && (
+                <div className="flex flex-wrap gap-2 pl-0 sm:pl-[calc(2.75rem+1.25rem)]">
+                  <button
+                    type="button"
+                    onClick={handleConnectGoogleDrive}
+                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-900 transition-colors hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100 dark:hover:bg-emerald-900/30"
+                  >
+                    Connect Google Drive
+                  </button>
+                </div>
+              )}
             </div>
-          <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Counselor:</span>
-            <span
-              className={`font-semibold px-3 py-1.5 rounded-lg text-sm ${
-                user 
-                  ? "text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/30" 
-                  : "text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/30"
-              }`}
+            <CounselorHeaderProfile className="sm:pt-0.5" />
+          </motion.header>
+
+          {/* Primary actions */}
+          <motion.div
+            variants={pageItem}
+            className="flex flex-wrap items-center gap-3"
+          >
+            <button
+              type="button"
+              onClick={() => setShowForm(!showForm)}
+              className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
             >
-              {user?.name || user?.email || "Not logged in"}
-            </span>
-            {!user?.isGoogleUser && !user?.isDriveConnected && (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleConnectGoogleDrive}
-                className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-              >
-                Connect Google Drive
-              </motion.button>
-            )}
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Action Buttons */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          style={{
-            display: "flex",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setShowForm(!showForm)}
-            style={{
-              background: "linear-gradient(90deg, #06b6d4, #3b82f6)",
-              color: "white",
-              padding: "12px 20px",
-              borderRadius: 10,
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontWeight: 600,
-              fontSize: 14,
-              boxShadow: "0 4px 12px rgba(6, 182, 212, 0.3)",
-            }}
-          >
-            <span style={{ fontSize: "18px" }}>
-              {showForm ? "−" : "+"}
-            </span>
-            {showForm ? "Close Form" : "Create New Record"}
-          </motion.button>
-          
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleDownloadPDF}
-            style={{
-              background: "linear-gradient(90deg, #4f46e5, #7c3aed)",
-              color: "white",
-              padding: "12px 20px",
-              borderRadius: 10,
-              border: "none",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontWeight: 600,
-              fontSize: 14,
-              boxShadow: "0 4px 12px rgba(79, 70, 229, 0.3)",
-            }}
-          >
-            📄 Download Report PDF
-          </motion.button>
-        </motion.div>
+              <span className="text-lg leading-none">{showForm ? "−" : "+"}</span>
+              {showForm ? "Close form" : "New record"}
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPDF}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
+            >
+              Download PDF report
+            </button>
+          </motion.div>
 
         {/* New Record Form */}
         <AnimatePresence>
@@ -1240,38 +1214,120 @@ const RecordsPage = () => {
               transition={{ duration: 0.3 }}
               style={{ overflow: "hidden" }}
             >
-              <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm">
-                <h2 className="text-xl font-semibold mb-5 text-gray-900 dark:text-gray-100">
-                  Create New Record
+              <div className="rounded-2xl border border-gray-200/90 bg-white p-5 dark:border-gray-700/90 dark:bg-gray-800/80 sm:p-6">
+                <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">
+                  New record
                 </h2>
+                <p className="mt-1.5 mb-6 text-sm text-gray-500 dark:text-gray-400">
+                  Required fields are marked with *
+                </p>
 
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Student information
+                </p>
                 <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                    gap: 16,
-                    marginBottom: 16,
-                  }}
+                  className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2"
+                  style={{ gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))" }}
                 >
                   <div>
-                    <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                      Client Name *
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      School year
                     </label>
                     <input
                       type="text"
-                      placeholder="Enter client name"
+                      placeholder="e.g. 2025–2026"
+                      value={newRecord.schoolYear}
+                      onChange={(e) =>
+                        setNewRecord({ ...newRecord, schoolYear: e.target.value })
+                      }
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Name of the student *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Full name"
                       value={newRecord.clientName}
                       onChange={(e) =>
                         setNewRecord({
                           ...newRecord,
-                          clientName: e.target.value,
+                          clientName: e.target.value.replace(/[0-9]/g, ""),
                         })
                       }
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 transition-all"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Gender
+                    </label>
+                    <select
+                      value={newRecord.gender}
+                      onChange={(e) =>
+                        setNewRecord({ ...newRecord, gender: e.target.value })
+                      }
+                      className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
+                    >
+                      <option value="">Select</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                      <option value="Prefer not to say">Prefer not to say</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Course
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Program or course"
+                      value={newRecord.course}
+                      onChange={(e) =>
+                        setNewRecord({ ...newRecord, course: e.target.value })
+                      }
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Year
+                    </label>
+                    <select
+                      value={newRecord.yearLevel}
+                      onChange={(e) =>
+                        setNewRecord({ ...newRecord, yearLevel: e.target.value })
+                      }
+                      className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
+                    >
+                      <option value="">Select</option>
+                      <option value="1st Year">1st Year</option>
+                      <option value="2nd Year">2nd Year</option>
+                      <option value="3rd Year">3rd Year</option>
+                      <option value="4th Year">4th Year</option>
+                      <option value="5th Year">5th Year</option>
+                      <option value="Graduate">Graduate</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Section
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. A"
+                      value={newRecord.section}
+                      onChange={(e) =>
+                        setNewRecord({ ...newRecord, section: e.target.value })
+                      }
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Date
                     </label>
                     <input
@@ -1280,12 +1336,29 @@ const RecordsPage = () => {
                       onChange={(e) =>
                         setNewRecord({ ...newRecord, date: e.target.value })
                       }
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 transition-all"
+                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                     />
                   </div>
+                </div>
+
+                <p className="mb-2 rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-2 text-xs leading-relaxed text-gray-600 dark:border-gray-600 dark:bg-gray-900/40 dark:text-gray-400">
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">Session no.</span> is assigned
+                  automatically when you save, based on how many sessions already exist for this student name.
+                </p>
+
+                <p className="mb-3 mt-6 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Session
+                </p>
+                <div
+                  className="mb-5 grid gap-4"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  }}
+                >
                   <div>
-                    <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                      Session Type *
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Session type *
                     </label>
                     <select
                       value={newRecord.sessionType}
@@ -1295,17 +1368,17 @@ const RecordsPage = () => {
                           sessionType: e.target.value,
                         })
                       }
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 transition-all cursor-pointer"
+                      className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                     >
-                    <option value="">Select Session Type</option>
-                    <option value="Individual">Individual</option>
-                    <option value="Group">Group</option>
-                    <option value="Career">Career</option>
-                    <option value="Academic">Academic</option>
+                      <option value="">Select session type</option>
+                      <option value="Individual">Individual</option>
+                      <option value="Group">Group</option>
+                      <option value="Career">Career</option>
+                      <option value="Academic">Academic</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Status
                     </label>
                     <select
@@ -1313,42 +1386,72 @@ const RecordsPage = () => {
                       onChange={(e) =>
                         setNewRecord({ ...newRecord, status: e.target.value })
                       }
-                      className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 transition-all cursor-pointer"
+                      className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                     >
-                    <option value="Ongoing">Ongoing</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Referred">Referred</option>
+                      <option value="Ongoing">Ongoing</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Referred">Referred</option>
                     </select>
                   </div>
                 </div>
 
-                <div style={{ marginBottom: 16 }}>
-                  <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                    Session Notes
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Case notes
+                </p>
+                <div className="mb-4">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Problems presented
+                  </label>
+                  <ProblemsPresentedCheckboxes
+                    value={newRecord.problemsPresented}
+                    onChange={(next) =>
+                      setNewRecord({ ...newRecord, problemsPresented: next })
+                    }
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Session notes
                   </label>
                   <textarea
-                    placeholder="Enter session notes..."
+                    placeholder="Additional session notes…"
                     value={newRecord.notes}
                     onChange={(e) =>
                       setNewRecord({ ...newRecord, notes: e.target.value })
                     }
-                    rows="3"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 transition-all resize-vertical font-sans"
+                    rows={3}
+                    className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2.5 font-sans text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                   />
                 </div>
 
-                <div style={{ marginBottom: 20 }}>
-                  <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                    Outcomes
+                <div className="mb-4">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Outcome of the counseling session
                   </label>
                   <textarea
-                    placeholder="Enter outcomes..."
+                    placeholder="Summarize outcomes…"
                     value={newRecord.outcomes}
                     onChange={(e) =>
                       setNewRecord({ ...newRecord, outcomes: e.target.value })
                     }
-                    rows="3"
-                    className="w-full px-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 transition-all resize-vertical font-sans"
+                    rows={3}
+                    className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2.5 font-sans text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
+                  />
+                </div>
+
+                <div className="mb-6">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Remarks
+                  </label>
+                  <textarea
+                    placeholder="Follow-up, referrals, or other remarks…"
+                    value={newRecord.remarks}
+                    onChange={(e) =>
+                      setNewRecord({ ...newRecord, remarks: e.target.value })
+                    }
+                    rows={2}
+                    className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2.5 font-sans text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                   />
                 </div>
 
@@ -1392,51 +1495,58 @@ const RecordsPage = () => {
         </AnimatePresence>
 
         {/* Search and Filter */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm"
+        <motion.section
+          variants={pageItem}
+          className="rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80"
         >
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-center search-filter-container">
+          <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-700/80 sm:px-6 sm:py-5">
+            <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Find records</h2>
+            <p className="mt-1 m-0 text-sm text-gray-500 dark:text-gray-400">
+              Search by client or narrow by session type
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 p-5 sm:p-6 md:grid-cols-[1fr_auto] md:items-center search-filter-container">
             <input
               type="text"
-              placeholder="🔍 Search by client name..."
+              placeholder="Search by client name…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 transition-all placeholder-gray-400 dark:placeholder-gray-500"
+              className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 transition-colors placeholder:text-gray-400 focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-gray-500 dark:focus:ring-white/10"
             />
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="w-full md:w-auto border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 transition-all cursor-pointer min-w-[150px]"
+              className="w-full min-w-[10rem] cursor-pointer rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:focus:ring-white/10 md:w-auto"
             >
-              <option value="">All Types</option>
+              <option value="">All session types</option>
               <option value="Individual">Individual</option>
               <option value="Group">Group</option>
               <option value="Career">Career</option>
               <option value="Academic">Academic</option>
             </select>
           </div>
-        </motion.div>
+        </motion.section>
 
         {/* Records Display */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm"
+        <motion.section
+          variants={pageItem}
+          className="rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80"
         >
+          <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-700/80 sm:px-6 sm:py-5">
+            <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Your records</h2>
+            <p className="mt-1 m-0 text-sm text-gray-500 dark:text-gray-400">
+              Table on desktop, cards on smaller screens
+            </p>
+          </div>
+          <div className="p-4 sm:p-6">
           {loading ? (
-            <div className="text-center py-12">
+            <div className="py-16 text-center">
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                className="w-12 h-12 border-4 border-indigo-600 dark:border-indigo-400 border-t-transparent rounded-full mx-auto"
-              ></motion.div>
-              <p className="text-gray-600 dark:text-gray-400 mt-4 text-sm">
-                Loading records...
-              </p>
+                className="mx-auto h-10 w-10 rounded-full border-2 border-gray-200 border-t-gray-800 dark:border-gray-600 dark:border-t-gray-200"
+              />
+              <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Loading records…</p>
             </div>
           ) : filteredRecords.length > 0 ? (
             <>
@@ -1444,12 +1554,11 @@ const RecordsPage = () => {
               <div
                 style={{
                   display: "none",
-                  overflowX: "auto",
                 }}
-                className="desktop-table"
+                className="desktop-table -mx-1 overflow-x-auto sm:mx-0"
               >
-            <table className="w-full border-collapse text-gray-900 dark:text-gray-100">
-                  <thead className="bg-gray-50 dark:bg-gray-700/50 border-b-2 border-gray-200 dark:border-gray-600">
+            <table className="w-full min-w-[960px] border-collapse text-gray-900 dark:text-gray-100">
+                  <thead className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-600 dark:bg-gray-900/20">
                     <tr>
                       <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                         Session #
@@ -1919,40 +2028,34 @@ const RecordsPage = () => {
               )}
             </>
           ) : (
-            <div style={{ textAlign: "center", padding: "3rem 0" }}>
-              <p
-                style={{
-                  color: "#6b7280",
-                  fontSize: 14,
-                  fontStyle: "italic",
-                }}
-              >
-                No records found matching your criteria.
+            <div className="py-16 text-center">
+              <p className="m-0 text-sm text-gray-500 dark:text-gray-400">
+                No records match your search or filters.
               </p>
             </div>
           )}
-        </motion.div>
+          </div>
+        </motion.section>
 
         {/* Lock/Unlock Activity Logs Card - Separate Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm"
-          style={{ marginTop: 24 }}
+        <motion.section
+          variants={pageItem}
+          className="rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80"
         >
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-5 dark:border-gray-700/80 sm:flex-row sm:items-end sm:justify-between sm:px-6">
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                      Lock/Unlock Activity Logs
+                    <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">
+                      Lock activity
                     </h2>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      Recent lock and unlock activities across all records
+                    <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+                      Recent lock and unlock events across records
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => setShowLockLogsCard(!showLockLogsCard)}
-                      className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                       title={showLockLogsCard ? "Hide logs" : "Show logs"}
                     >
                       <svg 
@@ -1976,8 +2079,9 @@ const RecordsPage = () => {
                       <option value="UPDATE">Update Only</option>
                     </select>
                     <button
+                      type="button"
                       onClick={fetchAllLockLogs}
-                      className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white font-semibold text-sm cursor-pointer transition-colors flex items-center gap-2"
+                      className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                       title="Refresh logs"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1988,6 +2092,7 @@ const RecordsPage = () => {
                   </div>
                 </div>
 
+            <div className="px-5 pb-5 sm:px-6">
             <AnimatePresence>
               {showLockLogsCard && (
                 <motion.div
@@ -1995,7 +2100,7 @@ const RecordsPage = () => {
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.3 }}
-                  style={{ overflow: "hidden" }}
+                  className="overflow-hidden"
                 >
                   {(() => {
                     // Filter logs based on lockLogFilter
@@ -2053,7 +2158,8 @@ const RecordsPage = () => {
                 </motion.div>
               )}
             </AnimatePresence>
-        </motion.div>
+            </div>
+        </motion.section>
 
         {/* Edit Modal */}
         <AnimatePresence>
@@ -2086,7 +2192,7 @@ const RecordsPage = () => {
                   borderRadius: 16,
                   padding: 24,
                   width: "100%",
-                  maxWidth: "500px",
+                  maxWidth: "640px",
                   maxHeight: "90vh",
                   overflowY: "auto",
                   boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
@@ -2159,100 +2265,298 @@ const RecordsPage = () => {
                   const isLockOwner = lockStatus?.isLockOwner;
                   const isReadOnly = isLocked && !isLockOwner;
                   
+                  const ro = isReadOnly
+                    ? "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                    : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400";
+                  const dateVal =
+                    selectedRecord.date && !Number.isNaN(new Date(selectedRecord.date).getTime())
+                      ? new Date(selectedRecord.date).toISOString().slice(0, 10)
+                      : "";
+
                   return (
                     <div>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        Student information
+                      </p>
+                      <div
+                        className="mb-4 grid gap-3"
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                        }}
+                      >
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Name of the student
+                          </label>
+                          <input
+                            type="text"
+                            value={selectedRecord.clientName || ""}
+                            onChange={(e) =>
+                              setSelectedRecord({
+                                ...selectedRecord,
+                                clientName: e.target.value.replace(/[0-9]/g, ""),
+                              })
+                            }
+                            disabled={isReadOnly}
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro}`}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            School year
+                          </label>
+                          <input
+                            type="text"
+                            value={selectedRecord.schoolYear || ""}
+                            onChange={(e) =>
+                              setSelectedRecord({ ...selectedRecord, schoolYear: e.target.value })
+                            }
+                            disabled={isReadOnly}
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro}`}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Gender
+                          </label>
+                          <select
+                            value={selectedRecord.gender || ""}
+                            onChange={(e) =>
+                              setSelectedRecord({ ...selectedRecord, gender: e.target.value })
+                            }
+                            disabled={isReadOnly}
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro} ${isReadOnly ? "" : "cursor-pointer"}`}
+                          >
+                            <option value="">Select</option>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                            <option value="Prefer not to say">Prefer not to say</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Course
+                          </label>
+                          <input
+                            type="text"
+                            value={selectedRecord.course || ""}
+                            onChange={(e) =>
+                              setSelectedRecord({ ...selectedRecord, course: e.target.value })
+                            }
+                            disabled={isReadOnly}
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro}`}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Year
+                          </label>
+                          <select
+                            value={selectedRecord.yearLevel || ""}
+                            onChange={(e) =>
+                              setSelectedRecord({ ...selectedRecord, yearLevel: e.target.value })
+                            }
+                            disabled={isReadOnly}
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro} ${isReadOnly ? "" : "cursor-pointer"}`}
+                          >
+                            <option value="">Select</option>
+                            <option value="1st Year">1st Year</option>
+                            <option value="2nd Year">2nd Year</option>
+                            <option value="3rd Year">3rd Year</option>
+                            <option value="4th Year">4th Year</option>
+                            <option value="5th Year">5th Year</option>
+                            <option value="Graduate">Graduate</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Section
+                          </label>
+                          <input
+                            type="text"
+                            value={selectedRecord.section || ""}
+                            onChange={(e) =>
+                              setSelectedRecord({ ...selectedRecord, section: e.target.value })
+                            }
+                            disabled={isReadOnly}
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro}`}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Date
+                          </label>
+                          <input
+                            type="date"
+                            value={dateVal}
+                            onChange={(e) =>
+                              setSelectedRecord({
+                                ...selectedRecord,
+                                date: e.target.value,
+                              })
+                            }
+                            disabled={isReadOnly}
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro}`}
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Session no.
+                          </label>
+                          <div
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${
+                              isReadOnly ? ro : "border-gray-300 bg-gray-50 text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                            }`}
+                          >
+                            {selectedRecord.sessionNumber ?? "—"}
+                          </div>
+                        </div>
+                      </div>
+
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        Session
+                      </p>
+                      <div
+                        className="mb-4 grid gap-3"
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                        }}
+                      >
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Session type
+                          </label>
+                          <select
+                            value={selectedRecord.sessionType || ""}
+                            onChange={(e) =>
+                              setSelectedRecord({
+                                ...selectedRecord,
+                                sessionType: e.target.value,
+                              })
+                            }
+                            disabled={isReadOnly}
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro} ${isReadOnly ? "" : "cursor-pointer"}`}
+                          >
+                            <option value="">Select</option>
+                            <option value="Individual">Individual</option>
+                            <option value="Group">Group</option>
+                            <option value="Career">Career</option>
+                            <option value="Academic">Academic</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Status
+                          </label>
+                          <select
+                            value={selectedRecord.status}
+                            onChange={(e) =>
+                              setSelectedRecord({
+                                ...selectedRecord,
+                                status: e.target.value,
+                              })
+                            }
+                            disabled={isReadOnly}
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro} ${isReadOnly ? "" : "cursor-pointer"}`}
+                          >
+                            <option value="Ongoing">Ongoing</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Referred">Referred</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                        Case notes
+                      </p>
                       <div style={{ marginBottom: 16 }}>
-                        <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                          Session Type
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Problems presented
                         </label>
-                        <input
-                          type="text"
-                          value={selectedRecord.sessionType || ""}
-                          onChange={(e) =>
+                        <ProblemsPresentedCheckboxes
+                          value={problemsPresentedFieldValue(selectedRecord)}
+                          onChange={(next) =>
                             setSelectedRecord({
                               ...selectedRecord,
-                              sessionType: e.target.value,
+                              problemsPresented: next,
                             })
                           }
                           disabled={isReadOnly}
-                          className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-all ${
-                            isReadOnly
-                              ? "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-                              : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 cursor-text"
-                          }`}
                         />
-                </div>
+                      </div>
 
-                <div style={{ marginBottom: 16 }}>
-                  <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                    Status
-                  </label>
-                  <select
-                    value={selectedRecord.status}
-                    onChange={(e) =>
-                      setSelectedRecord({
-                        ...selectedRecord,
-                        status: e.target.value,
-                      })
-                    }
-                    disabled={isReadOnly}
-                    className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-all ${
-                      isReadOnly
-                        ? "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-                        : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 cursor-pointer"
-                    }`}
-                  >
-                    <option value="Ongoing">Ongoing</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Referred">Referred</option>
-                  </select>
-                </div>
+                      <div style={{ marginBottom: 16 }}>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Session notes
+                        </label>
+                        <textarea
+                          value={selectedRecord.notes || ""}
+                          onChange={(e) =>
+                            setSelectedRecord({
+                              ...selectedRecord,
+                              notes: e.target.value,
+                            })
+                          }
+                          disabled={isReadOnly}
+                          rows={3}
+                          placeholder={isReadOnly ? "Record is locked. Please unlock it first." : ""}
+                          className={`w-full resize-y rounded-lg border px-3 py-2.5 font-sans text-sm ${ro}`}
+                        />
+                      </div>
 
-                <div style={{ marginBottom: 16 }}>
-                  <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                    Notes
-                  </label>
-                  <textarea
-                    value={selectedRecord.notes || ""}
-                    onChange={(e) =>
-                      setSelectedRecord({
-                        ...selectedRecord,
-                        notes: e.target.value,
-                      })
-                    }
-                    disabled={isReadOnly}
-                    rows="3"
-                    placeholder={isReadOnly ? "Record is locked. Please unlock it first." : ""}
-                    className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-all font-sans ${
-                      isReadOnly
-                        ? "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed resize-none"
-                        : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 cursor-text resize-vertical"
-                    }`}
-                  />
-                </div>
+                      <div style={{ marginBottom: 16 }}>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Outcome of the counseling session
+                        </label>
+                        <textarea
+                          value={selectedRecord.outcomes || ""}
+                          onChange={(e) =>
+                            setSelectedRecord({
+                              ...selectedRecord,
+                              outcomes: e.target.value,
+                            })
+                          }
+                          disabled={isReadOnly}
+                          rows={3}
+                          placeholder={isReadOnly ? "Record is locked. Please unlock it first." : ""}
+                          className={`w-full resize-y rounded-lg border px-3 py-2.5 font-sans text-sm ${ro}`}
+                        />
+                      </div>
 
-                <div style={{ marginBottom: 20 }}>
-                  <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                    Outcomes
-                  </label>
-                  <textarea
-                    value={selectedRecord.outcomes || ""}
-                    onChange={(e) =>
-                      setSelectedRecord({
-                        ...selectedRecord,
-                        outcomes: e.target.value,
-                      })
-                    }
-                    disabled={isReadOnly}
-                    rows="3"
-                    placeholder={isReadOnly ? "Record is locked. Please unlock it first." : ""}
-                    className={`w-full px-3 py-2.5 rounded-lg border text-sm transition-all font-sans ${
-                      isReadOnly
-                        ? "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed resize-none"
-                        : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-indigo-500 dark:focus:border-indigo-400 cursor-text resize-vertical"
-                    }`}
-                  />
-                </div>
+                      <div style={{ marginBottom: 20 }}>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Remarks
+                        </label>
+                        <textarea
+                          value={selectedRecord.remarks || ""}
+                          onChange={(e) =>
+                            setSelectedRecord({
+                              ...selectedRecord,
+                              remarks: e.target.value,
+                            })
+                          }
+                          disabled={isReadOnly}
+                          rows={2}
+                          placeholder={isReadOnly ? "Record is locked." : ""}
+                          className={`w-full resize-y rounded-lg border px-3 py-2.5 font-sans text-sm ${ro}`}
+                        />
+                      </div>
+
+                      <div style={{ marginBottom: 20 }}>
+                        <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                          Administrative recommendation
+                        </label>
+                        <div
+                          className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm leading-relaxed text-gray-700 dark:border-gray-600 dark:bg-gray-800/80 dark:text-gray-300"
+                        >
+                          {selectedRecord.recommendation?.trim()
+                            ? selectedRecord.recommendation
+                            : "No recommendation from administration yet."}
+                        </div>
+                      </div>
 
                 <div
                   style={{
@@ -2452,8 +2756,7 @@ const RecordsPage = () => {
             </motion.div>
           )}
         </AnimatePresence>
-          </div>
-        </main>
+        </motion.main>
       </div>
     </div>
   );

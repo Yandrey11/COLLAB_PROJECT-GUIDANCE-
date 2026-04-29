@@ -10,11 +10,16 @@
   --text-primary: #111827;
   --text-secondary: #4b5563;
   --muted-surface: #e5e7eb;
+  color-scheme: light;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html.dark {
+  color-scheme: dark;
 }
 
 body {
@@ -34,6 +39,38 @@ body {
 
 .dark .page-bg {
   background: linear-gradient(135deg, #111827 0%, #1f2937 60%, #1e1b4b 100%);
+}
+
+/* Admin pages typography scale */
+.admin-typography .text-lg {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.admin-typography .text-sm {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.admin-typography .text-xs {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* Counselor pages typography scale */
+.counselor-typography .text-lg {
+  font-size: 1.125rem;
+  line-height: 1.5rem;
+}
+
+.counselor-typography .text-sm {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.counselor-typography .text-xs {
+  font-size: 0.75rem;
+  line-height: 1rem;
 }
 
 .dark body {

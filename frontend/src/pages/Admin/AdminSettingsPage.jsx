@@ -18,7 +18,7 @@ export default function AdminSettingsPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState("account"); // account, display, notifications, privacy
+  const [activeTab, setActiveTab] = useState("account"); // account, display, privacy
   const [admin, setAdmin] = useState(null);
   const [profile, setProfile] = useState(null);
 
@@ -398,33 +398,23 @@ export default function AdminSettingsPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Left: AdminSidebar */}
-        <AdminSidebar />
-
-        {/* Right: Main Settings Content */}
-        <main className="flex-1">
+    <div className="min-h-screen w-full flex flex-col items-center page-bg admin-typography font-sans p-3 md:p-5 gap-5">
+      <div className="w-full max-w-[1800px]">
+        <main className="flex-1 min-w-0">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm mb-6"
           >
-            <div className="flex justify-between items-start">
-              <div>
+            <div className="flex items-center gap-4 min-w-0">
+              <AdminSidebar variant="header" />
+              <div className="min-w-0">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">Settings</h1>
                 <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
                   Manage your account preferences, display options, and privacy settings.
                 </p>
               </div>
-              <button
-                onClick={() => navigate("/admin/profile")}
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
-              >
-                <span>👤</span>
-                Profile
-              </button>
             </div>
           </motion.div>
 
@@ -438,7 +428,6 @@ export default function AdminSettingsPage() {
               {[
                 { id: "account", label: "Account Settings", icon: "👤" },
                 { id: "display", label: "Display & Interface", icon: "🎨" },
-                { id: "notifications", label: "Notifications", icon: "🔔" },
                 { id: "privacy", label: "Privacy", icon: "🔒" },
               ].map((tab) => (
                 <button
@@ -539,24 +528,6 @@ export default function AdminSettingsPage() {
                           </motion.button>
                         </div>
                       </form>
-                    </div>
-
-                    {/* Profile Management Section */}
-                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 mb-6">
-                      <div className="flex items-center justify-between mb-4">
-                        <div>
-                          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Profile Management</h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Update your personal information and profile picture
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => navigate("/admin/profile")}
-                          className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
-                        >
-                          Go to Profile
-                        </button>
-                      </div>
                     </div>
 
                     {/* Activity Logs Section */}
@@ -748,91 +719,6 @@ export default function AdminSettingsPage() {
                       className="w-full px-6 py-3 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {saving ? "Saving..." : "Save Display Settings"}
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Notification Settings Tab */}
-              {activeTab === "notifications" && (
-                <motion.div
-                  key="notifications"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className="space-y-6"
-                >
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Notification Settings</h2>
-                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
-                      Control which notifications you receive and how they're delivered.
-                    </p>
-
-                    {/* Notification Toggles */}
-                    <div className="space-y-4">
-                      {[
-                        {
-                          key: "newUserCreations",
-                          label: "New User Creations",
-                          description: "Receive notifications when new users are created",
-                        },
-                        {
-                          key: "recordUpdates",
-                          label: "Record Updates",
-                          description: "Receive notifications when counseling records are updated",
-                        },
-                        {
-                          key: "criticalSystemAlerts",
-                          label: "Critical System Alerts",
-                          description: "Receive notifications for critical system events",
-                        },
-                        {
-                          key: "pdfGenerations",
-                          label: "PDF Generations",
-                          description: "Receive notifications when PDFs are generated",
-                        },
-                        {
-                          key: "loginAttempts",
-                          label: "Login Attempts",
-                          description: "Receive notifications for login attempts (admin only)",
-                        },
-                        {
-                          key: "soundEnabled",
-                          label: "Notification Sound",
-                          description: "Play a sound when receiving new notifications",
-                        },
-                      ].map((item) => (
-                        <div
-                          key={item.key}
-                          className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 flex items-center justify-between"
-                        >
-                          <div className="flex-1">
-                            <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                              {item.label}
-                            </label>
-                            <p className="text-xs text-gray-600 dark:text-gray-400">{item.description}</p>
-                          </div>
-                          <label className="relative inline-flex items-center cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={settings.notifications[item.key]}
-                              onChange={(e) =>
-                                updateSetting("notifications", item.key, e.target.checked)
-                              }
-                              className="sr-only peer"
-                            />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-
-                    <button
-                      onClick={() => saveSettings("notifications")}
-                      disabled={saving}
-                      className="w-full mt-6 px-6 py-3 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {saving ? "Saving..." : "Save Notification Settings"}
                     </button>
                   </div>
                 </motion.div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { applyTheme, getCurrentTheme, initializeTheme } from "../utils/themeUtils";
+import { applyTheme, getCurrentTheme, initializeTheme, normalizeTheme } from "../utils/themeUtils";
 
 /**
  * Custom hook to manage theme state across the application
@@ -17,7 +17,7 @@ export const useTheme = () => {
     // Listen for storage changes (when theme is changed in another tab/window)
     const handleStorageChange = (e) => {
       if (e.key === "theme") {
-        const newTheme = e.newValue || "light";
+        const newTheme = e.newValue == null ? "light" : normalizeTheme(e.newValue);
         setThemeState(newTheme);
         applyTheme(newTheme);
       }

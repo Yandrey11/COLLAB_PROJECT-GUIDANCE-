@@ -28,12 +28,14 @@ passport.use(
         
         const encryptedAccess = encryptToken(accessToken);
         const encryptedRefresh = refreshToken ? encryptToken(refreshToken) : null;
+        const googlePhoto = profile.photos?.[0]?.value || null;
 
         if (!user) {
           user = await GoogleUser.create({
             googleId: profile.id,
             name: profile.displayName,
             email,
+            profilePicture: googlePhoto,
             googleCalendarAccessToken: encryptedAccess,
             googleCalendarRefreshToken: encryptedRefresh,
             googleCalendarTokenExpires: calendarTokenExpires,
@@ -48,6 +50,10 @@ passport.use(
             user.googleCalendarRefreshToken = encryptedRefresh;
           }
           user.googleCalendarTokenExpires = calendarTokenExpires;
+          // Refresh avatar from Google when they sign in (HTTPS URL stored as-is)
+          if (googlePhoto) {
+            user.profilePicture = googlePhoto;
+          }
           await user.save();
           console.log(`✅ Google user updated with calendar access: ${email}`);
         }

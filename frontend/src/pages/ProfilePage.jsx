@@ -1,15 +1,32 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Swal from "sweetalert2";
-import { NotificationBadgeBadge } from "../components/NotificationBadge";
 import CounselorSidebar from "../components/CounselorSidebar";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { COUNSELOR_COLLEGES } from "../constants/counselorColleges";
 
 const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/profile`;
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+const pageStagger = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06, delayChildren: 0.04 },
+  },
+};
+
+const pageItem = {
+  hidden: { opacity: 0, y: 12 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] },
+  },
+};
 
 // Helper function to get full image URL from backend
 const getImageUrl = (imagePath) => {
@@ -44,14 +61,13 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
   const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState("profile"); // profile only
-
   // Profile form state
   const [profileForm, setProfileForm] = useState({
     name: "",
     email: "",
     phoneNumber: "",
     bio: "",
+    college: "",
   });
 
   // File upload state
@@ -102,6 +118,7 @@ export default function ProfilePage() {
           email: profileData.email || "",
           phoneNumber: profileData.phoneNumber || "",
           bio: profileData.bio || "",
+          college: profileData.college || "",
         });
         
         // Set preview image - handle both full URLs and relative paths
@@ -149,6 +166,14 @@ export default function ProfilePage() {
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
+    if (profile && !profileForm.college) {
+      await Swal.fire({
+        icon: "error",
+        title: "College required",
+        text: "Please select the college you counsel for.",
+      });
+      return;
+    }
     try {
       const token = localStorage.getItem("token");
       const response = await axios.put(API_URL, profileForm, {
@@ -364,311 +389,238 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Left: Overview / Navigation */}
-        <CounselorSidebar />
-
-        {/* Right: Main content */}
-        <main>
-          <div style={{ maxWidth: "100%", width: "100%" }}>
-            {/* Header */}
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm mb-6"
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+      <div className="mx-auto flex w-full max-w-[1800px] flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <motion.main
+          className="flex min-w-0 flex-col gap-8"
+          variants={pageStagger}
+          initial="hidden"
+          animate="show"
+        >
+          <motion.header
+            variants={pageItem}
+            className="flex flex-col gap-4 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-end sm:justify-between sm:gap-6 lg:pb-10"
+          >
+            <div className="flex min-w-0 items-start gap-4 sm:items-center sm:gap-5">
+              <CounselorSidebar variant="header" />
+              <div className="min-w-0 pt-0.5">
+                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Account
+                </p>
+                <h1 className="mt-2 m-0 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-3xl">
+                  Profile
+                </h1>
+                <p className="mt-3 max-w-xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                  Photo, college, and how students reach you.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate("/settings")}
+              className="self-start rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80 sm:self-center"
             >
-              <div className="flex justify-between items-start gap-4 flex-wrap">
-                <div className="flex-1 min-w-[200px]">
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">
-                    User Profile & Settings
-                  </h1>
-                  <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                    Manage your personal information and profile settings.
+              Settings
+            </button>
+          </motion.header>
+
+          <motion.div
+            variants={pageItem}
+            className="rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80"
+          >
+            <div className="grid min-h-0 grid-cols-1 gap-8 p-5 md:p-8 lg:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[minmax(14rem,22rem)_minmax(0,1fr)] lg:items-start">
+                {/* Photo column */}
+                <div className="flex flex-col items-center border-b border-gray-100 pb-8 dark:border-gray-700/80 lg:items-stretch lg:border-b-0 lg:border-r lg:pb-0 lg:pr-10">
+                  <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 border-gray-200 bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 sm:h-32 sm:w-32 lg:h-40 lg:w-40">
+                    {previewImage ? (
+                      <img
+                        src={previewImage}
+                        alt="Profile"
+                        onError={(e) => {
+                          console.error("❌ Error loading profile image");
+                          console.error("❌ Failed URL:", previewImage);
+                          console.error("❌ Profile picture from state:", profile?.profilePicture);
+                          console.error("❌ BASE_URL:", BASE_URL);
+
+                          if (profile?.profilePicture) {
+                            const retryUrl = getImageUrl(profile.profilePicture);
+                            console.log("🔄 Retrying image load with URL:", retryUrl);
+                            setTimeout(() => {
+                              if (retryUrl && retryUrl !== previewImage) {
+                                e.target.src = retryUrl + "?t=" + Date.now();
+                                e.target.style.display = "block";
+                                setPreviewImage(retryUrl);
+                              } else {
+                                console.error("❌ Retry URL same as failed URL");
+                                e.target.style.display = "none";
+                              }
+                            }, 500);
+                          } else {
+                            console.error("❌ No profile picture in state to retry");
+                            e.target.style.display = "none";
+                            setPreviewImage(null);
+                          }
+                        }}
+                        onLoad={() => {
+                          console.log("✅ Profile image loaded successfully:", previewImage);
+                        }}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-gray-400 dark:text-gray-500">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-14 w-14 lg:h-16 lg:w-16" aria-hidden>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-4 w-full text-center text-xs text-gray-500 dark:text-gray-400 lg:text-left">
+                    JPG, PNG, GIF or WebP · max 5MB
                   </p>
+                  <div className="mt-4 flex w-full max-w-xs flex-col gap-2 sm:flex-row sm:justify-center lg:max-w-none lg:flex-col">
+                    <label className="cursor-pointer rounded-xl bg-gray-900 px-4 py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white">
+                      {uploadingPicture ? "Uploading…" : "Upload photo"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProfilePictureUpload}
+                        disabled={uploadingPicture}
+                        className="hidden"
+                      />
+                    </label>
+                    {profile?.profilePicture && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveProfilePicture}
+                        className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-gray-600 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-950/20"
+                      >
+                        Remove photo
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <button
-                  onClick={() => navigate("/settings")}
-                  className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-2"
+
+                {/* Form column */}
+                <form
+                  onSubmit={handleProfileUpdate}
+                  className="flex min-h-0 min-w-0 flex-col gap-6"
                 >
-                  <span>⚙️</span>
-                  Settings
-                </button>
-              </div>
-            </motion.div>
-
-            {/* Tabs */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-2 shadow-sm mb-6 flex gap-2 flex-wrap"
-            >
-          {[
-            { id: "profile", label: "Profile Information", icon: "👤" },
-          ].map((tab) => (
-            <motion.button
-              key={tab.id}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                flex: 1,
-                minWidth: 120,
-                padding: "12px 16px",
-                borderRadius: 10,
-                border: "none",
-                background: activeTab === tab.id ? "linear-gradient(90deg, #4f46e5, #7c3aed)" : "transparent",
-                color: activeTab === tab.id ? "#fff" : undefined,
-                cursor: "pointer",
-                fontWeight: activeTab === tab.id ? 700 : 600,
-                fontSize: 14,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                transition: "all 0.2s",
-              }}
-              className={activeTab !== tab.id ? "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200" : ""}
-            >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
-            </motion.button>
-          ))}
-            </motion.div>
-
-            {/* Profile Information Tab */}
-            <AnimatePresence mode="wait">
-          {activeTab === "profile" && (
-            <motion.div
-              key="profile"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm"
-            >
-              <h2 className="text-gray-900 dark:text-gray-100" style={{ marginTop: 0, marginBottom: 24, fontSize: "1.5rem" }}>
-                Profile Information
-              </h2>
-
-              {/* Profile Picture Section */}
-              <div
-                className="border-b border-gray-200 dark:border-gray-700"
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  marginBottom: 32,
-                  paddingBottom: 32,
-                }}
-              >
-                <div
-                  className="border-4 border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700"
-                  style={{
-                    width: 150,
-                    height: 150,
-                    borderRadius: "50%",
-                    overflow: "hidden",
-                    marginBottom: 16,
-                    position: "relative",
-                  }}
-                >
-                  {previewImage ? (
-                    <img
-                      src={previewImage}
-                      alt="Profile"
-                      onError={(e) => {
-                        console.error("❌ Error loading profile image");
-                        console.error("❌ Failed URL:", previewImage);
-                        console.error("❌ Profile picture from state:", profile?.profilePicture);
-                        console.error("❌ BASE_URL:", BASE_URL);
-                        
-                        // Try to reload with a fresh URL from profile state
-                        if (profile?.profilePicture) {
-                          const retryUrl = getImageUrl(profile.profilePicture);
-                          console.log("🔄 Retrying image load with URL:", retryUrl);
-                          setTimeout(() => {
-                            if (retryUrl && retryUrl !== previewImage) {
-                              e.target.src = retryUrl + "?t=" + Date.now(); // Add timestamp to bypass cache
-                              e.target.style.display = "block";
-                              setPreviewImage(retryUrl);
-                            } else {
-                              console.error("❌ Retry URL same as failed URL");
-                              e.target.style.display = "none";
-                            }
-                          }, 500);
-                        } else {
-                          console.error("❌ No profile picture in state to retry");
-                          e.target.style.display = "none";
-                          setPreviewImage(null);
+                  <div>
+                    <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Details</h2>
+                    <p className="mt-1 m-0 text-sm text-gray-500 dark:text-gray-400">
+                      Name, email, college, and contact info
+                    </p>
+                  </div>
+                  <div className="grid shrink-0 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="min-w-0 xl:col-span-1">
+                      <label className="mb-1.5 block text-sm font-medium text-gray-600 dark:text-gray-400">
+                        Full name *
+                      </label>
+                      <input
+                        type="text"
+                        value={profileForm.name}
+                        onChange={(e) =>
+                          setProfileForm({
+                            ...profileForm,
+                            name: e.target.value.replace(/[0-9]/g, ""),
+                          })
                         }
-                      }}
-                      onLoad={() => {
-                        console.log("✅ Profile image loaded successfully:", previewImage);
-                      }}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-5xl text-gray-400 dark:text-gray-500">
-                      👤
+                        required
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:focus:ring-white/10"
+                      />
                     </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
-                  <motion.label
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    style={{
-                      padding: "10px 20px",
-                      borderRadius: 10,
-                      background: "linear-gradient(90deg, #4f46e5, #7c3aed)",
-                      color: "#fff",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                      fontSize: 14,
-                      display: "inline-block",
-                    }}
-                  >
-                    {uploadingPicture ? "Uploading..." : "Upload Picture"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleProfilePictureUpload}
-                      disabled={uploadingPicture}
-                      style={{ display: "none" }}
-                    />
-                  </motion.label>
-                  {profile?.profilePicture && (
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={handleRemoveProfilePicture}
-                      className="px-5 py-2.5 rounded-lg border border-red-500 dark:border-red-600 bg-white dark:bg-gray-700 text-red-600 dark:text-red-400 font-semibold text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    >
-                      Remove Picture
-                    </motion.button>
-                  )}
-                </div>
-              </div>
-
-              {/* Profile Form */}
-              <form onSubmit={handleProfileUpdate}>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-                    gap: 20,
-                    marginBottom: 20,
-                  }}
-                >
-                  <div>
-                    <label
-                      className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300"
-                    >
-                      Full Name *
+                    <div className="min-w-0 sm:col-span-2 xl:col-span-2">
+                      <label className="mb-1.5 block text-sm font-medium text-gray-600 dark:text-gray-400">
+                        Email *
+                      </label>
+                      <input
+                        type="email"
+                        value={profileForm.email}
+                        onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                        required
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:focus:ring-white/10"
+                      />
+                    </div>
+                    <div className="min-w-0 sm:col-span-2 xl:col-span-3">
+                      <label className="mb-1.5 block text-sm font-medium text-gray-600 dark:text-gray-400">
+                        College *
+                      </label>
+                      <select
+                        value={profileForm.college}
+                        onChange={(e) =>
+                          setProfileForm({ ...profileForm, college: e.target.value })
+                        }
+                        required
+                        className="w-full max-w-xl rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:focus:ring-white/10"
+                      >
+                        <option value="">Select college</option>
+                        {COUNSELOR_COLLEGES.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="min-w-0 sm:col-span-2 xl:col-span-3">
+                      <label className="mb-1.5 block text-sm font-medium text-gray-600 dark:text-gray-400">
+                        Phone
+                      </label>
+                      <input
+                        type="tel"
+                        value={profileForm.phoneNumber}
+                        onChange={(e) =>
+                          setProfileForm({
+                            ...profileForm,
+                            phoneNumber: e.target.value.replace(/[^0-9+\-\s()]/g, ""),
+                          })
+                        }
+                        placeholder="+1 (555) 123-4567"
+                        className="w-full max-w-xl rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-white/10"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex min-h-[12rem] flex-1 flex-col lg:min-h-[14rem]">
+                    <label className="mb-1.5 block shrink-0 text-sm font-medium text-gray-600 dark:text-gray-400">
+                      Bio
                     </label>
-                    <input
-                      type="text"
-                      value={profileForm.name}
-                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                      required
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
+                    <textarea
+                      value={profileForm.bio}
+                      onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
+                      placeholder="Professional summary, focus areas, or how students can reach you…"
+                      maxLength={500}
+                      className="min-h-[10rem] w-full flex-1 resize-y rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-white/10"
                     />
+                    <div className="mt-1 shrink-0 text-xs text-gray-500 dark:text-gray-400">
+                      {profileForm.bio.length}/500 characters
+                    </div>
                   </div>
-                  <div>
-                    <label
-                      className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300"
+                  <div className="mt-auto flex shrink-0 flex-wrap justify-end gap-3 border-t border-gray-100 pt-6 dark:border-gray-700/80">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProfileForm({
+                          name: profile?.name || "",
+                          email: profile?.email || "",
+                          phoneNumber: profile?.phoneNumber || "",
+                          bio: profile?.bio || "",
+                          college: profile?.college || "",
+                        });
+                      }}
+                      className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                     >
-                      Email Address *
-                    </label>
-                    <input
-                      type="email"
-                      value={profileForm.email}
-                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                      required
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300"
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                     >
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      value={profileForm.phoneNumber}
-                      onChange={(e) => setProfileForm({ ...profileForm, phoneNumber: e.target.value })}
-                      placeholder="+1 (555) 123-4567"
-                      className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 placeholder-gray-400 dark:placeholder-gray-500"
-                    />
+                      Save changes
+                    </button>
                   </div>
-                </div>
-                <div className="mb-5">
-                  <label
-                    className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300"
-                  >
-                    Bio
-                  </label>
-                  <textarea
-                    value={profileForm.bio}
-                    onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
-                    placeholder="Tell us about yourself..."
-                    rows="4"
-                    maxLength={500}
-                    className="w-full border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 placeholder-gray-400 dark:placeholder-gray-500 resize-y"
-                  />
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    {profileForm.bio.length}/500 characters
-                  </div>
-                </div>
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-                  <motion.button
-                    type="button"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      setProfileForm({
-                        name: profile?.name || "",
-                        email: profile?.email || "",
-                        phoneNumber: profile?.phoneNumber || "",
-                        bio: profile?.bio || "",
-                      });
-                    }}
-                    className="px-5 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                  >
-                    Cancel
-                  </motion.button>
-                  <motion.button
-                    type="submit"
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    style={{
-                      padding: "10px 20px",
-                      borderRadius: 10,
-                      border: "none",
-                      background: "linear-gradient(90deg, #4f46e5, #7c3aed)",
-                      color: "#fff",
-                      cursor: "pointer",
-                      fontWeight: 600,
-                      fontSize: 14,
-                      boxShadow: "0 4px 12px rgba(79, 70, 229, 0.3)",
-                    }}
-                  >
-                    Save Changes
-                  </motion.button>
-                </div>
-              </form>
-            </motion.div>
-          )}
-
-            </AnimatePresence>
-          </div>
-        </main>
+                </form>
+            </div>
+          </motion.div>
+        </motion.main>
       </div>
     </div>
   );

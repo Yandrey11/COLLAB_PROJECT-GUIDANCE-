@@ -91,7 +91,7 @@ export const createBackup = async (req, res) => {
     // Collections to backup
     const collectionsToBackup = [
       { model: Record, name: "records", countField: "recordCount" },
-      { model: User, name: "users", countField: "userCount" },
+      { model: Counselor, name: "users", countField: "userCount" },
       { model: Admin, name: "admins", countField: "adminCount" },
       { model: GoogleUser, name: "googleusers", countField: null },
       { model: Report, name: "reports", countField: "reportCount" },
@@ -326,7 +326,7 @@ export const restoreBackup = async (req, res) => {
     // Collections mapping
     const collectionMapping = [
       { model: Record, name: "records" },
-      { model: User, name: "users" },
+      { model: Counselor, name: "users" },
       { model: Admin, name: "admins" },
       { model: GoogleUser, name: "googleusers" },
       { model: Report, name: "reports" },

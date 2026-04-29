@@ -128,28 +128,28 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
   return (
     <div className="w-full">
       {/* Calendar Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-2">
         <button
           onClick={goToPreviousMonth}
-          className="p-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm text-gray-700 dark:text-gray-300 font-semibold"
+          className="p-1.5 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm text-gray-700 dark:text-gray-300 font-semibold"
           aria-label="Previous month"
         >
           ←
         </button>
         <div className="text-center">
-          <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
+          <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
             {monthNames[month]} {year}
           </h3>
           <button
             onClick={goToToday}
-            className="mt-1 px-3 py-1 rounded-lg bg-indigo-600 dark:bg-indigo-600 text-white dark:text-white hover:bg-indigo-700 dark:hover:bg-indigo-700 text-[10px] font-semibold transition-colors"
+            className="mt-0.5 px-2.5 py-0.5 rounded-lg bg-indigo-600 dark:bg-indigo-600 text-white dark:text-white hover:bg-indigo-700 dark:hover:bg-indigo-700 text-[10px] font-semibold transition-colors"
           >
             Go to Today
           </button>
         </div>
         <button
           onClick={goToNextMonth}
-          className="p-2 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm text-gray-700 dark:text-gray-300 font-semibold"
+          className="p-1.5 rounded-lg bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors text-sm text-gray-700 dark:text-gray-300 font-semibold"
           aria-label="Next month"
         >
           →
@@ -157,12 +157,12 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
       </div>
 
       {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-1.5 mb-4">
+      <div className="grid grid-cols-7 gap-1 mb-2">
         {/* Day headers */}
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
           <div
             key={day}
-            className="text-center text-[10px] font-semibold text-gray-600 dark:text-gray-400 py-1"
+            className="text-center text-[10px] font-semibold text-gray-600 dark:text-gray-400 py-0.5"
           >
             {day}
           </div>
@@ -184,7 +184,7 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
             <div
               key={formatDateKey(date)}
               onClick={() => setSelectedDate(date)}
-              className={`min-h-[75px] border rounded-lg p-1.5 cursor-pointer transition-all hover:shadow-md flex flex-col ${
+              className={`min-h-[52px] border rounded-md p-1 cursor-pointer transition-all hover:shadow-sm flex flex-col ${
                 today
                   ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-600"
                   : isSelected
@@ -194,7 +194,7 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
                   : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 bg-white dark:bg-gray-800"
               }`}
             >
-              <div className={`text-xs font-bold mb-0.5 ${
+              <div className={`text-[10px] font-bold mb-0.5 ${
                 today ? "text-indigo-700 dark:text-indigo-300" : "text-gray-700 dark:text-gray-300"
               }`}>
                 {date.getDate()}
@@ -213,7 +213,7 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
                   return (
                     <div
                       key={record._id || idx}
-                      className={`text-[10px] leading-tight ${bgColor} text-white rounded px-1.5 py-0.5 font-semibold truncate`}
+                      className={`text-[9px] leading-tight ${bgColor} text-white rounded px-1 py-0.5 font-semibold truncate`}
                       title={`${record.clientName} - ${record.sessionType || "General Counseling"} (${record.status || "Ongoing"})`}
                     >
                       {record.clientName}
@@ -223,7 +223,7 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
                 {hasEvents && dateData.events.map((event, idx) => (
                   <div
                     key={event.id || idx}
-                    className="text-[10px] leading-tight bg-blue-500 text-white rounded px-1.5 py-0.5 font-semibold truncate"
+                    className="text-[9px] leading-tight bg-blue-500 text-white rounded px-1 py-0.5 font-semibold truncate"
                     title={event.title}
                   >
                     {event.title}
@@ -243,8 +243,8 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
         if (totalItems === 0) return null;
 
         return (
-          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
-            <h4 className="text-base font-bold text-gray-900 dark:text-gray-100 mb-3">
+          <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 mb-2">
               {selectedDate.toLocaleDateString("en-US", {
                 weekday: "long",
                 year: "numeric",
@@ -253,7 +253,7 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
               })}
             </h4>
             
-            <div className="space-y-3">
+            <div className="space-y-2">
               {/* Counseling Records */}
               {dateData.records.map((record) => {
                 const recordDate = new Date(record.date);
@@ -267,7 +267,7 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
                 return (
                   <div
                     key={record._id}
-                    className={`p-3 rounded-lg border ${statusClass}`}
+                    className={`p-2 rounded-lg border ${statusClass}`}
                   >
                     <div className="font-semibold text-sm mb-1">
                       {record.clientName}
@@ -295,7 +295,7 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
                 return (
                   <div
                     key={event.id}
-                    className="p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20"
+                    className="p-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20"
                   >
                     <div className="font-semibold text-sm mb-1 text-blue-900 dark:text-blue-200">
                       {event.title}

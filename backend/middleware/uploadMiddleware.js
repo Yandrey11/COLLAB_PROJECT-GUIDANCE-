@@ -60,19 +60,35 @@ export const getFileUrl = (filename, baseUrl = null) => {
   if (filename.startsWith("http://") || filename.startsWith("https://")) {
     return filename;
   }
+  // Normalize any stored path (absolute, relative, or just filename)
+  // into a web path under /uploads/profiles.
+  let webPath = "";
+  if (filename.includes("/uploads/")) {
+    webPath = filename.substring(filename.indexOf("/uploads/"));
+  } else {
+    webPath = `/uploads/profiles/${path.basename(filename)}`;
+  }
   // If baseUrl is provided, return full URL
   if (baseUrl) {
-    const cleanPath = filename.startsWith("/") ? filename : `/uploads/profiles/${path.basename(filename)}`;
-    return `${baseUrl}${cleanPath}`;
+    return `${baseUrl}${webPath}`;
   }
   // Otherwise, construct the relative URL for local storage
-  return `/uploads/profiles/${path.basename(filename)}`;
+  return webPath;
 };
 
 // Helper function to delete old profile picture file
 export const deleteProfilePictureFile = async (fileUrl) => {
   if (!fileUrl) return;
-  
+
+  // Remote avatar (e.g. Google profile photo) — nothing on disk to remove
+  if (
+    typeof fileUrl === "string" &&
+    (fileUrl.startsWith("http://") || fileUrl.startsWith("https://")) &&
+    !fileUrl.includes("/uploads/profiles/")
+  ) {
+    return;
+  }
+
   // If it's a full URL, extract the filename
   let filename = fileUrl;
   if (fileUrl.includes("/uploads/profiles/")) {

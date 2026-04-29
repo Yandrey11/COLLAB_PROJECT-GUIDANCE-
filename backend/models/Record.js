@@ -13,6 +13,24 @@ const recordSchema = new mongoose.Schema(
     },
     notes: { type: String },
     outcomes: { type: String },
+    /** Demographics & case details (optional; clientName/date/sessionNumber/sessionType still core) */
+    schoolYear: { type: String },
+    gender: { type: String },
+    course: { type: String },
+    yearLevel: { type: String },
+    section: { type: String },
+    /** Taxonomy codes (HF, STR, …); validated on write in recordController */
+    problemsPresentedCodes: {
+      type: [String],
+      default: [],
+    },
+    /** Free-text notes or legacy text not mapped to a code */
+    problemsPresentedNotes: { type: String, default: "" },
+    /** Denormalized: comma-separated codes + optional notes (kept for PDFs / older clients) */
+    problemsPresented: { type: String },
+    remarks: { type: String },
+    /** Set by administrators (optional) */
+    recommendation: { type: String },
     driveLink: { type: String },
     googleCalendarEventId: { type: String }, // Links record to Google Calendar event
     counselor: { type: String, required: true },

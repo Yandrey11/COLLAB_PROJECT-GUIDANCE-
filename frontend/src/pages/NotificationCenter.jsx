@@ -1,13 +1,32 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { motion } from "framer-motion";
 import Swal from "sweetalert2";
 import { NotificationBadgeBadge } from "../components/NotificationBadge";
 import CounselorSidebar from "../components/CounselorSidebar";
+import CounselorHeaderProfile from "../components/CounselorHeaderProfile.jsx";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+const pageStagger = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06, delayChildren: 0.04 },
+  },
+};
+
+const pageItem = {
+  hidden: { opacity: 0, y: 12 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] },
+  },
+};
 
 // Helper function to get full image URL from backend
 const getImageUrl = (imagePath) => {
@@ -423,135 +442,162 @@ export default function NotificationCenter() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Left: Overview / Navigation */}
-        <CounselorSidebar />
-
-        {/* Right: Main content */}
-        <main className="w-full">
-        {/* Header */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm mb-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div className="flex items-center gap-4">
-             
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">Notification Center</h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                  Stay updated with records, assignments, and announcements
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <motion.main
+          className="flex min-w-0 flex-col gap-8"
+          variants={pageStagger}
+          initial="hidden"
+          animate="show"
+        >
+          <motion.header
+            variants={pageItem}
+            className="flex flex-col gap-5 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-between sm:gap-8 lg:pb-10"
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-5">
+              <CounselorSidebar variant="header" />
+              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+              <div className="min-w-0">
+                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Inbox
+                </p>
+                <h1 className="mt-1.5 m-0 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-3xl">
+                  Notifications
+                </h1>
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                  Records, assignments, and announcements in one place.
                 </p>
               </div>
             </div>
-            {unreadCount > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
+            <div className="flex flex-wrap items-center justify-end gap-3 sm:gap-4">
+              {unreadCount > 0 && (
+                <span className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200">
                   {unreadCount} unread
                 </span>
-              </div>
-            )}
-          </div>
-        </div>
+              )}
+              <CounselorHeaderProfile />
+            </div>
+          </motion.header>
 
-        {/* Message Alert */}
-        {message.text && (
-          <div
-            className={`p-4 rounded-xl font-medium mb-6 ${
-              message.type === "success"
-                ? "bg-green-100 text-green-800"
-                : "bg-red-100 text-red-800"
-            }`}
+          {message.text && (
+            <motion.div
+              variants={pageItem}
+              className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+                message.type === "success"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-200"
+                  : "border-red-200 bg-red-50 text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-200"
+              }`}
+            >
+              {message.text}
+            </motion.div>
+          )}
+
+          <motion.section
+            variants={pageItem}
+            className="rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80"
           >
-            {message.text}
-          </div>
-        )}
+            <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-700/80 sm:px-6 sm:py-5">
+              <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Search & filters</h2>
+              <p className="mt-1 m-0 text-sm text-gray-500 dark:text-gray-400">
+                Narrow by status, category, or keywords
+              </p>
+            </div>
+            <form onSubmit={handleSearch} className="flex flex-col gap-3 p-5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3 sm:p-6">
+              <input
+                type="text"
+                placeholder="Search…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="min-h-[2.75rem] w-full flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-white/10 sm:min-w-[220px]"
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  handleFilter();
+                }}
+                className="min-h-[2.75rem] w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:focus:ring-white/10 sm:w-auto sm:min-w-[10rem]"
+              >
+                <option value="all">All statuses</option>
+                <option value="unread">Unread</option>
+                <option value="read">Read</option>
+              </select>
+              <select
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  handleFilter();
+                }}
+                className="min-h-[2.75rem] w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900/10 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-100 dark:focus:ring-white/10 sm:w-auto sm:min-w-[11rem]"
+              >
+                <option value="all">All categories</option>
+                <option value="New Record">New Record</option>
+                <option value="Assigned Record">Assigned Record</option>
+                <option value="Updated Record">Updated Record</option>
+                <option value="Schedule Reminder">Schedule Reminder</option>
+                <option value="Announcement">Announcement</option>
+                <option value="System Alert">System Alert</option>
+              </select>
+              <div className="flex w-full flex-col gap-2 sm:ml-auto sm:w-auto sm:flex-row">
+                <button
+                  type="submit"
+                  className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                >
+                  Search
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter("all");
+                    setCategoryFilter("all");
+                    setSearchQuery("");
+                    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+                    fetchNotifications(token, 1, "all", "all", "");
+                  }}
+                  className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+                >
+                  Reset
+                </button>
+              </div>
+            </form>
+          </motion.section>
 
-        {/* Search and Filters */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm mb-6">
-          <form onSubmit={handleSearch} className="flex flex-wrap gap-3 items-center">
-            <input
-              type="text"
-              placeholder="Search notifications..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 min-w-[200px] px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 outline-none focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 dark:focus:ring-indigo-800 text-sm"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                handleFilter();
-              }}
-              className="px-4 py-2 rounded-xl border border-gray-200 bg-indigo-600 text-white cursor-pointer text-sm font-semibold outline-none"
-            >
-              <option value="all">All Status</option>
-              <option value="unread">Unread</option>
-              <option value="read">Read</option>
-            </select>
-            <select
-              value={categoryFilter}
-              onChange={(e) => {
-                setCategoryFilter(e.target.value);
-                handleFilter();
-              }}
-              className="px-4 py-2 rounded-xl border border-gray-200 bg-indigo-600 text-white cursor-pointer text-sm font-semibold outline-none"
-            >
-              <option value="all">All Categories</option>
-              <option value="New Record">New Record</option>
-              <option value="Assigned Record">Assigned Record</option>
-              <option value="Updated Record">Updated Record</option>
-              <option value="Schedule Reminder">Schedule Reminder</option>
-              <option value="Announcement">Announcement</option>
-              <option value="System Alert">System Alert</option>
-            </select>
+          <motion.div variants={pageItem} className="flex flex-wrap gap-3">
             <button
-              type="submit"
-              className="px-6 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 text-white font-semibold hover:from-indigo-700 hover:to-blue-700 transition-colors text-sm"
+              type="button"
+              onClick={handleMarkAllAsRead}
+              className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
             >
-              Search
+              Mark all read
             </button>
             <button
               type="button"
-              onClick={() => {
-                setStatusFilter("all");
-                setCategoryFilter("all");
-                setSearchQuery("");
-                const token = localStorage.getItem("token") || localStorage.getItem("authToken");
-                fetchNotifications(token, 1, "all", "all", "");
-              }}
-              className="px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors font-semibold text-sm"
+              onClick={handleDeleteAllRead}
+              className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300 dark:hover:bg-red-950/30"
             >
-              Reset
+              Delete read
             </button>
-          </form>
-        </div>
+          </motion.div>
 
-        {/* Action Buttons */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm mb-6 flex flex-wrap gap-3">
-          <button
-            onClick={handleMarkAllAsRead}
-            className="px-4 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors font-semibold text-sm"
+          <motion.section
+            variants={pageItem}
+            className="rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80"
           >
-            Mark All as Read
-          </button>
-          <button
-            onClick={handleDeleteAllRead}
-            className="px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 transition-colors font-semibold text-sm"
-          >
-            Delete All Read
-          </button>
-        </div>
-
-        {/* Notifications List */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Notifications</h2>
+            <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-700/80 sm:px-6 sm:py-5">
+              <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Feed</h2>
+              <p className="mt-1 m-0 text-sm text-gray-500 dark:text-gray-400">
+                Latest items first
+              </p>
+            </div>
+            <div className="p-4 sm:p-6">
           {notifications.length === 0 ? (
-            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-              <p className="text-lg">No notifications found.</p>
-              <p className="text-sm mt-2">You're all caught up! 🎉</p>
+            <div className="py-16 text-center text-gray-500 dark:text-gray-400">
+              <p className="m-0 text-sm font-medium text-gray-600 dark:text-gray-300">No notifications match your filters.</p>
+              <p className="mt-2 m-0 text-sm text-gray-500 dark:text-gray-400">You&apos;re all caught up.</p>
             </div>
           ) : (
             <>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-3">
                 {notifications.map((notification) => {
                   const isUnread = notification.status === "unread";
                   const categoryColors = getCategoryColor(notification.category);
@@ -561,11 +607,11 @@ export default function NotificationCenter() {
                   return (
                     <div
                       key={notification.id}
-                      className={`p-2.5 rounded-lg border ${
+                      className={`rounded-xl border p-3 transition-colors sm:p-4 ${
                         isUnread
-                          ? "border-indigo-400 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20"
-                          : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700/50"
-                      } ${isCritical ? "shadow-md" : "shadow-sm"} transition-all hover:shadow-md`}
+                          ? "border-indigo-200/90 bg-indigo-50/80 dark:border-indigo-800/60 dark:bg-indigo-950/25"
+                          : "border-gray-100 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-900/20"
+                      } ${isCritical ? "ring-1 ring-red-200/80 dark:ring-red-900/40" : ""} hover:border-gray-200 dark:hover:border-gray-600`}
                     >
                       <div className="flex justify-between items-start gap-2">
                         <div className="flex-1 min-w-0">
@@ -628,12 +674,13 @@ export default function NotificationCenter() {
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="flex justify-between items-center mt-6 pt-6 border-t border-gray-200">
-                  <div className="text-sm text-gray-600">
+                <div className="mt-8 flex flex-col gap-3 border-t border-gray-100 pt-6 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
                     Page {currentPage} of {totalPages}
                   </div>
                   <div className="flex gap-2">
                     <button
+                      type="button"
                       onClick={() => {
                         const token = localStorage.getItem("token") || localStorage.getItem("authToken");
                         if (currentPage > 1) {
@@ -641,15 +688,16 @@ export default function NotificationCenter() {
                         }
                       }}
                       disabled={currentPage <= 1}
-                      className={`px-4 py-2 rounded-xl border border-gray-200 font-semibold text-sm ${
+                      className={`rounded-xl border px-4 py-2 text-sm font-medium ${
                         currentPage <= 1
-                          ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                          : "bg-white text-gray-700 hover:bg-gray-50 cursor-pointer"
+                          ? "cursor-not-allowed border-gray-100 text-gray-400 dark:border-gray-800"
+                          : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                       }`}
                     >
-                      Prev
+                      Previous
                     </button>
                     <button
+                      type="button"
                       onClick={() => {
                         const token = localStorage.getItem("token") || localStorage.getItem("authToken");
                         if (currentPage < totalPages) {
@@ -657,10 +705,10 @@ export default function NotificationCenter() {
                         }
                       }}
                       disabled={currentPage >= totalPages}
-                      className={`px-4 py-2 rounded-xl border border-gray-200 font-semibold text-sm ${
+                      className={`rounded-xl border px-4 py-2 text-sm font-medium ${
                         currentPage >= totalPages
-                          ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                          : "bg-white text-gray-700 hover:bg-gray-50 cursor-pointer"
+                          ? "cursor-not-allowed border-gray-100 text-gray-400 dark:border-gray-800"
+                          : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                       }`}
                     >
                       Next
@@ -670,8 +718,9 @@ export default function NotificationCenter() {
               )}
             </>
           )}
-        </div>
-        </main>
+            </div>
+          </motion.section>
+        </motion.main>
       </div>
     </div>
   );

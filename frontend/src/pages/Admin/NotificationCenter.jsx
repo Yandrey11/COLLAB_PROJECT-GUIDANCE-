@@ -9,7 +9,9 @@ import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 export default function NotificationCenter() {
   useDocumentTitle("Admin Notifications");
   const navigate = useNavigate();
+  const SETTINGS_API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/settings`;
   const [loading, setLoading] = useState(true);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -18,6 +20,15 @@ export default function NotificationCenter() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [message, setMessage] = useState({ type: "", text: "" });
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [notificationSettings, setNotificationSettings] = useState({
+    newUserCreations: true,
+    recordUpdates: true,
+    criticalSystemAlerts: true,
+    pdfGenerations: true,
+    loginAttempts: false,
+    soundEnabled: false,
+  });
 
   useEffect(() => {
     const token = localStorage.getItem("adminToken");
@@ -40,7 +51,10 @@ export default function NotificationCenter() {
         }
 
         // Load notifications
-        await fetchNotifications(token, 1, "all", "all", "");
+        await Promise.all([
+          fetchNotifications(token, 1, "all", "all", ""),
+          fetchNotificationSettings(token),
+        ]);
         setLoading(false);
       } catch (err) {
         console.error("❌ Admin verification failed:", err);
@@ -85,6 +99,56 @@ export default function NotificationCenter() {
       console.error("❌ Error fetching notifications:", err);
       setMessage({ type: "error", text: err.response?.data?.message || "Failed to load notifications" });
       setTimeout(() => setMessage({ type: "", text: "" }), 3000);
+    }
+  };
+
+  const fetchNotificationSettings = async (token) => {
+    try {
+      const res = await axios.get(SETTINGS_API_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.data.success && res.data.settings?.notifications) {
+        setNotificationSettings((prev) => ({
+          ...prev,
+          ...res.data.settings.notifications,
+        }));
+      }
+    } catch (err) {
+      console.error("❌ Error fetching notification settings:", err);
+    }
+  };
+
+  const handleSaveNotificationSettings = async () => {
+    try {
+      setSavingSettings(true);
+      const token = localStorage.getItem("adminToken");
+      const res = await axios.put(
+        `${SETTINGS_API_URL}/notifications`,
+        notificationSettings,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      if (res.data.success) {
+        await Swal.fire({
+          icon: "success",
+          title: "Settings Saved!",
+          text: "Notification settings have been updated successfully.",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+      }
+    } catch (err) {
+      console.error("❌ Error saving notification settings:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.message || "Failed to save notification settings",
+      });
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -306,19 +370,20 @@ export default function NotificationCenter() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-7xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        <AdminSidebar />
-
-        <div className="flex flex-col gap-5">
+    <div className="min-h-screen w-full flex flex-col items-center page-bg admin-typography font-sans p-3 md:p-5 gap-5">
+      <div className="w-full max-w-[1800px]">
+        <div className="flex flex-col gap-5 min-w-0">
           {/* Header */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm">
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">Notification Center</h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1.5">
-                  Manage and monitor system notifications and alerts.
-                </p>
+            <div className="flex justify-between items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-4 min-w-0">
+                <AdminSidebar variant="header" />
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">Notification Center</h1>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1.5">
+                    Manage and monitor system notifications and alerts.
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 {unreadCount > 0 && (
@@ -354,6 +419,96 @@ export default function NotificationCenter() {
             {message.text}
           </div>
         )}
+
+        {/* Notification Settings */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setShowNotificationSettings((prev) => !prev)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              Notification Settings
+            </h2>
+            <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+              {showNotificationSettings ? "Hide ▲" : "Show ▼"}
+            </span>
+          </button>
+
+          {showNotificationSettings && (
+            <div className="space-y-6 mt-6">
+              {[
+                {
+                  key: "newUserCreations",
+                  label: "New User Creations",
+                  description: "Receive notifications when new users are created",
+                },
+                {
+                  key: "recordUpdates",
+                  label: "Record Updates",
+                  description: "Receive notifications when counseling records are updated",
+                },
+                {
+                  key: "criticalSystemAlerts",
+                  label: "Critical System Alerts",
+                  description: "Receive notifications for critical system events",
+                },
+                {
+                  key: "pdfGenerations",
+                  label: "PDF Generations",
+                  description: "Receive notifications when PDFs are generated",
+                },
+                {
+                  key: "loginAttempts",
+                  label: "Login Attempts",
+                  description: "Receive notifications for login attempts (admin only)",
+                },
+                {
+                  key: "soundEnabled",
+                  label: "Notification Sound",
+                  description: "Play sound when notifications are received",
+                },
+              ].map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                >
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-gray-100">
+                      {item.label}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {item.description}
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings[item.key]}
+                      onChange={(e) =>
+                        setNotificationSettings((prev) => ({
+                          ...prev,
+                          [item.key]: e.target.checked,
+                        }))
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                  </label>
+                </div>
+              ))}
+              <div>
+                <button
+                  onClick={handleSaveNotificationSettings}
+                  disabled={savingSettings}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingSettings ? "Saving..." : "Save Notification Settings"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm">

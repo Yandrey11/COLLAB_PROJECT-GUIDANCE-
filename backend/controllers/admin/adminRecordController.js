@@ -409,6 +409,77 @@ export const updateRecord = async (req, res) => {
   }
 };
 
+// 📝 Update admin recommendation only (no edit lock required)
+export const patchRecordRecommendation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userInfo = getUserInfo(req);
+    const raw = req.body?.recommendation;
+    const recommendation =
+      raw === undefined || raw === null ? "" : String(raw);
+
+    const record = await Record.findById(id);
+    if (!record) {
+      return res.status(404).json({ success: false, message: "Record not found" });
+    }
+
+    const prev = record.recommendation ?? "";
+    if (prev === recommendation) {
+      return res.status(200).json({
+        success: true,
+        message: "No change",
+        record: record.toObject(),
+      });
+    }
+
+    record.recommendation = recommendation;
+
+    const changedBy = {
+      userId: userInfo.userId,
+      userName: userInfo.userName,
+      userRole: userInfo.userRole,
+    };
+
+    if (!record.auditTrail) {
+      record.auditTrail = {
+        createdBy: changedBy,
+        createdAt: record.createdAt || new Date(),
+        lastModifiedBy: changedBy,
+        lastModifiedAt: new Date(),
+        modificationHistory: [],
+      };
+    } else {
+      record.auditTrail.lastModifiedBy = changedBy;
+      record.auditTrail.lastModifiedAt = new Date();
+      if (!record.auditTrail.modificationHistory) {
+        record.auditTrail.modificationHistory = [];
+      }
+      record.auditTrail.modificationHistory.push({
+        field: "recommendation",
+        oldValue: prev,
+        newValue: recommendation,
+        changedBy,
+        changedAt: new Date(),
+      });
+    }
+
+    await record.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Recommendation saved",
+      record: record.toObject(),
+    });
+  } catch (error) {
+    console.error("❌ Error saving recommendation:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to save recommendation",
+      error: error.message,
+    });
+  }
+};
+
 // 🗑️ Delete record
 export const deleteRecord = async (req, res) => {
   try {

@@ -1,11 +1,16 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import { COUNSELOR_COLLEGES } from "../utils/counselorColleges.js";
 
 const counselorSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
+    college: {
+      type: String,
+      enum: COUNSELOR_COLLEGES,
+    },
     role: {
       type: String,
       enum: ["counselor", "admin"],

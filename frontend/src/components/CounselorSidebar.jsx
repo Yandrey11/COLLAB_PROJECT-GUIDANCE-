@@ -5,31 +5,30 @@ import Swal from "sweetalert2";
 import { NotificationBadgeBadge } from "./NotificationBadge";
 import { initializeTheme } from "../utils/themeUtils";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
-
-// Helper function to get full image URL from backend
-const getImageUrl = (imagePath) => {
-  if (!imagePath) return null;
-  if (imagePath.startsWith("http://") || imagePath.startsWith("https://")) {
-    return imagePath;
-  }
-  if (imagePath.startsWith("data:")) {
-    return imagePath;
-  }
-  const path = imagePath.startsWith("/") ? imagePath : `/${imagePath}`;
-  return `${BASE_URL}${path}`;
-};
-
-export default function CounselorSidebar() {
+export default function CounselorSidebar({ variant = "sidebar" }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const isHeaderVariant = variant === "header";
 
   // Initialize theme on mount
   useEffect(() => {
     initializeTheme();
   }, []);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isOpen]);
 
   // Fetch fresh user info from backend (to get latest permissions)
   const fetchUserInfo = async () => {
@@ -69,60 +68,6 @@ export default function CounselorSidebar() {
   useEffect(() => {
     fetchUserInfo();
   }, []);
-
-  // Fetch profile data
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        if (!token || !user) return;
-
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-        const res = await axios.get(`${baseUrl}/api/profile`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (res.data.success) {
-          setProfile(res.data.profile);
-        }
-      } catch (error) {
-        console.error("Error fetching profile:", error);
-        // Don't show error - profile is optional
-      }
-    };
-
-    if (user) {
-      fetchProfile();
-    }
-  }, [user]);
-
-  const handleRefresh = () => {
-    try {
-      const raw = localStorage.getItem("user");
-      const parsed = raw ? JSON.parse(raw) : null;
-      setUser(parsed);
-      // Refresh profile as well
-      if (parsed) {
-        const token = localStorage.getItem("token");
-        if (token) {
-          const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-          axios.get(`${baseUrl}/api/profile`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }).then((res) => {
-            if (res.data.success) {
-              setProfile(res.data.profile);
-            }
-          }).catch(() => {});
-        }
-      }
-    } catch {
-      setUser(null);
-    }
-  };
 
   const handleLogout = useCallback(async () => {
     const result = await Swal.fire({
@@ -189,19 +134,19 @@ export default function CounselorSidebar() {
   // Navigation items with routes
   const navItems = [
     { label: "Dashboard", path: "/dashboard" },
-    { 
-      label: "Records Page", 
+    {
+      label: "Records",
       path: "/records",
-      requiresPermission: "can_view_records"
+      requiresPermission: "can_view_records",
     },
-    { 
-      label: "Reports Page", 
+    {
+      label: "Reports",
       path: "/reports",
-      requiresPermission: "can_view_reports"
+      requiresPermission: "can_view_reports",
     },
-    { label: "Notification Center", path: "/notifications", hasBadge: true },
-    { label: "User Profile & Settings", path: "/profile" },
-  ].filter(item => {
+    { label: "Notifications", path: "/notifications", hasBadge: true },
+    { label: "Profile", path: "/profile" },
+  ].filter((item) => {
     // Filter out items that require permissions the user doesn't have
     if (item.requiresPermission) {
       return hasPermission(item.requiresPermission);
@@ -214,100 +159,147 @@ export default function CounselorSidebar() {
     return location.pathname === path;
   };
 
-  return (
-    <aside className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm h-fit lg:sticky lg:top-6">
-      {/* Profile Picture and Name */}
-      <div className="flex flex-col items-center gap-2 mb-6 pb-6 border-b border-gray-200 dark:border-gray-700">
-        {profile?.profilePicture ? (
-          <img
-            src={getImageUrl(profile.profilePicture)}
-            alt="Profile"
-            className="w-16 h-16 rounded-full object-cover border-2 border-indigo-200 dark:border-indigo-700"
-            onError={(e) => {
-              e.target.style.display = "none";
-            }}
-          />
-        ) : (
-          <div className="w-16 h-16 rounded-full bg-indigo-100 dark:bg-indigo-900/30 border-2 border-indigo-200 dark:border-indigo-700 flex items-center justify-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="w-8 h-8 text-indigo-600 dark:text-indigo-400"
-            >
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
-          </div>
-        )}
-        <div className="text-center">
-          <div className="font-bold text-gray-900 dark:text-gray-100 text-base">
-            {user?.name || profile?.name || "Counselor"}
-          </div>
-        </div>
-      </div>
-
-      <h2 className="text-xl font-bold text-indigo-600 dark:text-indigo-400 m-0">Guidance Dashboard</h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-        The Dashboard provides counselors with an at-a-glance view of personal schedules, sessions,
-        meetings, and planned activities for the current day or week.
-      </p>
-
-      <div className="flex flex-col gap-3 mt-6">
-        {navItems.map((item) => {
-          const active = isActive(item.path);
-          return (
+  const renderNavItems = () => (
+    <ul className="m-0 list-none space-y-1 p-0">
+      {navItems.map((item) => {
+        const active = isActive(item.path);
+        return (
+          <li key={item.path}>
             <button
-              key={item.path}
-              onClick={() => navigate(item.path)}
-              className={`p-3 rounded-xl border font-semibold text-left transition-all relative ${
+              type="button"
+              aria-current={active ? "page" : undefined}
+              onClick={() => {
+                navigate(item.path);
+                setIsOpen(false);
+              }}
+              className={`relative w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium tracking-tight transition-colors ${
                 active
-                  ? "border-indigo-200 text-white hover:shadow-md"
-                  : "border-indigo-50 dark:border-gray-700 bg-gradient-to-r from-white to-slate-50 dark:from-gray-800 dark:to-gray-700 hover:from-indigo-50 hover:to-white dark:hover:to-gray-700 hover:shadow-sm text-gray-900 dark:text-gray-100"
+                  ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+                  : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700/55"
               }`}
-              style={
-                active
-                  ? { background: "linear-gradient(90deg, #4f46e5, #7c3aed)", color: "#fff" }
-                  : {}
-              }
             >
-              {item.label}
-              {item.hasBadge && (
-                <span className="absolute top-1 right-1">
+              <span className={item.hasBadge ? "pr-8" : ""}>{item.label}</span>
+              {item.hasBadge ? (
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
                   <NotificationBadgeBadge />
                 </span>
-              )}
+              ) : null}
             </button>
-          );
-        })}
+          </li>
+        );
+      })}
+    </ul>
+  );
 
-        <div className="flex gap-2 mt-4">
-          <button
-            onClick={handleRefresh}
-            className="flex-1 p-2.5 rounded-xl bg-indigo-600 dark:bg-indigo-600 text-white font-semibold hover:bg-indigo-700 dark:hover:bg-indigo-700 transition-colors"
-          >
-            Refresh Data
-          </button>
-          <button
-            onClick={handleLogout}
-            className="p-2.5 rounded-xl bg-red-500 dark:bg-red-500 text-white font-semibold hover:bg-red-600 dark:hover:bg-red-600 transition-colors"
-          >
-            Logout
-          </button>
-        </div>
+  const menuIcon = (
+    <span
+      className={
+        isHeaderVariant
+          ? "flex w-5 flex-col items-center justify-center gap-1.5 text-gray-600 dark:text-gray-300"
+          : "flex w-5 flex-col items-center justify-center gap-1.5 text-gray-600 dark:text-gray-300"
+      }
+    >
+      <span className={`h-0.5 w-5 rounded-full bg-current transition-transform ${isOpen ? "translate-y-2 rotate-45" : ""}`} />
+      <span className={`h-0.5 w-5 rounded-full bg-current transition-opacity ${isOpen ? "opacity-0" : "opacity-100"}`} />
+      <span className={`h-0.5 w-5 rounded-full bg-current transition-transform ${isOpen ? "-translate-y-2 -rotate-45" : ""}`} />
+    </span>
+  );
 
-        <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-          <span className="font-semibold">Data Synchronization:</span>
-          <div className="mt-1">
-            The dashboard listens for changes to stored user data and will update automatically across
-            browser contexts. For backend-driven real-time updates, server-side events or websockets
-            would be used (not modified here).
+  return (
+    <aside
+      className={
+        isHeaderVariant
+          ? "relative shrink-0"
+          : "h-fit rounded-2xl border border-gray-200/90 bg-white p-3 shadow-none dark:border-gray-700/90 dark:bg-gray-800/90 lg:sticky lg:top-5"
+      }
+    >
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        aria-expanded={isOpen}
+        aria-controls="counselor-navigation-menu"
+        aria-label="Toggle counselor navigation"
+        className={
+          isHeaderVariant
+            ? "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-gray-200/90 bg-white text-gray-700 shadow-none transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800/90 dark:text-gray-200 dark:hover:border-gray-500 dark:hover:bg-gray-700/50 sm:h-11 sm:w-11"
+            : "flex w-full items-center justify-between gap-3 rounded-xl border border-transparent px-3 py-2.5 text-left transition-colors hover:border-gray-200 hover:bg-gray-50 dark:hover:border-gray-600 dark:hover:bg-gray-700/35"
+        }
+      >
+        {!isHeaderVariant && (
+          <div className="min-w-0">
+            <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
+              Menu
+            </p>
+            <h2 className="m-0 mt-0.5 truncate text-base font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+              Navigation
+            </h2>
           </div>
-        </div>
+        )}
+        {!isHeaderVariant ? (
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200/90 bg-white dark:border-gray-600 dark:bg-gray-800/90">
+            {menuIcon}
+          </span>
+        ) : (
+          menuIcon
+        )}
+      </button>
+
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] transition-opacity duration-300 ${
+          isOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        onClick={() => setIsOpen(false)}
+        aria-hidden="true"
+      />
+
+      <div
+        id="counselor-navigation-menu"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Counselor navigation"
+        className={`fixed left-0 top-0 z-50 flex h-screen w-[min(88vw,340px)] flex-col border-r border-gray-200/80 bg-white shadow-xl transition-transform duration-300 ease-out dark:border-gray-700/80 dark:bg-gray-900 ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <header className="shrink-0 border-b border-gray-100 px-5 pb-5 pt-6 dark:border-gray-800 sm:px-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="m-0 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-gray-500">
+                Guidance
+              </p>
+              <h2 className="m-0 mt-1 text-lg font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                Navigation
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200/90 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-800 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-100"
+              aria-label="Close counselor navigation"
+            >
+              <span className="text-lg font-light leading-none" aria-hidden>
+                ×
+              </span>
+            </button>
+          </div>
+          <p className="m-0 mt-4 max-w-[280px] text-[13px] leading-relaxed text-gray-500 dark:text-gray-400">
+            Schedules, sessions, records, and announcements in one place.
+          </p>
+        </header>
+
+        <nav className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6" aria-label="Main">
+          {renderNavItems()}
+        </nav>
+
+        <footer className="shrink-0 border-t border-gray-100 px-5 py-5 dark:border-gray-800 sm:px-6">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full rounded-xl border border-red-200/90 bg-white px-4 py-2.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300 dark:hover:bg-red-950/35"
+          >
+            Log out
+          </button>
+        </footer>
       </div>
     </aside>
   );

@@ -1,4 +1,5 @@
 import Admin from "../../models/Admin.js";
+import Counselor from "../../models/Counselor.js";
 import ActivityLog from "../../models/ActivityLog.js";
 import bcrypt from "bcryptjs";
 import { validatePassword } from "../../utils/passwordValidation.js";
@@ -11,6 +12,23 @@ const getClientInfo = (req) => ({
   ipAddress: req.ip || req.connection.remoteAddress || "unknown",
   userAgent: req.headers["user-agent"] || "unknown",
 });
+
+/**
+ * Admin portal JWT may refer to an Admin document or a Counselor with role "admin"
+ * (see adminLoginController + protectAdmin). Resolve the backing Mongoose document.
+ */
+const resolveAdminAccount = async (adminId, { excludePassword = false } = {}) => {
+  const qAdmin = excludePassword ? Admin.findById(adminId).select("-password") : Admin.findById(adminId);
+  let doc = await qAdmin;
+  if (doc) return doc;
+
+  const qUser = excludePassword
+    ? Counselor.findById(adminId).select("-password")
+    : Counselor.findById(adminId);
+  doc = await qUser;
+  if (doc && doc.role === "admin") return doc;
+  return null;
+};
 
 // Helper function to create activity log
 const createActivityLog = async (req, activityType, description, metadata = {}) => {
@@ -41,7 +59,7 @@ const createActivityLog = async (req, activityType, description, metadata = {}) 
  */
 export const getProfile = async (req, res) => {
   try {
-    const admin = await Admin.findById(req.admin._id).select("-password");
+    const admin = await resolveAdminAccount(req.admin._id, { excludePassword: true });
 
     if (!admin) {
       return res.status(404).json({
@@ -109,7 +127,7 @@ export const getProfile = async (req, res) => {
  */
 export const updateProfile = async (req, res) => {
   try {
-    const admin = await Admin.findById(req.admin._id);
+    const admin = await resolveAdminAccount(req.admin._id, { excludePassword: true });
 
     if (!admin) {
       return res.status(404).json({
@@ -147,9 +165,11 @@ export const updateProfile = async (req, res) => {
         });
       }
 
-      // Check if email is already taken by another admin
-      const existingAdmin = await Admin.findOne({ email, _id: { $ne: admin._id } });
-      if (existingAdmin) {
+      // Check if email is already taken by another account (Admin or Counselor)
+      const emailTrim = email.trim();
+      const existingAdmin = await Admin.findOne({ email: emailTrim, _id: { $ne: admin._id } });
+      const existingCounselor = await Counselor.findOne({ email: emailTrim, _id: { $ne: admin._id } });
+      if (existingAdmin || existingCounselor) {
         return res.status(400).json({
           success: false,
           message: "Email is already in use",
@@ -243,12 +263,19 @@ export const changePassword = async (req, res) => {
       });
     }
 
-    const admin = await Admin.findById(req.admin._id);
+    const admin = await resolveAdminAccount(req.admin._id);
 
     if (!admin) {
       return res.status(404).json({
         success: false,
         message: "Admin not found",
+      });
+    }
+
+    if (!admin.password) {
+      return res.status(400).json({
+        success: false,
+        message: "No password is set for this account. Use Forgot Password to create one.",
       });
     }
 
@@ -314,7 +341,7 @@ export const handleProfilePictureUpload = async (req, res) => {
       });
     }
 
-    const admin = await Admin.findById(req.admin._id);
+    const admin = await resolveAdminAccount(req.admin._id, { excludePassword: true });
 
     if (!admin) {
       // Delete uploaded file if admin not found
@@ -341,8 +368,8 @@ export const handleProfilePictureUpload = async (req, res) => {
       }
     }
 
-    // Update profile picture path
-    admin.profilePicture = req.file.path;
+    // Store filename only to keep DB values portable across environments
+    admin.profilePicture = req.file.filename;
     await admin.save();
 
     // Create activity log
@@ -382,7 +409,7 @@ export const handleProfilePictureUpload = async (req, res) => {
  */
 export const removeProfilePicture = async (req, res) => {
   try {
-    const admin = await Admin.findById(req.admin._id);
+    const admin = await resolveAdminAccount(req.admin._id, { excludePassword: true });
 
     if (!admin) {
       return res.status(404).json({

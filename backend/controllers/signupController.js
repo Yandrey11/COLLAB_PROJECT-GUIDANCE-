@@ -3,13 +3,18 @@ import Admin from "../models/Admin.js";
 import GoogleUser from "../models/GoogleUser.js";
 import jwt from "jsonwebtoken";
 import { validatePassword } from "../utils/passwordValidation.js";
+import { isValidCollege } from "../utils/counselorColleges.js";
 
 export const signup = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, college } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ message: "All fields are required" });
+    if (!name || !email || !password || !college) {
+      return res.status(400).json({ message: "All fields are required, including college" });
+    }
+
+    if (!isValidCollege(college)) {
+      return res.status(400).json({ message: "Invalid college selection" });
     }
 
     // Enhanced password validation with email and name
@@ -31,7 +36,7 @@ export const signup = async (req, res) => {
     }
 
     // Create new user (password automatically hashed via pre-save)
-    const newUser = new Counselor({ name, email, password });
+    const newUser = new Counselor({ name, email, password, college });
     await newUser.save();
 
     // Generate JWT token
@@ -49,6 +54,7 @@ export const signup = async (req, res) => {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
+        college: newUser.college,
       },
     });
   } catch (error) {

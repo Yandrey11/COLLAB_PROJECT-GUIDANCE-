@@ -2,10 +2,13 @@ import { useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import ReCAPTCHA from "react-google-recaptcha";
+import { getRecaptchaSiteKey } from "./src/config/recaptchaSiteKey.js";
+import { COUNSELOR_COLLEGES } from "./src/constants/counselorColleges.js";
 
 export default function LoginSignup() {
+  const recaptchaSiteKey = getRecaptchaSiteKey();
   const [isSignUp, setIsSignUp] = useState(false);
-  const [signupData, setSignupData] = useState({ name: "", email: "", password: "" });
+  const [signupData, setSignupData] = useState({ name: "", email: "", password: "", college: "" });
   const [signinData, setSigninData] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -31,6 +34,7 @@ export default function LoginSignup() {
   const validateSignup = () => {
     if (!signupData.name.trim()) return setError("Name is required"), false;
     if (!/\S+@\S+\.\S+/.test(signupData.email)) return setError("Invalid email format"), false;
+    if (!signupData.college) return setError("Please select your college"), false;
     if (signupData.password.length < 6)
       return setError("Password must be at least 6 characters"), false;
     return true;
@@ -57,7 +61,7 @@ export default function LoginSignup() {
       if (res.data.message) {
         alert("✅ Signup successful! Please log in.");
         setIsSignUp(false);
-        setSignupData({ name: "", email: "", password: "" });
+        setSignupData({ name: "", email: "", password: "", college: "" });
       } else {
         setError("Signup failed. Please try again.");
       }
@@ -75,6 +79,11 @@ export default function LoginSignup() {
   const handleSigninSubmit = async (e) => {
     e.preventDefault();
     if (!validateSignin()) return;
+
+    if (!recaptchaSiteKey) {
+      setError("Set VITE_RECAPTCHA_SITE_KEY in frontend/.env (see .env.example).");
+      return;
+    }
 
     if (!recaptchaValue) {
       setError("Please verify the reCAPTCHA before logging in.");
@@ -128,8 +137,8 @@ export default function LoginSignup() {
         button:disabled { opacity: 0.6; cursor: not-allowed; }
         button.ghost { background-color: transparent; border-color: #FFFFFF; }
         form { background-color: #FFFFFF; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 0 50px; height: 100%; text-align: center; }
-        input { background-color: #eee; border: none; padding: 12px 15px; margin: 8px 0; width: 100%; border-radius: 5px; }
-        input:focus { outline: 2px solid #FF4B2B; }
+        input, select { background-color: #eee; border: none; padding: 12px 15px; margin: 8px 0; width: 100%; border-radius: 5px; }
+        input:focus, select:focus { outline: 2px solid #FF4B2B; }
         .error-message { color: #FF4B2B; font-size: 12px; margin: 8px 0; min-height: 20px; }
         .container { background-color: #fff; border-radius: 10px; box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22); position: relative; overflow: hidden; width: 768px; max-width: 100%; min-height: 480px; height: auto; }
         .form-container { position: absolute; top: 0; height: 100%; transition: all 0.6s ease-in-out; }
@@ -156,6 +165,12 @@ export default function LoginSignup() {
             <h1>Create Account</h1>
             <input type="text" name="name" placeholder="Name" value={signupData.name} onChange={handleSignupChange} required />
             <input type="email" name="email" placeholder="Email" value={signupData.email} onChange={handleSignupChange} required />
+            <select name="college" value={signupData.college} onChange={handleSignupChange} required aria-label="College">
+              <option value="">College you counsel for</option>
+              {COUNSELOR_COLLEGES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
             <input type="password" name="password" placeholder="Password (min 6 characters)" value={signupData.password} onChange={handleSignupChange} required />
             <div className="error-message">{isSignUp ? error : ""}</div>
             <button type="submit" disabled={loading}>{loading ? "Creating..." : "Sign Up"}</button>
@@ -179,12 +194,17 @@ export default function LoginSignup() {
               Forgot your password?
             </a>
 
-            {/* ✅ reCAPTCHA */}
-            <ReCAPTCHA
-              sitekey="6Lf-8vErAAAAAGohFk-EE6OaLY60jkwo1gTH05B7"
-              onChange={(value) => setRecaptchaValue(value)}
-              style={{ margin: "10px 0" }}
-            />
+            {recaptchaSiteKey ? (
+              <ReCAPTCHA
+                sitekey={recaptchaSiteKey}
+                onChange={(value) => setRecaptchaValue(value)}
+                style={{ margin: "10px 0" }}
+              />
+            ) : (
+              <p style={{ margin: "10px 0", fontSize: "12px", color: "#92400e" }}>
+                Add VITE_RECAPTCHA_SITE_KEY to frontend/.env (see .env.example).
+              </p>
+            )}
 
             <div className="error-message">{!isSignUp ? error : ""}</div>
             <button type="submit" disabled={loading}>

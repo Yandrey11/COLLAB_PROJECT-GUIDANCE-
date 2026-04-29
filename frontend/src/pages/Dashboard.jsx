@@ -1,12 +1,61 @@
- import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
+import { motion } from "framer-motion";
 import CalendarView from "../components/CalendarView";
 import CounselorSidebar from "../components/CounselorSidebar";
+import CounselorHeaderProfile from "../components/CounselorHeaderProfile.jsx";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useInactivity } from "../hooks/useInactivity";
 
+const GENERATED_REPORTS_STORAGE_KEY = "counselorGeneratedReports";
+
+const formatDisplayDate = (dateValue) => {
+  if (!dateValue) return "No date";
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return "No date";
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+const getRecordActivityDate = (record) =>
+  record?.auditTrail?.lastModifiedAt ||
+  record?.updatedAt ||
+  record?.auditTrail?.createdAt ||
+  record?.createdAt ||
+  record?.date;
+
+const readGeneratedReports = () => {
+  try {
+    const storedReports = JSON.parse(
+      localStorage.getItem(GENERATED_REPORTS_STORAGE_KEY) || "[]"
+    );
+    return Array.isArray(storedReports) ? storedReports.slice(0, 5) : [];
+  } catch {
+    return [];
+  }
+};
+
+const dashboardStagger = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06, delayChildren: 0.04 },
+  },
+};
+
+const dashboardItem = {
+  hidden: { opacity: 0, y: 14 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.42, ease: [0.22, 1, 0.36, 1] },
+  },
+};
 
 export default function Dashboard() {
   useDocumentTitle("Dashboard");
@@ -19,6 +68,9 @@ export default function Dashboard() {
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [recordsLoading, setRecordsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [latestAnnouncement, setLatestAnnouncement] = useState(null);
+  const [announcementLoading, setAnnouncementLoading] = useState(false);
+  const [generatedReports, setGeneratedReports] = useState([]);
   const hasAutoSyncedCalendarRef = useRef(false);
 
   // Initialize inactivity detection
@@ -194,6 +246,21 @@ export default function Dashboard() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  useEffect(() => {
+    const syncGeneratedReports = () => {
+      setGeneratedReports(readGeneratedReports());
+    };
+
+    syncGeneratedReports();
+    window.addEventListener("storage", syncGeneratedReports);
+    window.addEventListener("focus", syncGeneratedReports);
+
+    return () => {
+      window.removeEventListener("storage", syncGeneratedReports);
+      window.removeEventListener("focus", syncGeneratedReports);
+    };
+  }, []);
+
 
   // Fetch records from database
   useEffect(() => {
@@ -233,41 +300,317 @@ export default function Dashboard() {
     }
   }, [user]);
 
+  useEffect(() => {
+    const fetchLatestAnnouncement = async () => {
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      if (!token) {
+        setLatestAnnouncement(null);
+        return;
+      }
+
+      try {
+        setAnnouncementLoading(true);
+        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const res = await axios.get(`${baseUrl}/api/counselor/notifications`, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          params: {
+            page: 1,
+            limit: 5,
+            category: "Announcement",
+          },
+        });
+
+        const announcements = res.data?.notifications || [];
+        setLatestAnnouncement(
+          announcements.find((item) => item.isAnnouncement || item.category === "Announcement") ||
+            announcements[0] ||
+            null
+        );
+      } catch (error) {
+        console.error("Error fetching latest announcement:", error);
+        setLatestAnnouncement(null);
+      } finally {
+        setAnnouncementLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchLatestAnnouncement();
+    }
+  }, [user]);
+
+  const recordSummary = useMemo(() => {
+    const statusCount = (statuses) =>
+      records.filter((record) => statuses.includes(record.status)).length;
+
+    return {
+      total: records.length,
+      ongoing: statusCount(["Ongoing"]),
+      completed: statusCount(["Completed"]),
+      archivedClosed: statusCount(["Archived", "Closed"]),
+    };
+  }, [records]);
+
+  const recentRecords = useMemo(
+    () =>
+      [...records]
+        .sort((a, b) => {
+          const dateA = new Date(getRecordActivityDate(a) || 0).getTime();
+          const dateB = new Date(getRecordActivityDate(b) || 0).getTime();
+          return dateB - dateA;
+        })
+        .slice(0, 3),
+    [records]
+  );
+
+
+  const statTiles = [
+    {
+      label: "Total records",
+      value: recordSummary.total,
+      accent: "text-indigo-600 dark:text-indigo-400",
+    },
+    {
+      label: "Ongoing",
+      value: recordSummary.ongoing,
+      accent: "text-amber-600 dark:text-amber-400",
+    },
+    {
+      label: "Completed",
+      value: recordSummary.completed,
+      accent: "text-emerald-600 dark:text-emerald-400",
+    },
+    {
+      label: "Archived / closed",
+      value: recordSummary.archivedClosed,
+      accent: "text-slate-600 dark:text-slate-300",
+    },
+  ];
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Left: Overview / Navigation */}
-        <CounselorSidebar />
-
-        {/* Right: Main content */}
-        <main>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">
-                Welcome{user?.name ? `, ${user.name}` : ""} 🎉
-              </h1>
-              <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                Manage today's sessions, access records and reports, and view notifications.
-              </p>
-            </div>
-          </div>
-
-          {/* Google Calendar Integration */}
-          <section className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm mb-4">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 m-0 mb-1">
-                  Calendar 
-                </h3>
-                <p className="text-sm text-gray-500 dark:text-gray-400 m-0">
-                  {calendarConnected
-                    ? "Your Google Calendar events are shown alongside counseling records. All events and records are read-only."
-                    : "View counseling records on the calendar. Sign in with Google to automatically see your Google Calendar events."}
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+      <div className="mx-auto flex w-full max-w-[1800px] flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <motion.main
+          className="min-w-0"
+          variants={dashboardStagger}
+          initial="hidden"
+          animate="show"
+        >
+          {/* Page intro */}
+          <motion.header
+            variants={dashboardItem}
+            className="mb-8 flex flex-col gap-5 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-between sm:gap-6 lg:mb-10 lg:pb-10"
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-5">
+              <CounselorSidebar variant="header" />
+              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+              <div className="min-w-0">
+                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Dashboard
+                </p>
+                <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-3xl">
+                  {user?.name ? (
+                    <>
+                      Welcome back,{" "}
+                      <span className="text-gray-700 dark:text-gray-200">{user.name}</span>
+                    </>
+                  ) : (
+                    "Welcome back"
+                  )}
+                </h1>
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                  Sessions, records, reports, and announcements in one place.
                 </p>
               </div>
-              <div className="flex gap-2 flex-wrap">
-              <button
+            </div>
+            <CounselorHeaderProfile />
+          </motion.header>
+
+          <motion.div
+            variants={dashboardItem}
+            className="grid grid-cols-1 gap-8 xl:grid-cols-12 xl:gap-10 xl:items-start"
+          >
+            <div className="flex min-w-0 flex-col gap-8 xl:col-span-7 2xl:col-span-8">
+              {/* Summary */}
+              <section aria-label="Record summary">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+                  {statTiles.map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-2xl border border-gray-200/90 bg-white px-4 py-4 dark:border-gray-700/90 dark:bg-gray-800/80 sm:px-5 sm:py-5"
+                    >
+                      <p className="m-0 text-xs font-medium leading-snug text-gray-500 dark:text-gray-400">
+                        {item.label}
+                      </p>
+                      <p
+                        className={`mt-3 mb-0 text-2xl font-semibold tabular-nums tracking-tight sm:text-[1.65rem] ${item.accent}`}
+                      >
+                        {item.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              {/* Recent records */}
+              <section className="rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80">
+                <div className="flex flex-col gap-1 border-b border-gray-100 px-5 py-5 dark:border-gray-700/80 sm:flex-row sm:items-end sm:justify-between sm:px-6 sm:py-5">
+                  <div>
+                    <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">
+                      Recent records
+                    </h2>
+                    <p className="mt-1.5 m-0 text-sm text-gray-500 dark:text-gray-400">
+                      Newest activity across your caseload
+                    </p>
+                  </div>
+                  <Link
+                    to="/records"
+                    className="mt-2 shrink-0 text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300 sm:mt-0"
+                  >
+                    View all →
+                  </Link>
+                </div>
+                <div className="px-2 py-2 sm:px-3 sm:py-3">
+                  {recordsLoading ? (
+                    <p className="m-0 px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                      Loading records…
+                    </p>
+                  ) : recentRecords.length > 0 ? (
+                    <ul className="m-0 list-none space-y-1 p-0">
+                      {recentRecords.map((record) => (
+                        <li
+                          key={record._id || `${record.clientName}-${record.date}`}
+                          className="flex items-center justify-between gap-4 rounded-xl px-3 py-3.5 transition-colors hover:bg-gray-50 dark:hover:bg-gray-700/40 sm:px-4"
+                        >
+                          <div className="min-w-0">
+                            <p className="m-0 truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {record.clientName || "Unnamed client"}
+                            </p>
+                            <p className="mt-1 m-0 text-xs text-gray-500 dark:text-gray-400">
+                              {formatDisplayDate(getRecordActivityDate(record))}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700 dark:border-gray-600 dark:bg-gray-700/60 dark:text-gray-200">
+                            {record.status || "—"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="m-0 px-3 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                      No records yet.
+                    </p>
+                  )}
+                </div>
+              </section>
+
+              {/* Announcement + reports */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
+                <section className="flex flex-col rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80">
+                  <div className="flex flex-col gap-1 border-b border-gray-100 px-5 py-5 dark:border-gray-700/80 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+                    <div>
+                      <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">
+                        Announcements
+                      </h2>
+                      <p className="mt-1.5 m-0 text-sm text-gray-500 dark:text-gray-400">
+                        Latest from your administrator
+                      </p>
+                    </div>
+                    <Link
+                      to="/notifications"
+                      className="mt-2 shrink-0 text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-500 dark:text-indigo-400 sm:mt-0"
+                    >
+                      Inbox →
+                    </Link>
+                  </div>
+                  <div className="flex flex-1 flex-col p-5 sm:p-6">
+                    {announcementLoading ? (
+                      <p className="m-0 flex flex-1 items-center justify-center py-8 text-sm text-gray-500 dark:text-gray-400">
+                        Loading…
+                      </p>
+                    ) : latestAnnouncement ? (
+                      <div className="flex flex-1 flex-col rounded-xl border border-gray-100 bg-gray-50/80 px-4 py-4 dark:border-gray-700 dark:bg-gray-900/25">
+                        <h3 className="m-0 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                          {latestAnnouncement.title}
+                        </h3>
+                        <p className="mt-2 m-0 flex-1 text-sm leading-relaxed text-gray-600 dark:text-gray-300 line-clamp-3">
+                          {latestAnnouncement.description}
+                        </p>
+                        <p className="mt-4 m-0 text-xs text-gray-400 dark:text-gray-500">
+                          {formatDisplayDate(latestAnnouncement.createdAt)}
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="m-0 flex flex-1 items-center justify-center py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                        No announcements right now.
+                      </p>
+                    )}
+                  </div>
+                </section>
+
+                <section className="flex flex-col rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80">
+                  <div className="flex flex-col gap-1 border-b border-gray-100 px-5 py-5 dark:border-gray-700/80 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+                    <div>
+                      <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">
+                        Generated reports
+                      </h2>
+                      <p className="mt-1.5 m-0 text-sm text-gray-500 dark:text-gray-400">
+                        Recent PDF exports
+                      </p>
+                    </div>
+                    <Link
+                      to="/reports"
+                      className="mt-2 shrink-0 text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-500 dark:text-indigo-400 sm:mt-0"
+                    >
+                      Reports →
+                    </Link>
+                  </div>
+                  <div className="flex flex-1 flex-col p-5 sm:p-6">
+                    {generatedReports.length > 0 ? (
+                      <ul className="m-0 list-none space-y-2 p-0">
+                        {generatedReports.map((report) => (
+                          <li
+                            key={report.id || report.fileName}
+                            className="rounded-xl border border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/25"
+                          >
+                            <p className="m-0 truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                              {report.fileName || "Generated report"}
+                            </p>
+                            <p className="mt-1.5 m-0 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                              {report.reportType || "Report"} · {report.recordCount || 0} record
+                              {report.recordCount === 1 ? "" : "s"} · {formatDisplayDate(report.generatedAt)}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="m-0 flex flex-1 items-center justify-center py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                        No exports yet. Generate a PDF from Reports.
+                      </p>
+                    )}
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            {/* Calendar */}
+            <section className="min-w-0 rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80 xl:col-span-5 2xl:col-span-4 xl:sticky xl:top-8 xl:self-start">
+              <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-5 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div className="min-w-0">
+                  <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">
+                    Calendar
+                  </h2>
+                  <p className="mt-1.5 m-0 text-sm text-gray-500 dark:text-gray-400">
+                    {calendarConnected
+                      ? "Records synced with Google Calendar."
+                      : "Your records on the calendar."}
+                  </p>
+                </div>
+                <button
+                  type="button"
                   onClick={async () => {
                     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
                     const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -302,35 +645,41 @@ export default function Dashboard() {
                       setRefreshing(false);
                     }
                   }}
-                  className="px-4 py-2 rounded-lg border border-indigo-200 dark:border-indigo-700 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200 text-sm font-semibold hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
+                  className="shrink-0 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                   disabled={refreshing}
                 >
-                  {refreshing ? "Refreshing..." : "Refresh"}
-              </button>
+                  {refreshing ? "Refreshing…" : "Refresh"}
+                </button>
               </div>
-            </div>
 
-            {/* Always show calendar view with records - Google Calendar is optional */}
-            {calendarLoading && recordsLoading ? (
-              <div className="p-10 text-center bg-gray-50 dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-700">
-                <div className="text-base text-gray-600 dark:text-gray-400 font-semibold mb-2">Loading calendar...</div>
-              </div>
-            ) : (
-              <>
-                {!recordsLoading && records.length === 0 && (
-                  <p className="text-sm text-amber-600 dark:text-amber-400 mb-3">
-                    No records yet. Create records from the <Link to="/records" className="underline font-medium">Records</Link> page to see them here.
-                  </p>
+              <div className="p-4 sm:p-5">
+                {calendarLoading && recordsLoading ? (
+                  <div className="flex min-h-[200px] items-center justify-center rounded-xl border border-dashed border-gray-200 dark:border-gray-700">
+                    <p className="m-0 text-sm font-medium text-gray-500 dark:text-gray-400">
+                      Loading calendar…
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {!recordsLoading && records.length === 0 && (
+                      <p className="mb-4 rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200/90">
+                        No records yet. Add them on the{" "}
+                        <Link to="/records" className="font-medium underline underline-offset-2">
+                          Records
+                        </Link>{" "}
+                        page.
+                      </p>
+                    )}
+                    <CalendarView
+                      calendarEvents={calendarConnected ? calendarEvents : []}
+                      records={records}
+                    />
+                  </>
                 )}
-                <CalendarView 
-                  calendarEvents={calendarConnected ? calendarEvents : []}
-                  records={records}
-                />
-              </>
-            )}
-          </section>
-
-        </main>
+              </div>
+            </section>
+          </motion.div>
+        </motion.main>
       </div>
     </div>
   );

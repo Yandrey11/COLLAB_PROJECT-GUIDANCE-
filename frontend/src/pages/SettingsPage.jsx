@@ -14,6 +14,26 @@ const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const SETTINGS_API_URL = `${BASE_URL}/api/counselor/settings`;
 const PROFILE_API_URL = `${BASE_URL}/api/profile`;
 
+const pageStagger = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.06, delayChildren: 0.04 },
+  },
+};
+
+const pageItem = {
+  hidden: { opacity: 0, y: 12 },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.38, ease: [0.22, 1, 0.36, 1] },
+  },
+};
+
+const settingsPanel =
+  "rounded-xl border border-gray-100 dark:border-gray-700/90 bg-white/90 dark:bg-gray-900/25 p-5";
+
 export default function SettingsPage() {
   useDocumentTitle("Settings");
   const navigate = useNavigate();
@@ -349,7 +369,7 @@ export default function SettingsPage() {
 
     try {
       setSaving(true);
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
       const response = await axios.post(
         `${PROFILE_API_URL}/password`,
         {
@@ -514,63 +534,74 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg font-sans p-4 md:p-8 gap-6">
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Left: Sidebar Navigation */}
-        <CounselorSidebar />
-
-        {/* Right: Main Settings Content */}
-        <main className="flex-1">
-          {/* Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm mb-6"
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
+        <motion.main
+          className="flex min-w-0 flex-col gap-8"
+          variants={pageStagger}
+          initial="hidden"
+          animate="show"
+        >
+          <motion.header
+            variants={pageItem}
+            className="flex flex-col gap-5 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-between sm:gap-6 lg:pb-10"
           >
-            <div className="flex justify-between items-start">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">Settings</h1>
-                <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">
-                  Manage your account preferences, display options, and privacy settings.
+            <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-5">
+              <CounselorSidebar variant="header" />
+              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+              <div className="min-w-0">
+                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Preferences
+                </p>
+                <h1 className="mt-1.5 m-0 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-3xl">
+                  Settings
+                </h1>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                  Account security, appearance, notifications, and privacy.
                 </p>
               </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-3 sm:justify-end">
               <button
+                type="button"
                 onClick={resetSettings}
-                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
                 disabled={saving}
               >
-                Reset to Defaults
+                Reset to defaults
               </button>
             </div>
-          </motion.div>
+          </motion.header>
 
-          {/* Tabs */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm mb-6"
+          <motion.section
+            variants={pageItem}
+            className="rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80"
           >
-            <div className="flex flex-wrap gap-2 border-b border-gray-200 dark:border-gray-700 pb-4 mb-6">
+            <div className="border-b border-gray-100 px-4 py-4 dark:border-gray-700/80 sm:px-6 sm:py-5">
+              <nav className="flex flex-wrap gap-2" aria-label="Settings sections">
               {[
-                { id: "account", label: "Account Settings", icon: "👤" },
-                { id: "display", label: "Display & Interface", icon: "🎨" },
-                { id: "notifications", label: "Notifications", icon: "🔔" },
-                { id: "privacy", label: "Privacy", icon: "🔒" },
+                { id: "account", label: "Account" },
+                { id: "display", label: "Display" },
+                { id: "notifications", label: "Notifications" },
+                { id: "privacy", label: "Privacy" },
               ].map((tab) => (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
+                  className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
                     activeTab === tab.id
-                      ? "bg-indigo-600 dark:bg-indigo-500 text-white"
-                      : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                      ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+                      : "border border-transparent text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-900/40"
                   }`}
                 >
-                  <span className="mr-2">{tab.icon}</span>
                   {tab.label}
                 </button>
               ))}
+              </nav>
             </div>
+
+            <div className="p-5 sm:p-6 lg:p-8">
 
             {/* Tab Content */}
             <AnimatePresence mode="wait">
@@ -583,15 +614,15 @@ export default function SettingsPage() {
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-6"
                 >
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Account Settings</h2>
-                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
-                      Manage your personal information, password, and account preferences.
+                  <div className="mb-8">
+                    <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Account</h2>
+                    <p className="mt-2 m-0 max-w-2xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                      Password, profile shortcut, and sign-in activity.
                     </p>
 
                     {/* Change Password Section */}
-                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6 mb-6">
-                      <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-4">Change Password</h3>
+                    <div className={`${settingsPanel} mb-5`}>
+                      <h3 className="mb-3 text-sm font-semibold text-gray-900 dark:text-gray-100">Change password</h3>
                       {profile?.isGoogleUser ? (
                         <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-yellow-800 dark:text-yellow-200">
                           <strong>Note:</strong> You are using Google authentication. To change your password, please use your Google account settings.
@@ -654,9 +685,9 @@ export default function SettingsPage() {
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
                               disabled={saving}
-                              className="px-6 py-3 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold hover:from-indigo-700 hover:to-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+                              className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                             >
-                              {saving ? "Changing..." : "Change Password"}
+                              {saving ? "Updating…" : "Change password"}
                             </motion.button>
                           </div>
                         </form>
@@ -664,28 +695,29 @@ export default function SettingsPage() {
                     </div>
 
                     {/* Profile Management Section */}
-                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 mb-6">
-                      <div className="flex items-center justify-between mb-4">
+                    <div className={`${settingsPanel} mb-5`}>
+                      <div className="mb-1 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                         <div>
-                          <h3 className="font-semibold text-gray-900 dark:text-gray-100">Profile Management</h3>
+                          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Profile</h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
                             Update your personal information and profile picture
                           </p>
                         </div>
                         <button
+                          type="button"
                           onClick={() => navigate("/profile")}
-                          className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
+                          className="shrink-0 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                         >
-                          Go to Profile
+                          Open profile
                         </button>
                       </div>
                     </div>
 
                     {/* Activity Logs Section */}
-                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6">
-                      <div className="flex items-center justify-between mb-4">
+                    <div className={settingsPanel}>
+                      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <h3 className="font-semibold text-gray-900 dark:text-gray-100 mb-1">Account Activity Logs</h3>
+                          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Activity log</h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
                             View your account activity history (read-only)
                           </p>
@@ -725,7 +757,7 @@ export default function SettingsPage() {
                               <motion.div
                                 animate={{ rotate: 360 }}
                                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                                className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"
+                                className="mx-auto h-10 w-10 rounded-full border-2 border-gray-200 border-t-gray-800 dark:border-gray-600 dark:border-t-gray-200"
                               />
                             </div>
                           ) : activityLogs.length === 0 ? (
@@ -741,7 +773,7 @@ export default function SettingsPage() {
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: index * 0.05 }}
-                                    className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700"
+                                    className="rounded-xl border border-gray-100 bg-white/90 p-4 dark:border-gray-700 dark:bg-gray-900/30"
                                   >
                                     <div className="flex gap-3 items-start">
                                       <div className="text-2xl">{getActivityIcon(log.activityType)}</div>
@@ -815,61 +847,64 @@ export default function SettingsPage() {
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-6"
                 >
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Display & Interface Settings</h2>
-                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
-                      Customize your interface appearance and default views.
+                  <div className="mb-8">
+                    <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Display</h2>
+                    <p className="mt-2 m-0 max-w-2xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                      Theme and how the app feels day to day.
                     </p>
 
                     {/* Theme Selection */}
-                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 mb-4">
-                      <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    <div className={`${settingsPanel} mb-5`}>
+                      <label className="mb-3 block text-sm font-semibold text-gray-900 dark:text-gray-100">
                         Theme
                       </label>
                       <div className="flex gap-3">
                         <button
+                          type="button"
                           onClick={() => updateSetting("display", "theme", "light")}
-                          className={`flex-1 p-4 rounded-lg border-2 transition-all ${
+                          className={`flex-1 rounded-xl border p-4 transition-colors ${
                             settings.display.theme === "light"
-                              ? "border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20"
-                              : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                              ? "border-gray-900 bg-gray-50 dark:border-gray-100 dark:bg-gray-800"
+                              : "border-gray-200 bg-white hover:border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500"
                           }`}
                         >
                           <div className="text-center">
-                            <div className="text-2xl mb-2">☀️</div>
-                            <div className={`font-semibold text-sm ${
+                            <div className={`text-sm font-semibold ${
                               settings.display.theme === "light"
-                                ? "text-indigo-900 dark:text-indigo-200"
-                                : "text-gray-900 dark:text-gray-100"
-                            }`}>Light Mode</div>
+                                ? "text-gray-900 dark:text-gray-100"
+                                : "text-gray-700 dark:text-gray-300"
+                            }`}>Light</div>
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Bright surfaces</div>
                           </div>
                         </button>
                         <button
+                          type="button"
                           onClick={() => updateSetting("display", "theme", "dark")}
-                          className={`flex-1 p-4 rounded-lg border-2 transition-all ${
+                          className={`flex-1 rounded-xl border p-4 transition-colors ${
                             settings.display.theme === "dark"
-                              ? "border-indigo-500 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20"
-                              : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
+                              ? "border-gray-900 bg-gray-50 dark:border-gray-100 dark:bg-gray-800"
+                              : "border-gray-200 bg-white hover:border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500"
                           }`}
                         >
                           <div className="text-center">
-                            <div className="text-2xl mb-2">🌙</div>
-                            <div className={`font-semibold text-sm ${
+                            <div className={`text-sm font-semibold ${
                               settings.display.theme === "dark"
-                                ? "text-indigo-900 dark:text-indigo-200"
-                                : "text-gray-900 dark:text-gray-100"
-                            }`}>Dark Mode</div>
+                                ? "text-gray-900 dark:text-gray-100"
+                                : "text-gray-700 dark:text-gray-300"
+                            }`}>Dark</div>
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">Low glare</div>
                           </div>
                         </button>
                       </div>
                     </div>
 
                     <button
+                      type="button"
                       onClick={() => saveSettings("display")}
                       disabled={saving}
-                      className="w-full px-6 py-3 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                     >
-                      {saving ? "Saving..." : "Save Display Settings"}
+                      {saving ? "Saving…" : "Save display settings"}
                     </button>
                   </div>
                 </motion.div>
@@ -884,10 +919,10 @@ export default function SettingsPage() {
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-6"
                 >
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Notification Settings</h2>
-                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
-                      Control which notifications you receive and how they're delivered.
+                  <div className="mb-8">
+                    <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Notifications</h2>
+                    <p className="mt-2 m-0 max-w-2xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                      Choose what you want to hear about in the app.
                     </p>
 
                     {/* Notification Toggles */}
@@ -911,7 +946,7 @@ export default function SettingsPage() {
                       ].map((item) => (
                         <div
                           key={item.key}
-                          className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 flex items-center justify-between"
+                          className={`${settingsPanel} flex items-center justify-between`}
                         >
                           <div className="flex-1">
                             <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
@@ -935,11 +970,12 @@ export default function SettingsPage() {
                     </div>
 
                     <button
+                      type="button"
                       onClick={() => saveSettings("notifications")}
                       disabled={saving}
-                      className="w-full mt-6 px-6 py-3 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="mt-6 w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                     >
-                      {saving ? "Saving..." : "Save Notification Settings"}
+                      {saving ? "Saving…" : "Save notification settings"}
                     </button>
                   </div>
                 </motion.div>
@@ -954,18 +990,18 @@ export default function SettingsPage() {
                   exit={{ opacity: 0, x: 20 }}
                   className="space-y-6"
                 >
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Privacy Settings</h2>
-                    <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
-                      Control how your information is displayed and shared within the system.
+                  <div className="mb-8">
+                    <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Privacy</h2>
+                    <p className="mt-2 m-0 max-w-2xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                      Limit how your identity appears to admins and in exports.
                     </p>
 
                     {/* Privacy Toggles */}
-                    <div className="space-y-4">
-                      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 flex items-center justify-between">
+                    <div className="flex flex-col gap-4">
+                      <div className={`${settingsPanel} flex items-center justify-between`}>
                         <div className="flex-1">
-                          <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                            Hide Profile Photo from Admin
+                          <label className="mb-1 block text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            Hide profile photo from admin
                           </label>
                           <p className="text-xs text-gray-600 dark:text-gray-400">
                             Prevent administrators from viewing your profile picture in admin panels
@@ -984,10 +1020,10 @@ export default function SettingsPage() {
                         </label>
                       </div>
 
-                      <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 flex items-center justify-between">
+                      <div className={`${settingsPanel} flex items-center justify-between`}>
                         <div className="flex-1">
-                          <label className="block text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">
-                            Mask Name in PDF Files
+                          <label className="mb-1 block text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            Mask name in PDF exports
                           </label>
                           <p className="text-xs text-gray-600 dark:text-gray-400">
                             Replace your name with a generic identifier in automatically generated PDF reports (if allowed by system policy)
@@ -1008,18 +1044,20 @@ export default function SettingsPage() {
                     </div>
 
                     <button
+                      type="button"
                       onClick={() => saveSettings("privacy")}
                       disabled={saving}
-                      className="w-full mt-6 px-6 py-3 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="mt-6 w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                     >
-                      {saving ? "Saving..." : "Save Privacy Settings"}
+                      {saving ? "Saving…" : "Save privacy settings"}
                     </button>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
-          </motion.div>
-        </main>
+            </div>
+          </motion.section>
+        </motion.main>
       </div>
     </div>
   );
