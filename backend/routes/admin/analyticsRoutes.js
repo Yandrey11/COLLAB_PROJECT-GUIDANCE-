@@ -6,6 +6,10 @@ import {
   getRecordStatusDistribution,
   getDailyRecordsCreated,
   getConsultationVolumeByPeriod,
+  getRecordVolumeByPeriod,
+  getProblemsPresentedByPeriod,
+  getGenderDistributionByPeriod,
+  getCourseDistributionByPeriod,
   logEvent,
 } from "../../controllers/admin/analyticsController.js";
 import { protectAdmin } from "../../middleware/admin/adminMiddleware.js";
@@ -32,6 +36,10 @@ router.get("/daily-records", getDailyRecordsCreated);
 
 // Consultations (records) by month/quarter and session type
 router.get("/consultation-volume", getConsultationVolumeByPeriod);
+router.get("/record-volume", getRecordVolumeByPeriod);
+router.get("/problems-presented", getProblemsPresentedByPeriod);
+router.get("/gender-distribution", getGenderDistributionByPeriod);
+router.get("/course-distribution", getCourseDistributionByPeriod);
 
 export default router;
 

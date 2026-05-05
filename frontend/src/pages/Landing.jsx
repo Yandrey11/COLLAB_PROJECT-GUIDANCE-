@@ -3,6 +3,7 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { motion } from "framer-motion";
 import landingBg from "../assets/landing-bg.png";
 import buksuLogo from "../assets/buksu-logo.png";
+import sweuLogo from "../assets/SWEU - LOGO.jpeg";
 
 const heroContainer = {
   hidden: { opacity: 0 },
@@ -48,16 +49,29 @@ export default function Landing() {
           <Link
             to="/"
             className="flex shrink-0 items-center gap-3 rounded-lg outline-none ring-offset-2 ring-offset-slate-950 transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-white/40"
-            aria-label="BuKSU Guidance — home"
+            aria-label="BuKSU Guidance — Student Welfare and Engagement Unit — home"
           >
-            <img
-              src={buksuLogo}
-              alt=""
-              width={132}
-              height={44}
-              className="h-9 w-auto sm:h-10"
-              decoding="async"
-            />
+            {/* Same-size square frames so both marks read equal visually */}
+            <span className="relative flex h-11 w-11 shrink-0 items-center justify-center sm:h-12 sm:w-12">
+              <img
+                src={sweuLogo}
+                alt="Student Welfare and Engagement Unit — Bukidnon State University"
+                width={48}
+                height={48}
+                className="h-full w-full rounded-full border-[3px] border-white/90 object-cover object-center shadow-md shadow-black/35"
+                decoding="async"
+              />
+            </span>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center sm:h-12 sm:w-12">
+              <img
+                src={buksuLogo}
+                alt="Bukidnon State University"
+                width={120}
+                height={120}
+                className="max-h-full max-w-full object-contain object-center"
+                decoding="async"
+              />
+            </span>
             <span className="hidden text-sm font-semibold tracking-tight text-white/95 sm:inline">
               Guidance
               <span className="font-normal text-white/50"> · </span>
@@ -96,6 +110,20 @@ export default function Landing() {
             initial="hidden"
             animate="show"
           >
+            <motion.div
+              variants={heroItem}
+              className="mb-6 flex justify-center md:mb-8 md:justify-start"
+            >
+              <img
+                src={sweuLogo}
+                alt="Student Welfare and Engagement Unit — Bukidnon State University"
+                width={144}
+                height={144}
+                className="aspect-square h-28 w-28 shrink-0 rounded-full border-[3px] border-white/90 object-cover object-center shadow-xl shadow-black/40 sm:h-32 sm:w-32 lg:h-36 lg:w-36"
+                decoding="async"
+              />
+            </motion.div>
+
             <motion.p variants={heroItem} className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/55">
               BuKSU · Counselors
             </motion.p>
@@ -104,7 +132,7 @@ export default function Landing() {
               variants={heroItem}
               className="mt-4 text-4xl font-semibold leading-[1.1] tracking-tight text-white sm:text-5xl lg:mt-5 lg:text-[3.25rem] lg:leading-[1.08]"
             >
-              Guidance Counsel
+              {"Guidance Counselor's"}
               <br />
               <span className="text-white/85">Record System</span>
             </motion.h1>

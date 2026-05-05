@@ -31,13 +31,11 @@ import NotificationCenter from "./pages/NotificationCenter";
 import MessagesPage from "./pages/MessagesPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
-import RouteLoadingBar from "./components/RouteLoadingBar";
 import "./App.css";
 
 function App() {
   return (
     <Router>
-      <RouteLoadingBar />
       <Routes>
         {/* Guest routes - redirect to dashboard if already logged in */}
         <Route path="/" element={<GuestRoute><Landing /></GuestRoute>} />

@@ -1385,8 +1385,8 @@ export default function RecordsPage({ archivedView = false }) {
                       <option value="">Select session type</option>
                     <option value="Individual">Individual</option>
                     <option value="Group">Group</option>
-                    <option value="Career">Career</option>
-                    <option value="Academic">Academic</option>
+                    <option value="Face to Face">Face to Face</option>
+                    <option value="Online">Online</option>
                     </select>
                   </div>
                   <div>
@@ -1533,8 +1533,8 @@ export default function RecordsPage({ archivedView = false }) {
               <option value="">All session types</option>
               <option value="Individual">Individual</option>
               <option value="Group">Group</option>
-              <option value="Career">Career</option>
-              <option value="Academic">Academic</option>
+              <option value="Face to Face">Face to Face</option>
+              <option value="Online">Online</option>
             </select>
           </div>
         </motion.section>
@@ -2627,8 +2627,8 @@ export default function RecordsPage({ archivedView = false }) {
                             <option value="">Select</option>
                             <option value="Individual">Individual</option>
                             <option value="Group">Group</option>
-                            <option value="Career">Career</option>
-                            <option value="Academic">Academic</option>
+                            <option value="Face to Face">Face to Face</option>
+                            <option value="Online">Online</option>
                           </select>
                         </div>
                         <div>

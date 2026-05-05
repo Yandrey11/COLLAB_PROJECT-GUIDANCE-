@@ -30,7 +30,6 @@ export default function AdminDashboard() {
   useDocumentTitle("Admin Dashboard");
   const navigate = useNavigate();
   const [admin, setAdmin] = useState(null);
-  const [adminProfile, setAdminProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
 
@@ -63,6 +62,15 @@ export default function AdminDashboard() {
   const [dailyRecords, setDailyRecords] = useState([]);
   const [pageVisits, setPageVisits] = useState({ byPage: [], daily: [] });
   const [recordStatusDistribution, setRecordStatusDistribution] = useState([]);
+  const [problemsPresentedDistribution, setProblemsPresentedDistribution] = useState([]);
+  const [genderDistribution, setGenderDistribution] = useState([]);
+  const [courseDistribution, setCourseDistribution] = useState([]);
+  const [chartPeriod, setChartPeriod] = useState("daily");
+  const [distributionBucketLabel, setDistributionBucketLabel] = useState({
+    problems: null,
+    gender: null,
+    course: null,
+  });
   const [recentEvents, setRecentEvents] = useState([]);
   const [recentEventsPage, setRecentEventsPage] = useState(1);
   const [recentEventsTotalPages, setRecentEventsTotalPages] = useState(1);
@@ -76,7 +84,7 @@ export default function AdminDashboard() {
     byMonth: [],
     byQuarter: [],
     peakMonth: null,
-    categories: ["Individual", "Group", "Career", "Academic", "Other"],
+    categories: ["Individual", "Group", "Face to Face", "Online", "Other"],
   });
   const [consultationPeriodView, setConsultationPeriodView] = useState("month");
 
@@ -154,9 +162,6 @@ export default function AdminDashboard() {
         // verified admin: store admin object and then load dashboard data
         setAdmin(res.data);
 
-        // Fetch admin profile for profile picture
-        fetchAdminProfile(token);
-
         // fetch summary and start notifications polling
         await Promise.all([fetchSummary(token)]);
         startNotificationsPolling(token);
@@ -190,31 +195,6 @@ export default function AdminDashboard() {
       if (summaryIntervalRef.current) clearInterval(summaryIntervalRef.current);
     };
   }, []); // Empty deps - run once on mount; navigate is stable
-
-  // Fetch admin profile
-  const fetchAdminProfile = async (token) => {
-    try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-      const res = await axios.get(`${baseUrl}/api/admin/profile`, {
-        headers: token ? { 
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        } : {
-          "Content-Type": "application/json"
-        },
-      });
-      
-      if (res.data.success && res.data.profile) {
-        setAdminProfile(res.data.profile);
-        console.log("✅ Admin profile fetched:", res.data.profile);
-      } else {
-        console.warn("⚠️ Admin profile response format unexpected:", res.data);
-      }
-    } catch (err) {
-      console.warn("Could not fetch admin profile:", err.message || err);
-      // If profile endpoint fails, continue without profile picture
-    }
-  };
 
   // Fetch overview/summary (uses a dedicated endpoint if available)
   const fetchSummary = async (token) => {
@@ -290,13 +270,13 @@ export default function AdminDashboard() {
         setAnalyticsOverview(overviewRes.data.overview);
       }
 
-      // Fetch daily records
-      const dailyRes = await axios.get(`${BASE_URL}/api/admin/analytics/daily-records`, {
+      // Fetch records trend by selected period
+      const dailyRes = await axios.get(`${BASE_URL}/api/admin/analytics/record-volume`, {
         headers: { Authorization: `Bearer ${token}` },
-        params: { range: dateRange },
+        params: { range: dateRange, period: chartPeriod },
       });
       if (dailyRes.data.success) {
-        setDailyRecords(dailyRes.data.dailyRecords);
+        setDailyRecords(dailyRes.data.series || []);
       }
 
       // Fetch page visits
@@ -316,6 +296,45 @@ export default function AdminDashboard() {
         setRecordStatusDistribution(statusRes.data.distribution);
       }
 
+      const [problemsRes, genderRes, courseRes] = await Promise.allSettled([
+        axios.get(`${BASE_URL}/api/admin/analytics/problems-presented`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { range: dateRange, period: chartPeriod },
+        }),
+        axios.get(`${BASE_URL}/api/admin/analytics/gender-distribution`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { range: dateRange, period: chartPeriod },
+        }),
+        axios.get(`${BASE_URL}/api/admin/analytics/course-distribution`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { range: dateRange, period: chartPeriod },
+        }),
+      ]);
+
+      if (problemsRes.status === "fulfilled" && problemsRes.value.data?.success) {
+        setProblemsPresentedDistribution(problemsRes.value.data.distribution || []);
+      } else {
+        setProblemsPresentedDistribution([]);
+      }
+      if (genderRes.status === "fulfilled" && genderRes.value.data?.success) {
+        setGenderDistribution(genderRes.value.data.distribution || []);
+      } else {
+        setGenderDistribution([]);
+      }
+      if (courseRes.status === "fulfilled" && courseRes.value.data?.success) {
+        setCourseDistribution(courseRes.value.data.distribution || []);
+      } else {
+        setCourseDistribution([]);
+      }
+      setDistributionBucketLabel({
+        problems:
+          problemsRes.status === "fulfilled" ? problemsRes.value.data?.bucketLabel || null : null,
+        gender:
+          genderRes.status === "fulfilled" ? genderRes.value.data?.bucketLabel || null : null,
+        course:
+          courseRes.status === "fulfilled" ? courseRes.value.data?.bucketLabel || null : null,
+      });
+
       const volRes = await axios.get(`${BASE_URL}/api/admin/analytics/consultation-volume`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { range: dateRange },
@@ -328,8 +347,8 @@ export default function AdminDashboard() {
           categories: volRes.data.categories || [
             "Individual",
             "Group",
-            "Career",
-            "Academic",
+            "Face to Face",
+            "Online",
             "Other",
           ],
         });
@@ -475,7 +494,7 @@ export default function AdminDashboard() {
       fetchAnalyticsData(token);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, eventTypeFilter, pageNameFilter, recentEventsPage]);
+  }, [dateRange, chartPeriod, eventTypeFilter, pageNameFilter, recentEventsPage]);
 
   const handleLogout = async () => {
     const result = await Swal.fire({
@@ -530,69 +549,9 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
+      <AdminSidebar />
       <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         <div className="flex flex-col gap-10">
-          <motion.header
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col gap-6 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 lg:flex-row lg:items-start lg:justify-between lg:pb-10"
-          >
-            <div className="flex min-w-0 items-start gap-3 sm:gap-4">
-              <AdminSidebar variant="header" />
-              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
-              <div className="min-w-0 space-y-2">
-                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
-                  Administration
-                </p>
-                <h1 className="m-0 text-2xl font-semibold tracking-tight sm:text-3xl">
-                  Welcome{admin?.name ? `, ${admin.name}` : ""}
-                </h1>
-                <p className="m-0 max-w-xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-                  Review analytics, watch recent activity, and broadcast updates to counselors.
-                </p>
-              </div>
-            </div>
-
-            <div
-              className={`flex shrink-0 items-center gap-3 self-start rounded-2xl border border-gray-200/90 bg-white px-4 py-3 dark:border-gray-700/90 dark:bg-gray-800/80 lg:self-center`}
-            >
-              <div className="min-w-0 text-right">
-                <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
-                  {adminProfile?.name || admin?.name || "Admin"}
-                </p>
-                <p className="text-xs capitalize text-gray-500 dark:text-gray-400">
-                  {adminProfile?.role || admin?.role || "Administrator"}
-                </p>
-              </div>
-              {adminProfile?.profilePicture || admin?.profilePicture ? (
-                <img
-                  src={adminProfile?.profilePicture || getImageUrl(admin?.profilePicture)}
-                  alt=""
-                  className="h-11 w-11 shrink-0 rounded-full border border-gray-200 object-cover dark:border-gray-600"
-                  onError={(e) => {
-                    e.target.style.display = "none";
-                  }}
-                />
-              ) : (
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-gray-50 dark:border-gray-600 dark:bg-gray-700/80">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    className="h-5 w-5 text-gray-500 dark:text-gray-400"
-                  >
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                </div>
-              )}
-            </div>
-          </motion.header>
-
           <section className="flex flex-col gap-8">
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -676,6 +635,34 @@ export default function AdminDashboard() {
                     <option value="Settings">Settings</option>
                   </select>
                 </div>
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <label htmlFor="admin-dash-period" className={filterLabel}>
+                    Chart period
+                  </label>
+                  <div
+                    id="admin-dash-period"
+                    className="inline-flex h-10 w-full items-center rounded-lg border border-gray-300 bg-white p-0.5 dark:border-gray-600 dark:bg-gray-700"
+                  >
+                    {[
+                      { id: "daily", label: "Daily" },
+                      { id: "monthly", label: "Monthly" },
+                      { id: "quarterly", label: "Quarterly" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setChartPeriod(opt.id)}
+                        className={`h-full flex-1 rounded-md px-2 text-xs font-medium transition-colors ${
+                          chartPeriod === opt.id
+                            ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+                            : "text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-600"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             </motion.div>
 
@@ -716,22 +703,56 @@ export default function AdminDashboard() {
             </motion.div>
 
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <SummaryCard title="Total records" value={analyticsOverview.totalRecords.toLocaleString()} accent="indigo" />
-              <SummaryCard title="PDFs generated" value={analyticsOverview.totalPDFsGenerated.toLocaleString()} accent="emerald" />
-              <SummaryCard title="Drive uploads" value={analyticsOverview.totalDriveUploads.toLocaleString()} accent="violet" />
+              <SummaryCard
+                title="Total records"
+                value={analyticsOverview.totalRecords.toLocaleString()}
+                accent="indigo"
+                onClick={() => navigate("/admin/records")}
+              />
+              <SummaryCard
+                title="PDFs generated"
+                value={analyticsOverview.totalPDFsGenerated.toLocaleString()}
+                accent="emerald"
+                onClick={() => navigate("/admin/reports")}
+              />
+              <SummaryCard
+                title="Drive uploads"
+                value={analyticsOverview.totalDriveUploads.toLocaleString()}
+                accent="violet"
+                onClick={() => navigate("/admin/records")}
+              />
               <SummaryCard
                 title="Active counselors (week)"
                 value={analyticsOverview.activeCounselorsThisWeek.toLocaleString()}
                 accent="amber"
+                onClick={() => navigate("/admin/users")}
               />
             </div>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-              <ChartCard title="Daily records created">
-                <LineChart data={dailyRecords} />
+              <ChartCard title={`Records trend (${chartPeriod})`}>
+                <LineChart data={dailyRecords} period={chartPeriod} />
               </ChartCard>
               <ChartCard title="Record status distribution">
                 <PieChart data={recordStatusDistribution} />
+              </ChartCard>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+              <ChartCard
+                title={`Problems presented${distributionBucketLabel.problems ? ` (${distributionBucketLabel.problems})` : ""}`}
+              >
+                <DistributionPieChart data={problemsPresentedDistribution} />
+              </ChartCard>
+              <ChartCard
+                title={`Gender distribution${distributionBucketLabel.gender ? ` (${distributionBucketLabel.gender})` : ""}`}
+              >
+                <DistributionPieChart data={genderDistribution} />
+              </ChartCard>
+              <ChartCard
+                title={`Course distribution${distributionBucketLabel.course ? ` (${distributionBucketLabel.course})` : ""}`}
+              >
+                <DistributionPieChart data={courseDistribution} />
               </ChartCard>
             </div>
 
@@ -1165,19 +1186,37 @@ export default function AdminDashboard() {
 }
 
 // Summary Card Component
-function SummaryCard({ title, value, accent }) {
+function SummaryCard({ title, value, accent, onClick }) {
   const accentBar = {
     indigo: "bg-indigo-500 dark:bg-indigo-400",
     emerald: "bg-emerald-500 dark:bg-emerald-400",
     violet: "bg-violet-500 dark:bg-violet-400",
     amber: "bg-amber-500 dark:bg-amber-400",
   };
+  const interactive = typeof onClick === "function";
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80"
+      className={`rounded-2xl border border-gray-200/90 bg-white p-5 shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80 ${
+        interactive
+          ? "cursor-pointer transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:hover:border-indigo-500/60"
+          : ""
+      }`}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onClick={interactive ? onClick : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
     >
       <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">{title}</p>
       <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-gray-900 dark:text-gray-100">{value}</p>
@@ -1189,8 +1228,8 @@ function SummaryCard({ title, value, accent }) {
 const CONSULT_CHART_COLORS = {
   Individual: "#4f46e5",
   Group: "#10b981",
-  Career: "#f59e0b",
-  Academic: "#8b5cf6",
+  "Face to Face": "#f59e0b",
+  Online: "#8b5cf6",
   Other: "#94a3b8",
 };
 
@@ -1219,7 +1258,7 @@ function ConsultationVolumeChart({ series, categories }) {
   const order =
     Array.isArray(categories) && categories.length > 0
       ? categories
-      : ["Individual", "Group", "Career", "Academic", "Other"];
+      : ["Individual", "Group", "Face to Face", "Online", "Other"];
   const tilt = n > 12;
 
   return (
@@ -1303,7 +1342,7 @@ function ChartCard({ title, children }) {
 }
 
 // Line Chart Component
-function LineChart({ data }) {
+function LineChart({ data, period = "daily" }) {
   if (!data || data.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
@@ -1321,15 +1360,25 @@ function LineChart({ data }) {
   const dataLength = data.length;
   const divisor = dataLength > 1 ? dataLength - 1 : 1;
   
-  // Helper function to get day from date string
-  const getDayFromDate = (dateStr) => {
-    if (!dateStr) return "";
-    try {
-      const date = new Date(dateStr);
-      return date.getDate(); // Returns day of month (1-31)
-    } catch (e) {
-      return "";
+  const getXAxisLabel = (item) => {
+    if (item?.label) return item.label;
+    if (item?.date) {
+      try {
+        const date = new Date(item.date);
+        return String(date.getDate());
+      } catch {
+        return item.date;
+      }
     }
+    return "";
+  };
+
+  const formatXAxisLabel = (item) => {
+    const raw = getXAxisLabel(item);
+    if (period === "monthly") {
+      return raw.replace(" ", "\n");
+    }
+    return raw;
   };
   
   const points = data.map((d, i) => {
@@ -1353,10 +1402,20 @@ function LineChart({ data }) {
           const count = d.count || 0;
           const x = ((i / divisor) * (chartWidth - padding * 2) + padding).toFixed(2);
           const y = (chartHeight - (count / maxValue) * (chartHeight - padding * 2) - padding).toFixed(2);
-          const day = getDayFromDate(d.date);
+          const xLabel = formatXAxisLabel(d);
           return (
             <g key={i}>
               <circle cx={x} cy={y} r="4" fill="#4f46e5" className="drop-shadow-sm" />
+              <text
+                x={x}
+                y={Number(y) - 8}
+                textAnchor="middle"
+                className="fill-indigo-300 dark:fill-indigo-200"
+                fontSize="10"
+                fontWeight="600"
+              >
+                {count}
+              </text>
               {/* Day label below the chart */}
               <text
                 x={x}
@@ -1364,13 +1423,96 @@ function LineChart({ data }) {
                 textAnchor="middle"
                 className="text-xs fill-gray-600 dark:fill-gray-400"
                 fontSize="10"
+                style={{ whiteSpace: "pre-line" }}
               >
-                {day}
+                {xLabel}
               </text>
             </g>
           );
         })}
       </svg>
+    </div>
+  );
+}
+
+function DistributionPieChart({ data }) {
+  if (!data || data.length === 0) {
+    return (
+      <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+        No data available
+      </div>
+    );
+  }
+
+  const colors = [
+    "#6366f1",
+    "#22c55e",
+    "#f59e0b",
+    "#ef4444",
+    "#8b5cf6",
+    "#06b6d4",
+    "#84cc16",
+    "#f97316",
+    "#e11d48",
+    "#a855f7",
+  ];
+  const total = data.reduce((sum, item) => sum + (item.count || 0), 0) || 1;
+  let cumulative = 0;
+  const normalized = data.slice(0, 10).map((item) => {
+    const value = item.count || 0;
+    const start = (cumulative / total) * 100;
+    cumulative += value;
+    const end = (cumulative / total) * 100;
+    return { ...item, start, end };
+  });
+  const gradientStops = normalized
+    .flatMap((item, idx) => {
+      const color = colors[idx % colors.length];
+      return [
+        <stop key={`${item.label}-s`} offset={`${item.start}%`} stopColor={color} />,
+        <stop key={`${item.label}-e`} offset={`${item.end}%`} stopColor={color} />,
+      ];
+    });
+
+  return (
+    <div className="h-full flex flex-col items-center justify-center gap-4">
+      <svg width="128" height="128" viewBox="0 0 42 42" className="shrink-0">
+        <defs>
+          <linearGradient id="distribution-pie-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            {gradientStops}
+          </linearGradient>
+        </defs>
+        <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#334155" strokeWidth="6" />
+        <circle
+          cx="21"
+          cy="21"
+          r="15.915"
+          fill="transparent"
+          stroke="url(#distribution-pie-gradient)"
+          strokeWidth="6"
+          strokeDasharray="100 100"
+          transform="rotate(-90 21 21)"
+        />
+      </svg>
+      <div className="grid w-full grid-cols-1 gap-1.5">
+        {normalized.map((item, idx) => {
+          const pct = ((item.count || 0) / total) * 100;
+          return (
+            <div key={item.label} className="flex items-center justify-between gap-2 text-xs">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                  style={{ backgroundColor: colors[idx % colors.length] }}
+                />
+                <span className="truncate text-gray-700 dark:text-gray-300">{item.label}</span>
+              </div>
+              <div className="shrink-0 font-medium text-gray-900 dark:text-gray-100">
+                {item.count} ({pct.toFixed(1)}%)
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -647,7 +647,7 @@ export const getDailyRecordsCreated = async (req, res) => {
   }
 };
 
-const CONSULT_CATEGORY_ORDER = ["Individual", "Group", "Career", "Academic", "Other"];
+const CONSULT_CATEGORY_ORDER = ["Individual", "Group", "Face to Face", "Online", "Other"];
 
 function emptyCategoryCounts() {
   const o = {};
@@ -670,6 +670,300 @@ function quarterKey(y, q) {
 function quarterLabel(y, q) {
   return `Q${q} ${y}`;
 }
+
+const CHART_PERIODS = ["daily", "monthly", "quarterly"];
+
+function normalizeChartPeriod(period) {
+  return CHART_PERIODS.includes(period) ? period : "daily";
+}
+
+function periodPartsExpression(period, dateField) {
+  if (period === "monthly") {
+    return {
+      year: { $year: dateField },
+      month: { $month: dateField },
+    };
+  }
+  if (period === "quarterly") {
+    return {
+      year: { $year: dateField },
+      quarter: { $ceil: { $divide: [{ $month: dateField }, 3] } },
+    };
+  }
+  return {
+    year: { $year: dateField },
+    month: { $month: dateField },
+    day: { $dayOfMonth: dateField },
+  };
+}
+
+function periodKeyAndLabel(period, id) {
+  const year = id.year;
+  if (period === "monthly") {
+    const month = id.month;
+    return {
+      key: `${year}-${String(month).padStart(2, "0")}`,
+      label: monthLabel(year, month),
+      sort: year * 100 + month,
+    };
+  }
+  if (period === "quarterly") {
+    const quarter = id.quarter;
+    return {
+      key: `${year}-Q${quarter}`,
+      label: quarterLabel(year, quarter),
+      sort: year * 10 + quarter,
+    };
+  }
+  const month = id.month;
+  const day = id.day;
+  const key = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return {
+    key,
+    label: key,
+    sort: year * 10000 + month * 100 + day,
+  };
+}
+
+function latestBucketFromRows(rows, period) {
+  const bucketMap = new Map();
+  for (const row of rows) {
+    const { key, label, sort } = periodKeyAndLabel(period, row._id);
+    if (!bucketMap.has(key)) {
+      bucketMap.set(key, { key, label, sort, byCategory: {}, total: 0 });
+    }
+    const bucket = bucketMap.get(key);
+    const category = row._id.category || "Unknown";
+    bucket.byCategory[category] = (bucket.byCategory[category] || 0) + row.count;
+    bucket.total += row.count;
+  }
+  const buckets = Array.from(bucketMap.values()).sort((a, b) => a.sort - b.sort);
+  return buckets.length > 0 ? buckets[buckets.length - 1] : null;
+}
+
+/**
+ * GET /api/admin/analytics/record-volume?range&period=daily|monthly|quarterly
+ */
+export const getRecordVolumeByPeriod = async (req, res) => {
+  try {
+    const { range = "30d", period = "daily" } = req.query;
+    const now = new Date();
+    const startDate = resolveDashboardRangeStart(range, now);
+    const chartPeriod = normalizeChartPeriod(period);
+
+    const docs = await Record.aggregate([
+      { $match: notArchivedFilter() },
+      {
+        $project: {
+          recordDate: {
+            $ifNull: ["$auditTrail.createdAt", { $ifNull: ["$createdAt", "$date"] }],
+          },
+        },
+      },
+      { $match: { recordDate: { $gte: startDate, $lte: now } } },
+      {
+        $group: {
+          _id: periodPartsExpression(chartPeriod, "$recordDate"),
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const series = docs
+      .map((row) => {
+        const { key, label, sort } = periodKeyAndLabel(chartPeriod, row._id);
+        return { periodKey: key, label, sort, count: row.count };
+      })
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ sort, ...rest }) => rest);
+
+    res.status(200).json({
+      success: true,
+      period: chartPeriod,
+      range,
+      series,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching record volume by period:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch record volume" });
+  }
+};
+
+/**
+ * GET /api/admin/analytics/problems-presented?range&period=daily|monthly|quarterly
+ */
+export const getProblemsPresentedByPeriod = async (req, res) => {
+  try {
+    const { range = "30d", period = "daily" } = req.query;
+    const now = new Date();
+    const startDate = resolveDashboardRangeStart(range, now);
+    const chartPeriod = normalizeChartPeriod(period);
+
+    const rows = await Record.aggregate([
+      { $match: notArchivedFilter() },
+      {
+        $project: {
+          recordDate: {
+            $ifNull: ["$auditTrail.createdAt", { $ifNull: ["$createdAt", "$date"] }],
+          },
+          problemsPresentedCodes: { $ifNull: ["$problemsPresentedCodes", []] },
+          problemsPresented: { $ifNull: ["$problemsPresented", ""] },
+        },
+      },
+      { $match: { recordDate: { $gte: startDate, $lte: now } } },
+      {
+        $addFields: {
+          categoryList: {
+            $cond: [
+              {
+                $and: [
+                  { $isArray: "$problemsPresentedCodes" },
+                  { $gt: [{ $size: "$problemsPresentedCodes" }, 0] },
+                ],
+              },
+              "$problemsPresentedCodes",
+              {
+                $cond: [
+                  { $gt: [{ $strLenCP: { $trim: { input: "$problemsPresented" } } }, 0] },
+                  [{ $trim: { input: "$problemsPresented" } }],
+                  ["Unspecified"],
+                ],
+              },
+            ],
+          },
+        },
+      },
+      { $unwind: "$categoryList" },
+      {
+        $group: {
+          _id: "$categoryList",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const distribution = rows
+      .map((row) => ({ label: row._id || "Unspecified", count: row.count || 0 }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+
+    res.status(200).json({
+      success: true,
+      period: chartPeriod,
+      range,
+      bucketLabel: "Selected range",
+      distribution,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching problems presented distribution:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch problems presented distribution" });
+  }
+};
+
+/**
+ * GET /api/admin/analytics/gender-distribution?range&period=daily|monthly|quarterly
+ */
+export const getGenderDistributionByPeriod = async (req, res) => {
+  try {
+    const { range = "30d", period = "daily" } = req.query;
+    const now = new Date();
+    const startDate = resolveDashboardRangeStart(range, now);
+    const chartPeriod = normalizeChartPeriod(period);
+
+    const rows = await Record.aggregate([
+      { $match: notArchivedFilter() },
+      {
+        $project: {
+          recordDate: {
+            $ifNull: ["$auditTrail.createdAt", { $ifNull: ["$createdAt", "$date"] }],
+          },
+          category: {
+            $cond: [
+              { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ["$gender", ""] } } } }, 0] },
+              { $trim: { input: "$gender" } },
+              "Unspecified",
+            ],
+          },
+        },
+      },
+      { $match: { recordDate: { $gte: startDate, $lte: now } } },
+      {
+        $group: {
+          _id: "$category",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const distribution = rows
+      .map((row) => ({ label: row._id || "Unspecified", count: row.count || 0 }))
+      .sort((a, b) => b.count - a.count);
+
+    res.status(200).json({
+      success: true,
+      period: chartPeriod,
+      range,
+      bucketLabel: "Selected range",
+      distribution,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching gender distribution:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch gender distribution" });
+  }
+};
+
+/**
+ * GET /api/admin/analytics/course-distribution?range&period=daily|monthly|quarterly
+ */
+export const getCourseDistributionByPeriod = async (req, res) => {
+  try {
+    const { range = "30d", period = "daily" } = req.query;
+    const now = new Date();
+    const startDate = resolveDashboardRangeStart(range, now);
+    const chartPeriod = normalizeChartPeriod(period);
+
+    const rows = await Record.aggregate([
+      { $match: notArchivedFilter() },
+      {
+        $project: {
+          recordDate: {
+            $ifNull: ["$auditTrail.createdAt", { $ifNull: ["$createdAt", "$date"] }],
+          },
+          category: {
+            $cond: [
+              { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ["$course", ""] } } } }, 0] },
+              { $trim: { input: "$course" } },
+              "Unspecified",
+            ],
+          },
+        },
+      },
+      { $match: { recordDate: { $gte: startDate, $lte: now } } },
+      {
+        $group: {
+          _id: "$category",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const distribution = rows
+      .map((row) => ({ label: row._id || "Unspecified", count: row.count || 0 }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
+
+    res.status(200).json({
+      success: true,
+      period: chartPeriod,
+      range,
+      bucketLabel: "Selected range",
+      distribution,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching course distribution:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch course distribution" });
+  }
+};
 
 /**
  * GET /api/admin/analytics/consultation-volume — records by month/quarter with sessionType breakdown
@@ -700,15 +994,14 @@ export const getConsultationVolumeByPeriod = async (req, res) => {
       {
         $addFields: {
           category: {
-            $cond: {
-              if: {
-                $in: [
-                  "$categoryTrim",
-                  ["Individual", "Group", "Career", "Academic"],
-                ],
-              },
-              then: "$categoryTrim",
-              else: "Other",
+            $switch: {
+              branches: [
+                { case: { $eq: ["$categoryTrim", "Individual"] }, then: "Individual" },
+                { case: { $eq: ["$categoryTrim", "Group"] }, then: "Group" },
+                { case: { $in: ["$categoryTrim", ["Career", "Face to Face"]] }, then: "Face to Face" },
+                { case: { $in: ["$categoryTrim", ["Academic", "Online"]] }, then: "Online" },
+              ],
+              default: "Other",
             },
           },
         },
