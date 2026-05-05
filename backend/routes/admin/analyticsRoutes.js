@@ -5,6 +5,7 @@ import {
   getEvents,
   getRecordStatusDistribution,
   getDailyRecordsCreated,
+  getConsultationVolumeByPeriod,
   logEvent,
 } from "../../controllers/admin/analyticsController.js";
 import { protectAdmin } from "../../middleware/admin/adminMiddleware.js";
@@ -28,6 +29,9 @@ router.get("/record-status-distribution", getRecordStatusDistribution);
 
 // Get daily records created
 router.get("/daily-records", getDailyRecordsCreated);
+
+// Consultations (records) by month/quarter and session type
+router.get("/consultation-volume", getConsultationVolumeByPeriod);
 
 export default router;
 

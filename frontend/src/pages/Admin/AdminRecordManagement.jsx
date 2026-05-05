@@ -53,6 +53,13 @@ export default function AdminRecordManagement() {
   // Toggle to show/hide action buttons
   const [showActions, setShowActions] = useState(true);
 
+  // Admin recommendation modal (replaces SweetAlert prompt)
+  const [showRecommendationModal, setShowRecommendationModal] = useState(false);
+  const [recommendationRecord, setRecommendationRecord] = useState(null);
+  const [recommendationDraft, setRecommendationDraft] = useState("");
+  const [recommendationSaving, setRecommendationSaving] = useState(false);
+  const [recommendationError, setRecommendationError] = useState(null);
+
   // Initialize theme on mount
   useEffect(() => {
     initializeTheme();
@@ -237,52 +244,54 @@ export default function AdminRecordManagement() {
     setShowDetailModal(true);
   };
 
-  /** Save admin recommendation without opening full edit / lock flow */
-  const handleQuickRecommendation = async (record) => {
+  const openRecommendationModal = (record) => {
     setOpenDropdownId(null);
-    const token = localStorage.getItem("adminToken");
-    const result = await Swal.fire({
-      title: "Admin recommendation",
-      text: `${record.clientName || "Record"} · Session #${record.sessionNumber ?? 1}`,
-      input: "textarea",
-      inputPlaceholder: "Enter recommendation for this record…",
-      inputValue: record.recommendation || "",
-      showCancelButton: true,
-      confirmButtonText: "Save",
-      cancelButtonText: "Cancel",
-      confirmButtonColor: "#4f46e5",
-      cancelButtonColor: "#6b7280",
-      width: 560,
-    });
+    setRecommendationRecord(record);
+    setRecommendationDraft(record.recommendation || "");
+    setRecommendationError(null);
+    setShowRecommendationModal(true);
+  };
 
-    if (!result.isConfirmed) return;
+  const closeRecommendationModal = () => {
+    setShowRecommendationModal(false);
+    setRecommendationRecord(null);
+    setRecommendationDraft("");
+    setRecommendationError(null);
+    setRecommendationSaving(false);
+  };
 
+  const saveRecommendation = async () => {
+    if (!recommendationRecord) return;
+    const recordId = recommendationRecord._id ?? recommendationRecord.id;
+    if (!recordId) {
+      setRecommendationError("This record has no id. Refresh the page and try again.");
+          return;
+        }
+      const token = localStorage.getItem("adminToken");
+    setRecommendationSaving(true);
+    setRecommendationError(null);
     try {
       const { data } = await axios.patch(
-        `${API_URL}/${record._id}/recommendation`,
-        { recommendation: result.value ?? "" },
+        `${API_URL}/${recordId}/recommendation`,
+        { recommendation: recommendationDraft },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (showDetailModal && selectedRecord?._id === record._id && data?.record) {
+      if (showDetailModal && (selectedRecord?._id ?? selectedRecord?.id) === recordId && data?.record) {
         setSelectedRecord(data.record);
       }
 
-      await Swal.fire({
-        icon: "success",
-        title: "Saved",
-        text: "Recommendation updated.",
-        timer: 2000,
-        showConfirmButton: false,
-      });
+      closeRecommendationModal();
       fetchRecords();
     } catch (err) {
       console.error("Quick recommendation error:", err);
-      Swal.fire({
-        icon: "error",
-        title: "Could not save",
-        text: err.response?.data?.message || err.response?.data?.error || "Failed to save recommendation.",
-      });
+      const serverMsg =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        (err.message && !err.response ? err.message : null);
+      setRecommendationError(serverMsg || "Failed to save recommendation.");
+    } finally {
+      setRecommendationSaving(false);
     }
   };
 
@@ -319,6 +328,8 @@ export default function AdminRecordManagement() {
 
   const inputClass =
     "h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-indigo-400 dark:focus:ring-indigo-400";
+  const recommendationTextareaClass =
+    "min-h-[168px] w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm leading-relaxed text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-indigo-400 dark:focus:ring-indigo-400";
   const labelClass =
     "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500";
   const selectClass = `${inputClass} cursor-pointer`;
@@ -329,7 +340,7 @@ export default function AdminRecordManagement() {
         <div className="flex flex-col gap-8">
           <motion.header
             initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
+          animate={{ opacity: 1, y: 0 }}
             className="flex flex-col gap-6 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-start sm:justify-between lg:pb-10"
           >
             <div className="flex min-w-0 items-start gap-3 sm:gap-4">
@@ -363,26 +374,26 @@ export default function AdminRecordManagement() {
 
           <motion.section
             initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
+          animate={{ opacity: 1, y: 0 }}
             className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80 sm:p-6"
           >
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-6">
               <div className="min-w-0 flex-1 space-y-2">
                 <label htmlFor="admin-record-search" className={labelClass}>
-                  Search
-                </label>
-                <input
+                Search
+              </label>
+              <input
                   id="admin-record-search"
-                  type="text"
+                type="text"
                   placeholder="Client or counselor…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
                   className={inputClass}
-                />
-              </div>
-              <button
+              />
+            </div>
+            <button
                 type="button"
-                onClick={() => setShowFilters(!showFilters)}
+              onClick={() => setShowFilters(!showFilters)}
                 aria-expanded={showFilters}
                 className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm font-medium text-gray-800 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
               >
@@ -393,111 +404,111 @@ export default function AdminRecordManagement() {
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            </div>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+            </button>
+          </div>
 
-            <AnimatePresence>
-              {showFilters && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.22 }}
-                  className="overflow-hidden"
-                >
+              className="overflow-hidden"
+            >
                   <div className="mt-6 border-t border-gray-200 pt-6 dark:border-gray-600">
                     <p className={labelClass}>Refine</p>
                     <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                      <div>
+                  <div>
                         <label className={labelClass}>Status</label>
-                        <select
-                          value={statusFilter}
-                          onChange={(e) => setStatusFilter(e.target.value)}
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
                           className={selectClass}
-                        >
+                    >
                           <option value="all">All</option>
-                          <option value="Ongoing">Ongoing</option>
-                          <option value="Completed">Completed</option>
-                          <option value="Referred">Referred</option>
-                        </select>
-                      </div>
-                      <div>
+                      <option value="Ongoing">Ongoing</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Referred">Referred</option>
+                    </select>
+                  </div>
+                  <div>
                         <label className={labelClass}>Session type</label>
-                        <input
-                          type="text"
+                    <input
+                      type="text"
                           placeholder="Filter by type…"
-                          value={sessionTypeFilter === "all" ? "" : sessionTypeFilter}
-                          onChange={(e) => setSessionTypeFilter(e.target.value || "all")}
+                      value={sessionTypeFilter === "all" ? "" : sessionTypeFilter}
+                      onChange={(e) => setSessionTypeFilter(e.target.value || "all")}
                           className={inputClass}
-                        />
-                      </div>
+                    />
+                  </div>
                       <div className="sm:col-span-2 lg:col-span-2">
                         <label className={labelClass}>Counselor</label>
-                        <select
-                          value={counselorFilter}
-                          onChange={(e) => setCounselorFilter(e.target.value)}
+                    <select
+                      value={counselorFilter}
+                      onChange={(e) => setCounselorFilter(e.target.value)}
                           className={selectClass}
-                        >
+                    >
                           <option value="all">All counselors</option>
-                          {counselors.map((counselor) => (
-                            <option key={counselor} value={counselor}>
-                              {counselor}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
+                      {counselors.map((counselor) => (
+                        <option key={counselor} value={counselor}>
+                          {counselor}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
                     <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-                      <div>
+                  <div>
                         <label className={labelClass}>Start date</label>
-                        <input
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => setStartDate(e.target.value)}
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
                           className={inputClass}
-                        />
-                      </div>
-                      <div>
+                    />
+                  </div>
+                  <div>
                         <label className={labelClass}>End date</label>
-                        <input
-                          type="date"
-                          value={endDate}
-                          onChange={(e) => setEndDate(e.target.value)}
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
                           className={inputClass}
-                        />
-                      </div>
-                      <div>
+                    />
+                  </div>
+                  <div>
                         <label className={labelClass}>Sort by</label>
                         <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className={selectClass}>
-                          <option value="date">Date</option>
+                      <option value="date">Date</option>
                           <option value="clientName">Client name</option>
-                          <option value="counselor">Counselor</option>
-                          <option value="status">Status</option>
-                        </select>
-                      </div>
-                      <div>
+                      <option value="counselor">Counselor</option>
+                      <option value="status">Status</option>
+                    </select>
+                  </div>
+                  <div>
                         <label className={labelClass}>Order</label>
                         <select value={sortOrder} onChange={(e) => setSortOrder(e.target.value)} className={selectClass}>
                           <option value="desc">Newest first</option>
                           <option value="asc">Oldest first</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="mt-6 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={handleClearFilters}
-                        className="text-sm font-medium text-gray-600 underline-offset-4 hover:text-gray-900 hover:underline dark:text-gray-400 dark:hover:text-gray-200"
-                      >
-                        Clear all filters
-                      </button>
-                    </div>
+                    </select>
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                </div>
+                    <div className="mt-6 flex justify-end">
+                  <button
+                        type="button"
+                    onClick={handleClearFilters}
+                        className="text-sm font-medium text-gray-600 underline-offset-4 hover:text-gray-900 hover:underline dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                        Clear all filters
+                  </button>
+                    </div>
+                </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
           </motion.section>
 
         {/* Records directory */}
@@ -644,32 +655,32 @@ export default function AdminRecordManagement() {
                       {showActions && (
                         <td className="px-3 py-3.5 text-center sm:px-4">
                           <div className="relative inline-block text-left dropdown-container">
-                            <button
+                          <button
                               type="button"
-                              onClick={() => setOpenDropdownId(openDropdownId === record._id ? null : record._id)}
+                            onClick={() => setOpenDropdownId(openDropdownId === record._id ? null : record._id)}
                               className="inline-flex h-8 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
-                            >
+                          >
                               Menu
-                              <svg
+                            <svg
                                 className={`h-3.5 w-3.5 text-gray-400 transition-transform ${openDropdownId === record._id ? "rotate-180" : ""}`}
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-
-                            <AnimatePresence>
-                              {openDropdownId === record._id && (
-                                <motion.div
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          
+                          <AnimatePresence>
+                            {openDropdownId === record._id && (
+                              <motion.div
                                   initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
                                   exit={{ opacity: 0, y: -6, scale: 0.98 }}
                                   transition={{ duration: 0.15 }}
                                   className="absolute right-0 z-50 mt-1 min-w-[10.5rem] overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg shadow-gray-900/10 dark:border-gray-700 dark:bg-gray-800"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
+                                onClick={(e) => e.stopPropagation()}
+                              >
                                   <button
                                     type="button"
                                     onClick={() => {
@@ -680,18 +691,18 @@ export default function AdminRecordManagement() {
                                   >
                                     View details
                                   </button>
-                                  <button
+                                        <button
                                     type="button"
-                                    onClick={() => handleQuickRecommendation(record)}
+                                    onClick={() => openRecommendationModal(record)}
                                     className="flex w-full px-3 py-2 text-left text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                                   >
                                     Recommendation
-                                  </button>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </td>
+                                        </button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </td>
                       )}
                     </tr>
                   ))}
@@ -743,67 +754,67 @@ export default function AdminRecordManagement() {
               <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Lock activity</h2>
               <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                 Recent lock, unlock, and update events across records.
-              </p>
-            </div>
+                </p>
+              </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
+                <button
                 type="button"
-                onClick={() => setShowLockLogsCard(!showLockLogsCard)}
+                  onClick={() => setShowLockLogsCard(!showLockLogsCard)}
                 className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
-              >
-                <svg
-                  className={`h-3.5 w-3.5 text-gray-400 transition-transform ${showLockLogsCard ? "rotate-180" : ""}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-                {showLockLogsCard ? "Hide" : "Show"}
-              </button>
-              <select
-                value={lockLogFilter}
-                onChange={(e) => setLockLogFilter(e.target.value)}
+                  <svg 
+                  className={`h-3.5 w-3.5 text-gray-400 transition-transform ${showLockLogsCard ? "rotate-180" : ""}`}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                  {showLockLogsCard ? "Hide" : "Show"}
+                </button>
+                <select
+                  value={lockLogFilter}
+                  onChange={(e) => setLockLogFilter(e.target.value)}
                 className="h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-xs text-gray-800 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
               >
                 <option value="all">All</option>
                 <option value="LOCK">Lock</option>
                 <option value="UNLOCK">Unlock</option>
                 <option value="UPDATE">Update</option>
-              </select>
-              <button
+                </select>
+                <button
                 type="button"
-                onClick={fetchAllLockLogs}
+                  onClick={fetchAllLockLogs}
                 className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
-              >
+                >
                 <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh
-              </button>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
             </div>
-          </div>
 
-          <AnimatePresence>
-            {showLockLogsCard && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: "auto" }}
-                exit={{ opacity: 0, height: 0 }}
+            <AnimatePresence>
+              {showLockLogsCard && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
                 transition={{ duration: 0.22 }}
                 className="overflow-hidden"
-              >
-                {(() => {
+                >
+                  {(() => {
                   const filteredLogs =
                     lockLogFilter === "all"
-                      ? allLockLogs
+                      ? allLockLogs 
                       : allLockLogs.filter((log) => log.action === lockLogFilter);
-
-                  return filteredLogs.length === 0 ? (
+                    
+                    return filteredLogs.length === 0 ? (
                     <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">No activity yet.</p>
-                  ) : (
+                    ) : (
                     <ul className="mt-4 max-h-80 space-y-2 overflow-y-auto pr-1">
-                      {filteredLogs.map((log, index) => (
+                        {filteredLogs.map((log, index) => (
                         <li
                           key={index}
                           className="rounded-xl border border-gray-200 bg-gray-50/60 px-3 py-2.5 dark:border-gray-600 dark:bg-gray-700/40"
@@ -816,7 +827,7 @@ export default function AdminRecordManagement() {
                                     ? "bg-emerald-500/15 text-emerald-800 dark:text-emerald-400"
                                     : log.action === "UNLOCK"
                                       ? "bg-sky-500/15 text-sky-800 dark:text-sky-400"
-                                      : log.action === "UPDATE"
+                                    : log.action === "UPDATE"
                                         ? "bg-violet-500/15 text-violet-800 dark:text-violet-300"
                                         : "bg-gray-500/10 text-gray-700 dark:text-gray-300"
                                 }`}
@@ -848,15 +859,15 @@ export default function AdminRecordManagement() {
                             <p className="mt-1.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400">{log.reason}</p>
                           )}
                         </li>
-                      ))}
+                        ))}
                     </ul>
-                  );
-                })()}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                    );
+                  })()}
+                </motion.div>
+              )}
+            </AnimatePresence>
         </motion.aside>
-        </div>
+            </div>
       </div>
 
       <AnimatePresence>
@@ -881,7 +892,7 @@ export default function AdminRecordManagement() {
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Session</p>
                   <h2 className="mt-0.5 text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
                     {selectedRecord.clientName}
-                  </h2>
+                </h2>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     #{selectedRecord.sessionNumber} · {formatDate(selectedRecord.date)}
                   </p>
@@ -912,7 +923,7 @@ export default function AdminRecordManagement() {
                       {selectedRecord.status}
                     </span>
                   </dd>
-                </div>
+                  </div>
                 <div className="grid gap-1">
                   <dt className={labelClass}>Counselor</dt>
                   <dd className="text-sm text-gray-800 dark:text-gray-200">{selectedRecord.counselor}</dd>
@@ -928,7 +939,7 @@ export default function AdminRecordManagement() {
                   <dd className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
                     {selectedRecord.notes || "—"}
                   </dd>
-                </div>
+                  </div>
                 <div className="grid gap-1">
                   <dt className={labelClass}>Outcomes</dt>
                   <dd className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -946,15 +957,15 @@ export default function AdminRecordManagement() {
                     <dt className={labelClass}>Attachments</dt>
                     <dd className="flex flex-col gap-1.5">
                       {selectedRecord.attachments.map((attachment, idx) => (
-                        <a
+                          <a
                           key={idx}
-                          href={attachment.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                            href={attachment.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
                           className="text-sm font-medium text-sky-700 underline-offset-2 hover:underline dark:text-sky-400"
-                        >
-                          {attachment.fileName}
-                        </a>
+                          >
+                            {attachment.fileName}
+                          </a>
                       ))}
                     </dd>
                   </div>
@@ -1002,11 +1013,117 @@ export default function AdminRecordManagement() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleQuickRecommendation(selectedRecord)}
+                  onClick={() => openRecommendationModal(selectedRecord)}
                   className="h-10 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                 >
                   Add recommendation
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showRecommendationModal && recommendationRecord && (
+          <motion.div
+            key="recommendation-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[1001] flex items-center justify-center bg-gray-900/45 p-4 backdrop-blur-[2px]"
+            onClick={() => !recommendationSaving && closeRecommendationModal()}
+          >
+            <motion.div
+              initial={{ scale: 0.97, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.97, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+              className="flex max-h-[min(90vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
+            >
+              <div className="shrink-0 border-b border-gray-200 px-5 py-4 dark:border-gray-600 sm:px-6 sm:py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Administrative note
+                    </p>
+                    <h2 className="mt-1 text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
+                      Recommendation
+                  </h2>
+                    <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                      Visible to counselors on this record. Keep it concise and actionable.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    disabled={recommendationSaving}
+                    onClick={closeRecommendationModal}
+                    className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-800 disabled:opacity-50 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                    aria-label="Close"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+              </div>
+
+                <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/80 px-3 py-3 text-xs dark:border-gray-600 dark:bg-gray-900/40 sm:px-4">
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-gray-600 dark:text-gray-300">
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      {recommendationRecord.clientName || "Record"}
+                    </span>
+                    <span className="tabular-nums text-gray-500 dark:text-gray-400">
+                      Session #{recommendationRecord.sessionNumber ?? "—"}
+                    </span>
+                    <span className="text-gray-500 dark:text-gray-400">{formatDate(recommendationRecord.date)}</span>
+                </div>
+                  <p className="mt-1.5 truncate text-gray-500 dark:text-gray-400">
+                    Counselor · <span className="font-medium text-gray-700 dark:text-gray-300">{recommendationRecord.counselor || "—"}</span>
+                  </p>
+                </div>
+                </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+                <label htmlFor="admin-recommendation-text" className={labelClass}>
+                  Recommendation text
+                  </label>
+                <textarea
+                  id="admin-recommendation-text"
+                  value={recommendationDraft}
+                  onChange={(e) => {
+                    setRecommendationDraft(e.target.value);
+                    setRecommendationError(null);
+                  }}
+                  placeholder="Guidance for the counselor (optional sections, bullet points, or next steps)…"
+                  disabled={recommendationSaving}
+                  rows={8}
+                  className={recommendationTextareaClass}
+                />
+                {recommendationError && (
+                  <p className="mt-3 rounded-lg border border-red-200/90 bg-red-50/90 px-3 py-2 text-sm text-red-800 dark:border-red-800/80 dark:bg-red-950/30 dark:text-red-300">
+                    {recommendationError}
+                  </p>
+                )}
+                </div>
+
+              <div className="shrink-0 flex flex-wrap justify-end gap-2 border-t border-gray-200 bg-gray-50/80 px-5 py-4 dark:border-gray-600 dark:bg-gray-900/30 sm:px-6">
+                      <button
+                  type="button"
+                  disabled={recommendationSaving}
+                  onClick={closeRecommendationModal}
+                  className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
+                >
+                  Cancel
+                </button>
+                    <button
+                  type="button"
+                  disabled={recommendationSaving}
+                  onClick={saveRecommendation}
+                  className="h-10 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                >
+                  {recommendationSaving ? "Saving…" : "Save recommendation"}
+                    </button>
               </div>
             </motion.div>
           </motion.div>

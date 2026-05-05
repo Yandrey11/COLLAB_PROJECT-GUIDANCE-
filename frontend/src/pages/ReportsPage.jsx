@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
 import { motion, AnimatePresence } from "framer-motion";
 import Swal from "sweetalert2";
 import { NotificationBadgeBadge } from "../components/NotificationBadge";
@@ -10,16 +8,30 @@ import CounselorSidebar from "../components/CounselorSidebar";
 import CounselorHeaderProfile from "../components/CounselorHeaderProfile.jsx";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import {
-  addCounselorPdfHeaderFooter,
-  loadBuksuLogoDataUrl,
-  PDF_CONTENT_TOP_MM,
-  getPdfMaxContentY,
-} from "../utils/counselorPdfLetterhead.js";
-
 const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/reports`;
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const RECORDS_API_URL = `${BASE_URL}/api/records`;
 const GENERATED_REPORTS_STORAGE_KEY = "counselorGeneratedReports";
+
+function parseFilenameFromContentDisposition(cd) {
+  if (!cd || typeof cd !== "string") return null;
+  const m = cd.match(/filename\*?=(?:UTF-8'')?["']?([^";\n]+)/i);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1].replace(/"/g, "").trim());
+  } catch {
+    return m[1].replace(/"/g, "").trim();
+  }
+}
+
+function downloadPdfBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const pageStagger = {
   hidden: { opacity: 0 },
@@ -314,7 +326,7 @@ const ReportsPage = () => {
   // Show error page if no permission (after user is loaded)
   if (user && !hasPermission) {
     return (
-      <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+      <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
         <div className="mx-auto flex w-full max-w-[1800px] flex-col px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
           <header className="mb-10 flex flex-col gap-4 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-4 sm:gap-5">
@@ -386,215 +398,122 @@ const ReportsPage = () => {
     return `DOC-${timestamp}-${random}`;
   };
 
-  // ✅ Generate and download PDF
+  // ✅ Generate and download PDF (server-side PDFKit)
   const handleDownloadPDF = async () => {
     const recordsToExport = selectedRecord ? [selectedRecord] : filteredRecords;
     if (recordsToExport.length === 0) return;
 
-    const logoDataUrl = await loadBuksuLogoDataUrl();
-    const doc = new jsPDF();
+    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+    if (!token) {
+      await Swal.fire({ icon: "warning", title: "Session required", text: "Please log in again." });
+      return;
+    }
+
     const trackingNumber = generateTrackingNumber();
-    const reportDate = new Date().toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
-    const reportDateTime = new Date().toLocaleString();
 
-    // Calculate total pages needed (ensure at least 2 pages)
-    let estimatedPages = Math.max(2, Math.ceil(recordsToExport.length / 2));
-    if (recordsToExport.length === 1) estimatedPages = 2; // Force at least 2 pages for single record
-
-    // Page 1: Cover/Summary Page
-    addCounselorPdfHeaderFooter(doc, 1, estimatedPages, trackingNumber, reportDate, logoDataUrl);
-
-    let finalY = PDF_CONTENT_TOP_MM;
-    const maxContentHeight = getPdfMaxContentY(doc);
-
-    // Title
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
-    doc.text("COUNSELING RECORDS REPORT", 105, finalY, { align: 'center' });
-    finalY += 15;
-
-    // Report Information
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Report Generated: ${reportDateTime}`, 105, finalY, { align: 'center' });
-    finalY += 10;
-    doc.text(`Document Tracking Number: ${trackingNumber}`, 105, finalY, { align: 'center' });
-    finalY += 10;
-    doc.text(`Total Records: ${recordsToExport.length}`, 105, finalY, { align: 'center' });
-    finalY += 20;
-
-    // Summary Statistics
-    const completed = recordsToExport.filter(r => r.status === "Completed").length;
-    const ongoing = recordsToExport.filter(r => r.status === "Ongoing").length;
-    const referred = recordsToExport.filter(r => r.status === "Referred").length;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("Summary Statistics", 105, finalY, { align: 'center' });
-    finalY += 12;
-
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Completed Sessions: ${completed}`, 105, finalY, { align: 'center' });
-    finalY += 8;
-    doc.text(`Ongoing Sessions: ${ongoing}`, 105, finalY, { align: 'center' });
-    finalY += 8;
-    doc.text(`Referred Sessions: ${referred}`, 105, finalY, { align: 'center' });
-    finalY += 20;
-
-    // Date Range (if applicable)
-    if (startDate || endDate) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text("Date Range:", 105, finalY, { align: 'center' });
-      finalY += 8;
-      doc.setFont("helvetica", "normal");
-      const dateRange = `${startDate || 'N/A'} to ${endDate || 'N/A'}`;
-      doc.text(dateRange, 105, finalY, { align: 'center' });
-    }
-
-    // Add second page for records
-    doc.addPage();
-    addCounselorPdfHeaderFooter(doc, 2, estimatedPages, trackingNumber, reportDate, logoDataUrl);
-    finalY = PDF_CONTENT_TOP_MM;
-
-    // Records Details
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text("DETAILED RECORDS", 105, finalY, { align: 'center' });
-    finalY += 15;
-
-    recordsToExport.forEach((record, idx) => {
-      // Check if we need a new page (accounting for footer height)
-      if (finalY > maxContentHeight && idx < recordsToExport.length - 1) {
-        estimatedPages++;
-        doc.addPage();
-        addCounselorPdfHeaderFooter(
-          doc,
-          doc.internal.getNumberOfPages(),
-          estimatedPages,
-          trackingNumber,
-          reportDate,
-          logoDataUrl
-        );
-        finalY = PDF_CONTENT_TOP_MM;
-      }
-
-      // Record separator
-      if (idx > 0) {
-        doc.setDrawColor(200, 200, 200);
-        doc.line(14, finalY - 5, 196, finalY - 5);
-        finalY += 5;
-      }
-
-      // Record header
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text(`Record ${idx + 1}`, 14, finalY);
-      finalY += 10;
-
-      // Record details
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "normal");
-      
-      const details = [
-        { label: "Client Name", value: record.clientName || "N/A" },
-        { label: "Date", value: new Date(record.date).toLocaleDateString() },
-        { label: "Status", value: record.status || "N/A" },
-        { label: "Counselor", value: record.counselor || "N/A" },
-      ];
-
-      details.forEach(detail => {
-        doc.setFont("helvetica", "bold");
-        doc.text(`${detail.label}:`, 14, finalY);
-        doc.setFont("helvetica", "normal");
-        doc.text(detail.value, 14 + 50, finalY);
-        finalY += 7;
+    try {
+      // Reports page always exports the counseling summary table (single or multiple rows).
+      const res = await fetch(`${RECORDS_API_URL}/summary-pdf`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recordIds: recordsToExport.map((r) => r._id ?? r.id),
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
+        }),
       });
-
-      // Notes (with word wrap)
-      doc.setFont("helvetica", "bold");
-      doc.text("Notes:", 14, finalY);
-      finalY += 7;
-      doc.setFont("helvetica", "normal");
-      const notes = record.notes || "No notes available";
-      const splitNotes = doc.splitTextToSize(notes, 180);
-      doc.text(splitNotes, 14, finalY);
-      finalY += splitNotes.length * 5 + 5;
-
-      // Outcome (with word wrap)
-      doc.setFont("helvetica", "bold");
-      doc.text("Outcome:", 14, finalY);
-      finalY += 7;
-      doc.setFont("helvetica", "normal");
-      const outcome = record.outcomes || record.outcome || "No outcome recorded";
-      const splitOutcome = doc.splitTextToSize(outcome, 180);
-      doc.text(splitOutcome, 14, finalY);
-      finalY += splitOutcome.length * 5 + 10;
-    });
-
-    // If we only have one page of records, add additional content to ensure 2 pages
-    if (doc.internal.getNumberOfPages() < 2) {
-      doc.addPage();
-      addCounselorPdfHeaderFooter(doc, 2, 2, trackingNumber, reportDate, logoDataUrl);
-      finalY = PDF_CONTENT_TOP_MM;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.text("ADDITIONAL INFORMATION", 105, finalY, { align: 'center' });
-      finalY += 15;
-
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "normal");
-      doc.text("This report contains confidential counseling session records.", 105, finalY, { align: 'center' });
-      finalY += 10;
-      doc.text("All information is protected under client confidentiality agreements.", 105, finalY, { align: 'center' });
-      finalY += 15;
-
-      doc.setFont("helvetica", "bold");
-      doc.text("Report Metadata:", 14, finalY);
-      finalY += 10;
-      doc.setFont("helvetica", "normal");
-      doc.text(`Document ID: ${trackingNumber}`, 14, finalY);
-      finalY += 7;
-      doc.text(`Generated On: ${reportDateTime}`, 14, finalY);
-      finalY += 7;
-      doc.text(`Total Records Included: ${recordsToExport.length}`, 14, finalY);
-      finalY += 7;
-      doc.text(`Report Type: ${selectedRecord ? 'Single Record' : 'Multiple Records'}`, 14, finalY);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        await Swal.fire({
+          icon: "error",
+          title: "Could not generate summary PDF",
+          text: err.error || res.statusText || "Request failed.",
+        });
+        return;
+      }
+      const blob = await res.blob();
+      const serverName = parseFilenameFromContentDisposition(res.headers.get("Content-Disposition"));
+      const fileName =
+        serverName ||
+        (selectedRecord
+          ? `${(selectedRecord.clientName || "record").replace(/\s+/g, "_")}_summary_${trackingNumber}.pdf`
+          : `counseling_summary_${trackingNumber}_${new Date().toISOString().split("T")[0]}.pdf`);
+      downloadPdfBlob(blob, fileName);
+      saveGeneratedReportMetadata({
+        id: `${trackingNumber}-${Date.now()}`,
+        fileName,
+        generatedAt: new Date().toISOString(),
+        reportType: "Counseling Summary Report",
+        recordCount: recordsToExport.length,
+        clientName: selectedRecord?.clientName || clientName || "Multiple clients",
+        trackingNumber,
+      });
+    } catch (e) {
+      console.error(e);
+      await Swal.fire({
+        icon: "error",
+        title: "PDF download failed",
+        text: e.message || "Network error.",
+      });
     }
-
-    // Update all page numbers with correct total
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      addCounselorPdfHeaderFooter(doc, i, totalPages, trackingNumber, reportDate, logoDataUrl);
-    }
-
-    const fileName = selectedRecord
-      ? `${selectedRecord.clientName.replace(/\s+/g, '_')}_record_${trackingNumber}.pdf`
-      : `counseling-records_${trackingNumber}_${new Date().toISOString().split('T')[0]}.pdf`;
-
-    saveGeneratedReportMetadata({
-      id: `${trackingNumber}-${Date.now()}`,
-      fileName,
-      generatedAt: new Date().toISOString(),
-      reportType: selectedRecord ? "Single Record" : "Multiple Records",
-      recordCount: recordsToExport.length,
-      clientName: selectedRecord?.clientName || clientName || "Multiple clients",
-      trackingNumber,
-    });
-
-    doc.save(fileName);
   };
 
   const handleRefresh = () => {
     fetchRecords();
   };
+
+  const formatRecordDetailDate = (value) => {
+    if (!value) return "—";
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString();
+  };
+
+  const recordStatusSurface = (status) => {
+    switch (status) {
+      case "Completed":
+        return "border-gray-200/80 bg-green-50/90 dark:border-gray-600 dark:bg-green-950/35";
+      case "Ongoing":
+        return "border-gray-200/80 bg-orange-50/90 dark:border-gray-600 dark:bg-orange-950/30";
+      case "Referred":
+        return "border-gray-200/80 bg-purple-50/90 dark:border-gray-600 dark:bg-purple-950/35";
+      default:
+        return "border-gray-200/80 bg-gray-50/90 dark:border-gray-600 dark:bg-gray-900/40";
+    }
+  };
+
+  const recordStatusLeftAccent = (status) => {
+    switch (status) {
+      case "Completed":
+        return "border-l-green-500 dark:border-l-green-400";
+      case "Ongoing":
+        return "border-l-orange-500 dark:border-l-orange-400";
+      case "Referred":
+        return "border-l-purple-500 dark:border-l-purple-400";
+      default:
+        return "border-l-gray-400 dark:border-l-gray-500";
+    }
+  };
+
+  const recordStatusText = (status) => {
+    switch (status) {
+      case "Completed":
+        return "text-green-800 dark:text-green-300";
+      case "Ongoing":
+        return "text-orange-800 dark:text-orange-300";
+      case "Referred":
+        return "text-purple-800 dark:text-purple-300";
+      default:
+        return "text-gray-900 dark:text-gray-100";
+    }
+  };
+
+  const detailLabelClass =
+    "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500";
+  const detailReadBoxClass =
+    "min-h-[100px] max-h-[220px] overflow-y-auto whitespace-pre-wrap rounded-xl border border-gray-200 bg-gray-50/90 px-3.5 py-3 text-sm leading-relaxed text-gray-800 dark:border-gray-600 dark:bg-gray-900/45 dark:text-gray-200";
 
   const handleLogout = async () => {
     const result = await Swal.fire({
@@ -641,7 +560,7 @@ const ReportsPage = () => {
   };
 
   return (
-    <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         <motion.main
           className="flex w-full min-w-0 flex-col gap-8"
@@ -719,7 +638,7 @@ const ReportsPage = () => {
                 disabled={filteredRecords.length === 0}
                 className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80 sm:w-auto"
               >
-                Download PDF
+                Download summary PDF
               </button>
             )}
           </div>
@@ -851,89 +770,109 @@ const ReportsPage = () => {
         </motion.main>
       </div>
 
-      {/* Modal for Detailed Record */}
+      {/* Counselor: view record details (read-only) */}
       <AnimatePresence>
         {selectedRecord && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0, 0, 0, 0.5)",
-              backdropFilter: "blur(4px)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 50,
-              padding: "16px",
-            }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-[2px]"
             onClick={() => setSelectedRecord(null)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
+              initial={{ scale: 0.97, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              transition={{ type: "spring", damping: 20 }}
+              exit={{ scale: 0.97, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 380, damping: 28 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-h-[90vh] max-w-lg overflow-y-auto rounded-2xl border border-gray-200/90 bg-white p-6 dark:border-gray-700/90 dark:bg-gray-800/95"
+              className="flex max-h-[min(90vh,720px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
             >
-              <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
-                {selectedRecord.clientName}
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-5 text-sm">
-                Counselor: <strong>{selectedRecord.counselor}</strong> | Date:{" "}
-                <strong>
-                  {new Date(selectedRecord.date).toLocaleDateString()}
-                </strong>
-              </p>
+              <div className="shrink-0 border-b border-gray-200 bg-white/95 px-5 py-4 backdrop-blur-sm dark:border-gray-600 dark:bg-gray-800/95 sm:px-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Record details
+                    </p>
+                    <h2 className="mt-1 text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
+                      {selectedRecord.clientName}
+                    </h2>
+                    <dl className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center gap-1.5">
+                        <dt className="font-medium text-gray-600 dark:text-gray-300">Counselor</dt>
+                        <dd className="truncate text-gray-900 dark:text-gray-100">
+                          {selectedRecord.counselor || "—"}
+                        </dd>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <dt className="font-medium text-gray-600 dark:text-gray-300">Date</dt>
+                        <dd className="tabular-nums text-gray-900 dark:text-gray-100">
+                          {formatRecordDetailDate(selectedRecord.date)}
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedRecord(null)}
+                    className="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-800 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                    aria-label="Close"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
 
-              <div className="mb-4">
-                <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-lg border-l-4 border-indigo-500 dark:border-indigo-400 text-center">
-                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
+              <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
+                <div
+                  className={`rounded-xl border border-l-4 px-4 py-4 text-center ${recordStatusSurface(
+                    selectedRecord.status
+                  )} ${recordStatusLeftAccent(selectedRecord.status)}`}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     Status
+                  </p>
+                  <p
+                    className={`mt-2 text-lg font-semibold tracking-tight ${recordStatusText(selectedRecord.status)}`}
+                  >
+                    {selectedRecord.status || "—"}
+                  </p>
+                </div>
+
+                <div>
+                  <label className={detailLabelClass}>Notes</label>
+                  <div className={detailReadBoxClass}>
+                    {selectedRecord.notes?.trim() ? selectedRecord.notes : "No notes for this session."}
                   </div>
-                  <div className="text-xl font-semibold text-indigo-600 dark:text-indigo-400">
-                    {selectedRecord.status}
+                </div>
+
+                <div>
+                  <label className={detailLabelClass}>Outcome</label>
+                  <div className={detailReadBoxClass}>
+                    {(selectedRecord.outcomes || selectedRecord.outcome)?.trim()
+                      ? selectedRecord.outcomes || selectedRecord.outcome
+                      : "No outcome recorded."}
                   </div>
                 </div>
               </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                  Notes
-                </label>
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm min-h-[80px] max-h-[200px] overflow-y-auto">
-                  {selectedRecord.notes || "No notes available"}
-                </div>
-              </div>
-
-              <div className="mb-5">
-                <label className="block text-sm font-medium mb-1.5 text-gray-700 dark:text-gray-300">
-                  Outcome
-                </label>
-                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 text-sm min-h-[80px]">
-                  {selectedRecord.outcomes || selectedRecord.outcome || "No outcome recorded"}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+              <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-gray-200 bg-gray-50/80 px-5 py-4 dark:border-gray-600 dark:bg-gray-900/30 sm:px-6">
+                <button
+                  type="button"
                   onClick={() => setSelectedRecord(null)}
-                  className="px-5 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                  className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700/80"
                 >
                   Cancel
-                </motion.button>
+                </button>
                 {canGenerateReports && (
                   <button
                     type="button"
                     onClick={handleDownloadPDF}
-                    className="rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                    className="h-10 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                   >
-                    Download PDF
+                    Download summary PDF
                   </button>
                 )}
               </div>

@@ -492,7 +492,7 @@ See [RBAC_DOCUMENTATION.md](RBAC_DOCUMENTATION.md) for:
 
 ### CORS Errors
 - Verify frontend URL matches `CLIENT_URL` in `.env`
-- Check CORS middleware in `app.js`
+- Check CORS middleware in `app.js` (allowed methods include `PATCH` for admin recommendation updates and similar APIs)
 - Browser console shows specific origin issue
 
 ### Port Already in Use

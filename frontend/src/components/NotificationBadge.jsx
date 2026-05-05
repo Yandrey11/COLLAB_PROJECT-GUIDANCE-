@@ -52,6 +52,88 @@ export function NotificationBadgeBadge() {
   );
 }
 
+/** Unread count for counselor ↔ admin direct messages (sidebar Messages item). */
+export function MessagesBadgeBadge() {
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const res = await axios.get(`${baseUrl}/api/counselor/messages/unread-count`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setUnreadCount(res.data?.unreadCount ?? 0);
+      } catch {
+        setUnreadCount(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 12000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading || unreadCount === 0) {
+    return null;
+  }
+
+  return (
+    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white shadow-md dark:bg-indigo-500">
+      {unreadCount > 99 ? "99+" : unreadCount}
+    </span>
+  );
+}
+
+/** Unread counselor → admin direct messages (admin sidebar). */
+export function AdminMessagesBadgeBadge() {
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const token = localStorage.getItem("adminToken");
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const res = await axios.get(`${baseUrl}/api/admin/messages/unread-total`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setUnreadCount(res.data?.unreadCount ?? 0);
+      } catch {
+        setUnreadCount(0);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 12000);
+    return () => clearInterval(interval);
+  }, []);
+
+  if (loading || unreadCount === 0) {
+    return null;
+  }
+
+  return (
+    <span className="flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white shadow-md dark:bg-indigo-500">
+      {unreadCount > 99 ? "99+" : unreadCount}
+    </span>
+  );
+}
+
 // Full button component (standalone use)
 export default function NotificationBadge() {
   const navigate = useNavigate();

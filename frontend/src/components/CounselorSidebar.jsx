@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
-import { NotificationBadgeBadge } from "./NotificationBadge";
+import { NotificationBadgeBadge, MessagesBadgeBadge } from "./NotificationBadge";
 import { initializeTheme } from "../utils/themeUtils";
 
 export default function CounselorSidebar({ variant = "sidebar" }) {
@@ -140,10 +140,16 @@ export default function CounselorSidebar({ variant = "sidebar" }) {
       requiresPermission: "can_view_records",
     },
     {
+      label: "Archived",
+      path: "/records/archive",
+      requiresPermission: "can_view_records",
+    },
+    {
       label: "Reports",
       path: "/reports",
       requiresPermission: "can_view_reports",
     },
+    { label: "Messages", path: "/messages", hasMessagesBadge: true },
     { label: "Notifications", path: "/notifications", hasBadge: true },
     { label: "Profile", path: "/profile" },
   ].filter((item) => {
@@ -156,6 +162,9 @@ export default function CounselorSidebar({ variant = "sidebar" }) {
 
   // Check if a route is active
   const isActive = (path) => {
+    if (path === "/records") {
+      return location.pathname === "/records" && !location.pathname.startsWith("/records/archive");
+    }
     return location.pathname === path;
   };
 
@@ -178,7 +187,12 @@ export default function CounselorSidebar({ variant = "sidebar" }) {
                   : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700/55"
               }`}
             >
-              <span className={item.hasBadge ? "pr-8" : ""}>{item.label}</span>
+              <span className={item.hasBadge || item.hasMessagesBadge ? "pr-8" : ""}>{item.label}</span>
+              {item.hasMessagesBadge ? (
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
+                  <MessagesBadgeBadge />
+                </span>
+              ) : null}
               {item.hasBadge ? (
                 <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
                   <NotificationBadgeBadge />

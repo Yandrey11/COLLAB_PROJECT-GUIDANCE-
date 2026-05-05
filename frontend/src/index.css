@@ -32,13 +32,15 @@ body {
   color: #0f172a;
 }
 
-/* System-wide page background gradient */
+/* System-wide page background gradient + readable default text (light/dark) */
 .page-bg {
   background: linear-gradient(135deg, #e0e7ff 0%, #ede9fe 50%, #ddd6fe 100%);
+  color: #111827;
 }
 
 .dark .page-bg {
   background: linear-gradient(135deg, #111827 0%, #1f2937 60%, #1e1b4b 100%);
+  color: #e5e7eb;
 }
 
 /* Admin pages typography scale */

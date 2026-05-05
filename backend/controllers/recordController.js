@@ -1,4 +1,5 @@
 import Record from "../models/Record.js";
+import mongoose from "mongoose";
 import fs from "fs";
 import path from "path";
 import { google } from "googleapis";
@@ -9,7 +10,20 @@ import { createNotification } from "./admin/notificationController.js";
 import { createCounselorNotification } from "./counselorNotificationController.js";
 import { logLockAction } from "./admin/recordLockController.js";
 import { generateCounselingRecordPDF } from "../utils/pdfUtils.js";
+import {
+  generateCounselingSummaryPdf,
+  buildSummaryMonthLabel,
+  buildSummaryMonthLabelFromRecords,
+  inferSummarySchoolYear,
+} from "../utils/counselingSummaryPdf.js";
 import { normalizeProblemsPresentedFromBody } from "../utils/problemsPresented.js";
+import { resolveRecommendationAuthorName } from "../utils/recommendationAuthor.js";
+import RecordLock from "../models/RecordLock.js";
+import {
+  notArchivedFilter,
+  isArchivedFilter,
+  archivePurgeDateFromNow,
+} from "../config/recordArchive.js";
 
 // Build OAuth2 client for Google APIs (reusable for Drive, Calendar)
 const getOAuth2Client = () =>
@@ -402,16 +416,57 @@ const getUserInfo = (req) => {
   };
 };
 
+/** Counselors only see their own rows; admins see all (matches reportController scope). */
+const counselorRecordsScopeFragment = (req) => {
+  const user = req.user;
+  if (!user) return { _id: { $exists: false } };
+  if (user.role === "admin" || user.permissions?.is_admin === true) {
+    return null;
+  }
+  const userName = (user.name && String(user.name).trim()) || "";
+  const userEmail = (user.email && String(user.email).trim()) || "";
+  const or = [
+    ...(userName ? [{ counselor: userName }, { "auditTrail.createdBy.userName": userName }] : []),
+    ...(userEmail ? [{ counselor: userEmail }] : []),
+  ];
+  if (or.length === 0) return { _id: { $exists: false } };
+  return { $or: or };
+};
+
+const recordBelongsToCounselorOrAdmin = (record, req) => {
+  if (!req.user) return false;
+  if (req.user.role === "admin" || req.user.permissions?.is_admin === true) {
+    return true;
+  }
+  const userInfo = getUserInfo(req);
+  const counselorName = userInfo.userName;
+  const counselorEmail = req.user?.email;
+  return (
+    record.counselor === counselorName ||
+    record.counselor === counselorEmail ||
+    (req.user?.email && record.counselor === req.user.email) ||
+    (req.user?.name && record.counselor === req.user.name)
+  );
+};
+
 // 📋 1️⃣ Fetch all records (with query filters)
 export const getRecords = async (req, res) => {
   try {
-    const { search, sessionType, status, startDate, endDate, sortBy, order } = req.query;
-    const filter = {};
+    const { search, sessionType, status, startDate, endDate, sortBy, order, archived } = req.query;
+    const showArchived = archived === "true" || archived === true;
 
-    if (search) filter.clientName = { $regex: search, $options: "i" };
-    if (sessionType) filter.sessionType = sessionType;
-    if (status) filter.status = status;
-    if (startDate && endDate) filter.date = { $gte: startDate, $lte: endDate };
+    const parts = [];
+    parts.push(showArchived ? isArchivedFilter() : notArchivedFilter());
+
+    const scope = counselorRecordsScopeFragment(req);
+    if (scope) parts.push(scope);
+
+    if (search) parts.push({ clientName: { $regex: search, $options: "i" } });
+    if (sessionType) parts.push({ sessionType: sessionType });
+    if (status) parts.push({ status: status });
+    if (startDate && endDate) parts.push({ date: { $gte: startDate, $lte: endDate } });
+
+    const filter = parts.length === 1 ? parts[0] : { $and: parts };
 
     const sortOption = {};
     if (sortBy) sortOption[sortBy] = order === "desc" ? -1 : 1;
@@ -423,6 +478,93 @@ export const getRecords = async (req, res) => {
   }
 };
 
+/** Purge counselor-archived records past `archivePurgeAt`. Call from a scheduled job. */
+export const purgeExpiredArchivedRecords = async () => {
+  const now = new Date();
+  const result = await Record.deleteMany({
+    archivedAt: { $ne: null },
+    archivePurgeAt: { $lte: now },
+  });
+  if (result.deletedCount > 0) {
+    console.log(`[archive-purge] Removed ${result.deletedCount} archived record(s) past retention.`);
+  }
+  return result.deletedCount;
+};
+
+export const archiveRecord = async (req, res) => {
+  try {
+    const record = await Record.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: "Record not found" });
+    }
+    if (record.archivedAt) {
+      return res.status(400).json({ message: "Record is already archived." });
+    }
+    if (!recordBelongsToCounselorOrAdmin(record, req)) {
+      return res.status(403).json({ message: "You don't have permission to archive this record." });
+    }
+
+    const userInfo = getUserInfo(req);
+    await RecordLock.deleteMany({ recordId: record._id });
+
+    record.archivedAt = new Date();
+    record.archivePurgeAt = archivePurgeDateFromNow();
+    record.archivedBy = {
+      userId: userInfo.userId,
+      userName: userInfo.userName,
+      userRole: userInfo.userRole,
+    };
+    if (record.auditTrail) {
+      record.auditTrail.lastModifiedBy = userInfo;
+      record.auditTrail.lastModifiedAt = new Date();
+    }
+    await record.save();
+
+    res.json({
+      success: true,
+      message: "Record archived.",
+      record: record.toObject ? record.toObject() : record,
+    });
+  } catch (err) {
+    console.error("archiveRecord error:", err);
+    res.status(500).json({ message: "Failed to archive record", error: err.message });
+  }
+};
+
+export const unarchiveRecord = async (req, res) => {
+  try {
+    const record = await Record.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: "Record not found" });
+    }
+    if (!record.archivedAt) {
+      return res.status(400).json({ message: "Record is not archived." });
+    }
+    if (!recordBelongsToCounselorOrAdmin(record, req)) {
+      return res.status(403).json({ message: "You don't have permission to restore this record." });
+    }
+
+    const userInfo = getUserInfo(req);
+    record.archivedAt = null;
+    record.archivePurgeAt = null;
+    record.set("archivedBy", undefined);
+    if (record.auditTrail) {
+      record.auditTrail.lastModifiedBy = userInfo;
+      record.auditTrail.lastModifiedAt = new Date();
+    }
+    await record.save();
+
+    res.json({
+      success: true,
+      message: "Record restored.",
+      record: record.toObject ? record.toObject() : record,
+    });
+  } catch (err) {
+    console.error("unarchiveRecord error:", err);
+    res.status(500).json({ message: "Failed to restore record", error: err.message });
+  }
+};
+
 // ☁️ Sync records without Drive link to the logged-in user's Google Drive (uses account used to login)
 export const syncRecordsToDrive = async (req, res) => {
   try {
@@ -431,6 +573,7 @@ export const syncRecordsToDrive = async (req, res) => {
     const counselorEmail = userInfo.userEmail;
     const recordsToSync = await Record.find({
       $and: [
+        notArchivedFilter(),
         {
           $or: [
             { counselor: counselorName },
@@ -468,10 +611,15 @@ export const syncAllRecordsToGoogleCalendar = async (req, res) => {
     const counselorEmail = userInfo.userEmail;
     // Only sync records for the current counselor
     const records = await Record.find({
-      $or: [
-        { counselor: counselorName },
-        { counselor: counselorEmail },
-        { "auditTrail.createdBy.userName": counselorName },
+      $and: [
+        notArchivedFilter(),
+        {
+          $or: [
+            { counselor: counselorName },
+            { counselor: counselorEmail },
+            { "auditTrail.createdBy.userName": counselorName },
+          ],
+        },
       ],
     });
     let synced = 0;
@@ -503,8 +651,14 @@ export const updateRecord = async (req, res) => {
       return res.status(404).json({ message: "Record not found" });
     }
 
+    if (record.archivedAt) {
+      return res.status(403).json({
+        success: false,
+        message: "This record is archived. Restore it from Archived records before editing.",
+      });
+    }
+
     // STRICT 2PL: Additional lock ownership validation (defense in depth)
-    const RecordLock = (await import("../models/RecordLock.js")).default;
     const { cleanupExpiredLocks } = await import("./admin/recordLockController.js");
     await cleanupExpiredLocks();
 
@@ -539,6 +693,11 @@ export const updateRecord = async (req, res) => {
 
     // Track changes for audit trail
     const updateData = { ...req.body };
+    delete updateData.recommendationAuthorName;
+    delete updateData.directorName;
+    delete updateData.archivedAt;
+    delete updateData.archivePurgeAt;
+    delete updateData.archivedBy;
 
     if (
       Object.prototype.hasOwnProperty.call(updateData, "problemsPresented") ||
@@ -551,6 +710,7 @@ export const updateRecord = async (req, res) => {
       updateData.problemsPresentedNotes = pp.problemsPresentedNotes;
     }
 
+    const changes = [];
     // Compare old and new values
     Object.keys(updateData).forEach((key) => {
       if (key !== "auditTrail" && key !== "attachments" && record[key] !== updateData[key]) {
@@ -566,6 +726,15 @@ export const updateRecord = async (req, res) => {
 
     // Update record
     Object.assign(record, updateData);
+
+    const recommendationChange = changes.find((c) => c.field === "recommendation");
+    if (recommendationChange) {
+      const newRec = record.recommendation;
+      record.recommendationAuthorName =
+        newRec != null && String(newRec).trim()
+          ? String(userInfo.userName || userInfo.userEmail || "").trim()
+          : "";
+    }
 
     // Update audit trail
     if (!record.auditTrail) {
@@ -598,7 +767,6 @@ export const updateRecord = async (req, res) => {
 
     // Log UPDATE action
     try {
-      const RecordLock = (await import("../models/RecordLock.js")).default;
       const currentLock = await RecordLock.findOne({
         recordId: req.params.id,
         isActive: true,
@@ -714,6 +882,7 @@ const uploadRecordToDrive = async (record, req) => {
             : "",
         remarks: fetchedRecord.remarks || null,
         recommendation: fetchedRecord.recommendation || null,
+        recommendationAuthorName: resolveRecommendationAuthorName(fetchedRecord),
       };
     } else {
       // If record is already a plain object, use it directly
@@ -738,6 +907,7 @@ const uploadRecordToDrive = async (record, req) => {
           record.problemsPresentedNotes != null ? record.problemsPresentedNotes : "",
         remarks: record.remarks || null,
         recommendation: record.recommendation || null,
+        recommendationAuthorName: resolveRecommendationAuthorName(record),
       };
     }
 
@@ -877,6 +1047,10 @@ export const createRecord = async (req, res) => {
       problemsPresentedNotes: pp.problemsPresentedNotes,
       remarks: req.body.remarks,
       recommendation: req.body.recommendation,
+      recommendationAuthorName:
+        req.body.recommendation != null && String(req.body.recommendation).trim()
+          ? String(counselorName || userInfo.userName || userInfo.userEmail || "").trim()
+          : "",
       counselor: counselorName, // ✅ Set automatically from authenticated user
       auditTrail: {
         createdBy: userInfo,
@@ -982,6 +1156,11 @@ export const uploadToDrive = async (req, res) => {
     if (!record) {
       return res.status(404).json({ error: "Record not found" });
     }
+    if (record.archivedAt) {
+      return res.status(403).json({
+        error: "Archived records cannot be uploaded to Drive. Restore the record first.",
+      });
+    }
 
     const drive = await getDriveClientFromUser(req.user);
     if (!drive) {
@@ -1010,6 +1189,7 @@ export const uploadToDrive = async (req, res) => {
         record.problemsPresentedNotes != null ? record.problemsPresentedNotes : "",
       remarks: record.remarks || null,
       recommendation: record.recommendation || null,
+      recommendationAuthorName: resolveRecommendationAuthorName(record),
     };
 
     // Get counselor name for filename
@@ -1080,6 +1260,20 @@ export const generateRecordPDF = async (req, res) => {
       return res.status(404).json({ error: "Record not found" });
     }
 
+    const userInfo = getUserInfo(req);
+    const isAdmin = userInfo.userRole === "admin";
+    if (!isAdmin) {
+      const counselorName = userInfo.userName;
+      const counselorEmail = userInfo.userEmail;
+      const owns =
+        record.counselor === counselorName ||
+        record.counselor === counselorEmail ||
+        record.auditTrail?.createdBy?.userName === counselorName;
+      if (!owns) {
+        return res.status(403).json({ error: "You do not have access to this record." });
+      }
+    }
+
     const recordData = {
       _id: record._id,
       clientName: record.clientName || "N/A",
@@ -1101,6 +1295,7 @@ export const generateRecordPDF = async (req, res) => {
         record.problemsPresentedNotes != null ? record.problemsPresentedNotes : "",
       remarks: record.remarks || null,
       recommendation: record.recommendation || null,
+      recommendationAuthorName: resolveRecommendationAuthorName(record),
     };
 
     if (!recordData.clientName || recordData.clientName === "N/A") {
@@ -1135,6 +1330,92 @@ export const generateRecordPDF = async (req, res) => {
     if (!res.headersSent) {
       return res.status(500).json({
         error: err.message || "Failed to generate PDF. Please try again.",
+      });
+    }
+  }
+};
+
+/** POST body: { recordIds: string[], startDate?: string, endDate?: string } */
+export const generateSummaryRecordsPDF = async (req, res) => {
+  try {
+    const { recordIds, startDate, endDate } = req.body || {};
+    if (!Array.isArray(recordIds) || recordIds.length === 0) {
+      return res.status(400).json({ error: "recordIds must be a non-empty array" });
+    }
+    if (recordIds.length > 500) {
+      return res.status(400).json({ error: "Too many records in one request" });
+    }
+    const ids = [
+      ...new Set(recordIds.map((id) => String(id).trim()).filter((id) => mongoose.Types.ObjectId.isValid(id))),
+    ];
+    if (ids.length === 0) {
+      return res.status(400).json({ error: "No valid record ids provided" });
+    }
+
+    const userInfo = getUserInfo(req);
+    const isAdmin = userInfo.userRole === "admin";
+
+    const idQuery = { _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } };
+    const notArchived = notArchivedFilter();
+    const query = isAdmin
+      ? { $and: [idQuery, notArchived] }
+      : {
+          $and: [
+            idQuery,
+            notArchived,
+            {
+              $or: [
+                { counselor: userInfo.userName },
+                { counselor: userInfo.userEmail },
+                { "auditTrail.createdBy.userName": userInfo.userName },
+              ],
+            },
+          ],
+        };
+
+    const records = await Record.find(query).sort({ date: 1 }).lean();
+    if (records.length !== ids.length) {
+      return res.status(403).json({
+        error: "Some records were not found or you do not have access to them.",
+      });
+    }
+
+    const trackingNumber = `DOC-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+    const monthLabel =
+      startDate || endDate
+        ? buildSummaryMonthLabel(startDate, endDate)
+        : buildSummaryMonthLabelFromRecords(records);
+    const schoolYear = inferSummarySchoolYear(records);
+    const reportDate = new Date().toLocaleDateString();
+
+    const pdfPath = await generateCounselingSummaryPdf(records, {
+      monthLabel,
+      schoolYear,
+      trackingNumber,
+      reportDate,
+    });
+
+    const fileName = `counseling_summary_${trackingNumber}.pdf`;
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    return res.sendFile(path.resolve(pdfPath), (sendErr) => {
+      try {
+        if (fs.existsSync(pdfPath)) {
+          fs.unlinkSync(pdfPath);
+        }
+      } catch (cleanupErr) {
+        console.error("Failed to clean up temporary summary PDF:", cleanupErr);
+      }
+      if (sendErr && !res.headersSent) {
+        res.status(500).json({ error: "Failed to stream generated PDF." });
+      }
+    });
+  } catch (err) {
+    console.error("❌ Summary PDF error:", err);
+    if (!res.headersSent) {
+      return res.status(500).json({
+        error: err.message || "Failed to generate summary PDF.",
       });
     }
   }

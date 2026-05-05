@@ -1,18 +1,46 @@
 // controllers/reportController.js
 import Record from "../models/Record.js";
 import { createNotification } from "./admin/notificationController.js";
+import { notArchivedFilter } from "../config/recordArchive.js";
 
-// ✅ Get all reports (optionally filter by client or date)
+/**
+ * Counselors only see their own records; admins (role / is_admin) see all.
+ * @returns {object|null} Mongo filter fragment to AND with other conditions, or null for no scope.
+ */
+const counselorScopeFilter = (req) => {
+  const user = req.user || req.admin;
+  if (!user) return null;
+  if (user.role === "admin" || user.permissions?.is_admin === true) {
+    return null;
+  }
+  const userName = (user.name && String(user.name).trim()) || "";
+  const userEmail = (user.email && String(user.email).trim()) || "";
+  const or = [
+    ...(userName ? [{ counselor: userName }, { "auditTrail.createdBy.userName": userName }] : []),
+    ...(userEmail ? [{ counselor: userEmail }] : []),
+  ];
+  if (or.length === 0) return { _id: { $exists: false } };
+  return { $or: or };
+};
+
+function buildReportsQuery(req, extra = {}) {
+  const { clientName, startDate, endDate } = extra;
+  const parts = [notArchivedFilter()];
+  if (clientName) parts.push({ clientName: new RegExp(clientName, "i") });
+  if (startDate && endDate) {
+    parts.push({ date: { $gte: new Date(startDate), $lte: new Date(endDate) } });
+  }
+  const scope = counselorScopeFilter(req);
+  if (scope) parts.push(scope);
+  if (parts.length === 1) return parts[0];
+  return { $and: parts };
+}
+
+// ✅ Get reports for the current counselor (or all, for admins) — optional client/date filters
 export const getReports = async (req, res) => {
   try {
     const { clientName, startDate, endDate } = req.query;
-    const query = {};
-
-    if (clientName) query.clientName = new RegExp(clientName, "i");
-    if (startDate && endDate) {
-      query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
-    }
-
+    const query = buildReportsQuery(req, { clientName, startDate, endDate });
     const reports = await Record.find(query).sort({ date: -1 });
     res.status(200).json(reports);
   } catch (err) {
@@ -36,11 +64,13 @@ export const generateReport = async (req, res) => {
   }
 
   try {
-    const query = { clientName: new RegExp(clientName, "i") };
-
+    const parts = [notArchivedFilter(), { clientName: new RegExp(clientName, "i") }];
     if (startDate && endDate) {
-      query.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+      parts.push({ date: { $gte: new Date(startDate), $lte: new Date(endDate) } });
     }
+    const scope = counselorScopeFilter(req);
+    if (scope) parts.push(scope);
+    const query = parts.length === 1 ? parts[0] : { $and: parts };
 
     const sessions = await Record.find(query);
 
@@ -99,7 +129,11 @@ export const generateReport = async (req, res) => {
 export const getClientReport = async (req, res) => {
   try {
     const { clientName } = req.params;
-    const records = await Record.find({ clientName: new RegExp(clientName, "i") });
+    const parts = [notArchivedFilter(), { clientName: new RegExp(clientName, "i") }];
+    const scope = counselorScopeFilter(req);
+    if (scope) parts.push(scope);
+    const query = parts.length === 1 ? parts[0] : { $and: parts };
+    const records = await Record.find(query);
 
     if (!records.length) {
       return res.status(404).json({ message: "No report found for this client" });

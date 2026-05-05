@@ -31,6 +31,7 @@ const counselorNotificationSchema = new mongoose.Schema(
         "Announcement",
         "System Alert",
         "Record Request",
+        "Message",
       ],
       default: "System Alert",
       required: true,
@@ -58,7 +59,7 @@ const counselorNotificationSchema = new mongoose.Schema(
     },
     relatedType: {
       type: String,
-      enum: ["record", "announcement", "schedule", "system"],
+      enum: ["record", "announcement", "schedule", "system", "message"],
       default: "system",
     },
     // For admin-created announcements sent to all counselors

@@ -23,10 +23,12 @@ import AdminSettingsPage from "./pages/Admin/AdminSettingsPage";
 import BackupRestore from "./pages/Admin/BackupRestore";
 import Analytics from "./pages/Admin/Analytics";
 import AdminReports from "./pages/Admin/AdminReports";
+import AdminMessages from "./pages/Admin/AdminMessages";
 
 import RecordsPage from "./pages/RecordsPage";
 import ReportsPage from "./pages/ReportsPage";
 import NotificationCenter from "./pages/NotificationCenter";
+import MessagesPage from "./pages/MessagesPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
 import RouteLoadingBar from "./components/RouteLoadingBar";
@@ -49,8 +51,10 @@ function App() {
         {/* User routes - require auth token */}
         <Route path="/dashboard" element={<ProtectedUserRoute><Dashboard /></ProtectedUserRoute>} />
         <Route path="/records" element={<ProtectedUserRoute><RecordsPage /></ProtectedUserRoute>} />
+        <Route path="/records/archive" element={<ProtectedUserRoute><RecordsPage archivedView /></ProtectedUserRoute>} />
         <Route path="/reports" element={<ProtectedUserRoute><ReportsPage /></ProtectedUserRoute>} />
         <Route path="/notifications" element={<ProtectedUserRoute><NotificationCenter /></ProtectedUserRoute>} />
+        <Route path="/messages" element={<ProtectedUserRoute><MessagesPage /></ProtectedUserRoute>} />
         <Route path="/profile" element={<ProtectedUserRoute><ProfilePage /></ProtectedUserRoute>} />
         <Route path="/settings" element={<ProtectedUserRoute><SettingsPage /></ProtectedUserRoute>} />
 
@@ -64,6 +68,7 @@ function App() {
         <Route path="/AdminDashboard" element={<Navigate to="/admindashboard" replace />} />
         <Route path="/admin/users" element={<ProtectedAdminRoute><UserManagement /></ProtectedAdminRoute>} />
         <Route path="/admin/notifications" element={<ProtectedAdminRoute><AdminNotificationCenter /></ProtectedAdminRoute>} />
+        <Route path="/admin/messages" element={<ProtectedAdminRoute><AdminMessages /></ProtectedAdminRoute>} />
         <Route path="/admin/records" element={<ProtectedAdminRoute><AdminRecordManagement /></ProtectedAdminRoute>} />
         <Route path="/admin/backups" element={<ProtectedAdminRoute><BackupRestore /></ProtectedAdminRoute>} />
         <Route path="/admin/analytics" element={<ProtectedAdminRoute><Analytics /></ProtectedAdminRoute>} />

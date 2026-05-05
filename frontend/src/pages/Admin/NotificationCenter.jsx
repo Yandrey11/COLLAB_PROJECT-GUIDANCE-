@@ -31,6 +31,10 @@ export default function NotificationCenter() {
   });
 
   useEffect(() => {
+    initializeTheme();
+  }, []);
+
+  useEffect(() => {
     const token = localStorage.getItem("adminToken");
     if (!token) {
       navigate("/adminlogin", { replace: true });
@@ -150,12 +154,6 @@ export default function NotificationCenter() {
     } finally {
       setSavingSettings(false);
     }
-  };
-
-  const handleFilter = async () => {
-    const token = localStorage.getItem("adminToken");
-    setCurrentPage(1); // Reset to first page when filtering
-    await fetchNotifications(token, 1, statusFilter, categoryFilter, searchQuery);
   };
 
   const handleSearch = async (e) => {
@@ -344,144 +342,199 @@ export default function NotificationCenter() {
   const getCategoryColor = (category) => {
     switch (category) {
       case "System Alert":
-        return { bg: "rgba(59,130,246,0.1)", color: "#2563eb", icon: "⚠️" };
+        return {
+          icon: "⚠️",
+          chip: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800/70 dark:bg-blue-950/40 dark:text-blue-300",
+        };
       case "User Activity":
-        return { bg: "rgba(16,185,129,0.1)", color: "#10b981", icon: "👤" };
+        return {
+          icon: "👤",
+          chip: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-950/40 dark:text-emerald-300",
+        };
       case "Error":
-        return { bg: "rgba(239,68,68,0.1)", color: "#dc2626", icon: "❌" };
+        return {
+          icon: "❌",
+          chip: "border-red-200 bg-red-50 text-red-700 dark:border-red-800/70 dark:bg-red-950/40 dark:text-red-300",
+        };
       case "Security Alert":
-        return { bg: "rgba(245,158,11,0.1)", color: "#f59e0b", icon: "🔒" };
+        return {
+          icon: "🔒",
+          chip: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/70 dark:bg-amber-950/40 dark:text-amber-300",
+        };
       default:
-        return { bg: "rgba(107,114,128,0.1)", color: "#6b7280", icon: "ℹ️" };
+        return {
+          icon: "ℹ️",
+          chip: "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-300",
+        };
     }
   };
 
   const getPriorityBadge = (priority) => {
     switch (priority) {
       case "critical":
-        return { bg: "#dc2626", color: "#fff", text: "Critical" };
+        return {
+          text: "Critical",
+          chip: "border-red-200 bg-red-50 text-red-700 dark:border-red-800/70 dark:bg-red-950/40 dark:text-red-300",
+        };
       case "high":
-        return { bg: "#f59e0b", color: "#fff", text: "High" };
+        return {
+          text: "High",
+          chip: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/70 dark:bg-amber-950/40 dark:text-amber-300",
+        };
       case "medium":
-        return { bg: "#3b82f6", color: "#fff", text: "Medium" };
+        return {
+          text: "Medium",
+          chip: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800/70 dark:bg-blue-950/40 dark:text-blue-300",
+        };
       default:
-        return { bg: "#6b7280", color: "#fff", text: "Low" };
+        return {
+          text: "Low",
+          chip: "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-300",
+        };
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg admin-typography font-sans p-3 md:p-5 gap-5">
-      <div className="w-full max-w-[1800px]">
-        <div className="flex flex-col gap-5 min-w-0">
-          {/* Header */}
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm">
-            <div className="flex justify-between items-center gap-4 flex-wrap">
-              <div className="flex items-center gap-4 min-w-0">
-                <AdminSidebar variant="header" />
-                <div className="min-w-0">
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 m-0">Notification Center</h1>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1.5">
-                    Manage and monitor system notifications and alerts.
-                  </p>
-                </div>
+    <div className="page-bg admin-typography min-h-screen w-full px-3 py-3 font-sans text-gray-900 dark:text-gray-100 sm:px-4 md:px-5 md:py-5">
+      <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-5">
+        <section className="rounded-2xl border border-gray-200 bg-white/95 p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800/95 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <AdminSidebar variant="header" />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+                  Admin Center
+                </p>
+                <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                  Notification Center
+                </h1>
+                <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
+                  Monitor alerts, review activity, and manage notification flow.
+                </p>
               </div>
-              <div className="flex items-center gap-3">
-                {unreadCount > 0 && (
-                  <div className="px-4 py-2 rounded-lg bg-red-500 text-white font-semibold text-sm">
-                    {unreadCount} Unread
-                  </div>
-                )}
-                <button
-                  onClick={handleMarkAllAsRead}
-                  className="px-5 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 cursor-pointer font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                >
-                  Mark All Read
-                </button>
-                <button
-                  onClick={handleDeleteAllRead}
-                  className="px-5 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-red-600 dark:text-red-400 cursor-pointer font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-                >
-                  Delete Read
-                </button>
-              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={handleMarkAllAsRead}
+                className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-indigo-600 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-indigo-300 dark:hover:bg-gray-600"
+              >
+                Mark All Read
+              </button>
+              <button
+                onClick={handleDeleteAllRead}
+                className="h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-800/60 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/40"
+              >
+                Delete Read
+              </button>
             </div>
           </div>
 
-        {/* Message Alert */}
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <article className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Total on page
+              </p>
+              <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">
+                {notifications.length}
+              </p>
+            </article>
+            <article className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-900/50 dark:bg-indigo-950/30">
+              <p className="text-xs uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                Unread
+              </p>
+              <p className="mt-1 text-xl font-semibold text-indigo-700 dark:text-indigo-200">
+                {unreadCount}
+              </p>
+            </article>
+            <article className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Current page
+              </p>
+              <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">
+                {currentPage} / {totalPages}
+              </p>
+            </article>
+          </div>
+        </section>
+
         {message.text && (
           <div
-            className={`px-5 py-3 rounded-lg font-medium text-sm ${
+            className={`rounded-xl border px-4 py-3 text-sm font-medium ${
               message.type === "success"
-                ? "bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300"
-                : "bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300"
+                ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300"
+                : "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
             }`}
           >
             {message.text}
           </div>
         )}
 
-        {/* Notification Settings */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm">
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
           <button
             type="button"
             onClick={() => setShowNotificationSettings((prev) => !prev)}
-            className="w-full flex items-center justify-between text-left"
+            className="flex w-full items-center justify-between gap-3 text-left"
           >
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Notification Settings
-            </h2>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Notification Settings
+              </h2>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Choose what activity should notify administrators.
+              </p>
+            </div>
             <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
-              {showNotificationSettings ? "Hide ▲" : "Show ▼"}
+              {showNotificationSettings ? "Hide" : "Show"}
             </span>
           </button>
 
           {showNotificationSettings && (
-            <div className="space-y-6 mt-6">
+            <div className="mt-5 space-y-4">
               {[
                 {
                   key: "newUserCreations",
                   label: "New User Creations",
-                  description: "Receive notifications when new users are created",
+                  description: "Receive notifications when new users are created.",
                 },
                 {
                   key: "recordUpdates",
                   label: "Record Updates",
-                  description: "Receive notifications when counseling records are updated",
+                  description: "Receive notifications when counseling records are updated.",
                 },
                 {
                   key: "criticalSystemAlerts",
                   label: "Critical System Alerts",
-                  description: "Receive notifications for critical system events",
+                  description: "Receive notifications for critical system events.",
                 },
                 {
                   key: "pdfGenerations",
                   label: "PDF Generations",
-                  description: "Receive notifications when PDFs are generated",
+                  description: "Receive notifications when PDFs are generated.",
                 },
                 {
                   key: "loginAttempts",
                   label: "Login Attempts",
-                  description: "Receive notifications for login attempts (admin only)",
+                  description: "Receive notifications for admin login attempts.",
                 },
                 {
                   key: "soundEnabled",
                   label: "Notification Sound",
-                  description: "Play sound when notifications are received",
+                  description: "Play sound whenever a new notification arrives.",
                 },
               ].map((item) => (
                 <div
                   key={item.key}
-                  className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                  className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
                 >
-                  <div>
-                    <p className="font-medium text-gray-900 dark:text-gray-100">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
                       {item.label}
                     </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                       {item.description}
                     </p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
+                  <label className="relative inline-flex cursor-pointer items-center">
                     <input
                       type="checkbox"
                       checked={notificationSettings[item.key]}
@@ -491,39 +544,37 @@ export default function NotificationCenter() {
                           [item.key]: e.target.checked,
                         }))
                       }
-                      className="sr-only peer"
+                      className="peer sr-only"
                     />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                    <div className="relative h-6 w-11 shrink-0 rounded-full bg-gray-200 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300/80 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-600 dark:peer-focus:ring-indigo-800/60" />
                   </label>
                 </div>
               ))}
-              <div>
-                <button
-                  onClick={handleSaveNotificationSettings}
-                  disabled={savingSettings}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {savingSettings ? "Saving..." : "Save Notification Settings"}
-                </button>
-              </div>
+              <button
+                onClick={handleSaveNotificationSettings}
+                disabled={savingSettings}
+                className="mt-1 h-10 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingSettings ? "Saving..." : "Save Notification Settings"}
+              </button>
             </div>
           )}
-        </div>
+        </section>
 
-        {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm">
-          <form onSubmit={handleSearch} className="flex gap-3 items-stretch flex-wrap w-full">
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Filters</h2>
+          <form onSubmit={handleSearch} className="mt-4 flex flex-wrap items-stretch gap-3">
             <input
               type="text"
-              placeholder="Search notifications..."
+              placeholder="Search notifications"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1 min-w-[200px] px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 placeholder-gray-400 dark:placeholder-gray-500"
+              className="h-11 min-w-[220px] flex-1 rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-indigo-400"
             />
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-indigo-600 dark:bg-indigo-600 text-white text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="h-11 rounded-lg border border-gray-200 bg-white px-3.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
             >
               <option value="all">All Status</option>
               <option value="unread">Unread</option>
@@ -532,7 +583,7 @@ export default function NotificationCenter() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-indigo-600 dark:bg-indigo-600 text-white text-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="h-11 rounded-lg border border-gray-200 bg-white px-3.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
             >
               <option value="all">All Categories</option>
               <option value="System Alert">System Alert</option>
@@ -541,164 +592,127 @@ export default function NotificationCenter() {
               <option value="Security Alert">Security Alert</option>
               <option value="Info">Info</option>
             </select>
-            <div className="flex gap-2 flex-wrap">
-              <button
-                type="submit"
-                className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 text-white font-semibold text-sm cursor-pointer transition-all shadow-md hover:shadow-lg"
-              >
-                Search
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setStatusFilter("all");
-                  setCategoryFilter("all");
-                  setSearchQuery("");
-                  const token = localStorage.getItem("adminToken");
-                  fetchNotifications(token, 1, "all", "all", "");
-                }}
-                className="px-5 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer font-semibold text-sm hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-              >
-                Reset
-              </button>
-            </div>
+            <button
+              type="submit"
+              className="h-11 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+            >
+              Search
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setStatusFilter("all");
+                setCategoryFilter("all");
+                setSearchQuery("");
+                const token = localStorage.getItem("adminToken");
+                fetchNotifications(token, 1, "all", "all", "");
+              }}
+              className="h-11 rounded-lg border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+            >
+              Reset
+            </button>
           </form>
-        </div>
+        </section>
 
-        {/* Notifications List */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm">
-          <h2 className="text-indigo-600 dark:text-indigo-400 mt-0 font-bold">Notifications</h2>
-          {notifications.length === 0 ? (
-            <div style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Notifications</h2>
+          </div>
+
+          {loading ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">
+              Loading notifications...
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">
               No notifications found.
             </div>
           ) : (
             <>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="space-y-3">
                 {notifications.map((notification) => {
-                  const categoryColors = getCategoryColor(notification.category);
-                  const priorityBadge = getPriorityBadge(notification.priority);
+                  const category = getCategoryColor(notification.category);
+                  const priority = getPriorityBadge(notification.priority);
                   const isUnread = notification.status === "unread";
                   const isCritical = notification.priority === "critical";
 
                   return (
-                    <div
+                    <article
                       key={notification.id}
-                      style={{
-                        padding: 12,
-                        borderRadius: 8,
-                        className: isUnread 
-                          ? "border-2 border-indigo-600 dark:border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20" 
-                          : "border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700",
-                        boxShadow: isCritical ? "0 2px 6px rgba(220,38,38,0.1)" : "0 1px 4px rgba(0,0,0,0.02)",
-                      }}
+                      className={`rounded-xl border px-4 py-4 transition ${
+                        isUnread
+                          ? "border-indigo-200 bg-indigo-50/40 dark:border-indigo-900/60 dark:bg-indigo-950/20"
+                          : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/20"
+                      } ${isCritical ? "shadow-[0_0_0_1px_rgba(239,68,68,0.18)]" : "shadow-sm"}`}
                     >
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
-                            <span style={{ fontSize: 14 }}>{categoryColors.icon}</span>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-sm">{category.icon}</span>
                             <h3
-                              style={{
-                                margin: 0,
-                                color: "#111827",
-                                fontWeight: isUnread ? 700 : 600,
-                                fontSize: 13,
-                              }}
+                              className={`text-sm ${
+                                isUnread
+                                  ? "font-semibold text-gray-900 dark:text-gray-100"
+                                  : "font-medium text-gray-800 dark:text-gray-200"
+                              }`}
                             >
                               {notification.title}
                             </h3>
                             {isUnread && (
-                              <span
-                                style={{
-                                  padding: "2px 6px",
-                                  borderRadius: 4,
-                                  background: "#4f46e5",
-                                  color: "#fff",
-                                  fontSize: 9,
-                                  fontWeight: 600,
-                                }}
-                              >
-                                NEW
+                              <span className="rounded-md bg-indigo-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+                                New
                               </span>
                             )}
-                            <span
-                              style={{
-                                padding: "2px 8px",
-                                borderRadius: 6,
-                                fontSize: 9,
-                                fontWeight: 600,
-                                background: categoryColors.bg,
-                                color: categoryColors.color,
-                              }}
-                            >
+                            <span className={`rounded-md border px-2 py-0.5 text-[11px] font-medium ${category.chip}`}>
                               {notification.category}
                             </span>
-                            <span
-                              style={{
-                                padding: "2px 8px",
-                                borderRadius: 6,
-                                fontSize: 9,
-                                fontWeight: 600,
-                                background: priorityBadge.bg,
-                                color: priorityBadge.color,
-                              }}
-                            >
-                              {priorityBadge.text}
+                            <span className={`rounded-md border px-2 py-0.5 text-[11px] font-medium ${priority.chip}`}>
+                              {priority.text}
                             </span>
                           </div>
-                          <p style={{ color: "#6b7280", margin: "4px 0", fontSize: 12, lineHeight: 1.4 }}>
+                          <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
                             {notification.description}
                           </p>
-                          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 8, flexWrap: "wrap" }}>
-                            <span style={{ color: "#9ca3af", fontSize: 10 }}>
-                              {formatTime(notification.createdAt)}
-                            </span>
-                            <div style={{ display: "flex", gap: 6 }}>
-                              {isUnread ? (
-                                <button
-                                  onClick={() => handleMarkAsRead(notification.id)}
-                                  className="px-2.5 py-1 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 cursor-pointer font-semibold text-xs hover:bg-gray-50 dark:hover:bg-gray-600"
-                                >
-                                  Mark Read
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleMarkAsUnread(notification.id)}
-                                  className="px-2.5 py-1 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 cursor-pointer font-semibold text-xs hover:bg-gray-50 dark:hover:bg-gray-600"
-                                >
-                                  Mark Unread
-                                </button>
-                              )}
-                              <button
-                                onClick={() => handleDelete(notification.id)}
-                                className="px-2.5 py-1 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-red-600 dark:text-red-400 cursor-pointer font-semibold text-xs hover:bg-gray-50 dark:hover:bg-gray-600"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
                         </div>
                       </div>
-                    </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {formatTime(notification.createdAt)}
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {isUnread ? (
+                            <button
+                              onClick={() => handleMarkAsRead(notification.id)}
+                              className="h-8 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-300 dark:hover:bg-indigo-950/45"
+                            >
+                              Mark Read
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleMarkAsUnread(notification.id)}
+                              className="h-8 rounded-md border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                            >
+                              Mark Unread
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDelete(notification.id)}
+                            className="h-8 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-medium text-red-700 transition hover:bg-red-100 dark:border-red-800/60 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/45"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </article>
                   );
                 })}
               </div>
 
-              {/* Pagination */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginTop: 20,
-                  paddingTop: 16,
-                  borderTop: "1px solid #f3f4f6",
-                }}
-              >
-                <div style={{ color: "#6b7280", fontSize: 14 }}>
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   Page {currentPage} of {totalPages}
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
+                </p>
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => {
                       const token = localStorage.getItem("adminToken");
@@ -707,7 +721,7 @@ export default function NotificationCenter() {
                       }
                     }}
                     disabled={currentPage <= 1}
-                    className={`px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 ${currentPage <= 1 ? "bg-gray-100 dark:bg-gray-700 cursor-not-allowed text-gray-400 dark:text-gray-500" : "bg-white dark:bg-gray-700 cursor-pointer text-gray-900 dark:text-gray-100"} font-semibold`}
+                    className="h-9 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
                   >
                     Prev
                   </button>
@@ -719,7 +733,7 @@ export default function NotificationCenter() {
                       }
                     }}
                     disabled={currentPage >= totalPages}
-                    className={`px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 ${currentPage >= totalPages ? "bg-gray-100 dark:bg-gray-700 cursor-not-allowed text-gray-400 dark:text-gray-500" : "bg-white dark:bg-gray-700 cursor-pointer text-gray-900 dark:text-gray-100"} font-semibold`}
+                    className="h-9 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
                   >
                     Next
                   </button>
@@ -727,10 +741,7 @@ export default function NotificationCenter() {
               </div>
             </>
           )}
-        </div>
-      </div>
-
-      {/* Close grid container */}
+        </section>
       </div>
     </div>
   );

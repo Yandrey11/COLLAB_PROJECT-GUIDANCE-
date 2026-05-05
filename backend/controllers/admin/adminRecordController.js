@@ -1,4 +1,6 @@
+import mongoose from "mongoose";
 import Record from "../../models/Record.js";
+import { notArchivedFilter, isArchivedFilter } from "../../config/recordArchive.js";
 import Counselor from "../../models/Counselor.js";
 import { createNotification } from "./notificationController.js";
 import { createCounselorNotification, createNotificationForAllCounselors } from "../counselorNotificationController.js";
@@ -6,11 +8,14 @@ import { logLockAction } from "./recordLockController.js";
 
 // Helper to get user info from request
 const getUserInfo = (req) => {
+  const admin = req.admin;
+  const user = req.user;
+  const userId = admin?._id ?? admin?.id ?? user?._id ?? user?.id;
   return {
-    userId: req.admin?._id || req.user?._id,
-    userName: req.admin?.name || req.user?.name || req.admin?.email || req.user?.email || "System",
-    userRole: req.admin?.role || req.user?.role || "admin",
-    userEmail: req.admin?.email || req.user?.email || "unknown@example.com",
+    userId,
+    userName: admin?.name || user?.name || admin?.email || user?.email || "System",
+    userRole: admin?.role || user?.role || "admin",
+    userEmail: admin?.email || user?.email || "unknown@example.com",
   };
 };
 
@@ -28,6 +33,7 @@ export const getAllRecords = async (req, res) => {
       endDate = "",
       sortBy = "date",
       order = "desc",
+      archived = "",
     } = req.query;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -68,15 +74,20 @@ export const getAllRecords = async (req, res) => {
     const sortOption = {};
     sortOption[sortBy] = order === "desc" ? -1 : 1;
 
+    const showArchived = archived === "true" || archived === true;
+    const archFrag = showArchived ? isArchivedFilter() : notArchivedFilter();
+    const listFilter =
+      Object.keys(filter).length === 0 ? archFrag : { $and: [filter, archFrag] };
+
     // Get records with pagination
-    const records = await Record.find(filter)
+    const records = await Record.find(listFilter)
       .sort(sortOption)
       .skip(skip)
       .limit(parseInt(limit))
       .lean();
 
     // Get total count
-    const total = await Record.countDocuments(filter);
+    const total = await Record.countDocuments(listFilter);
 
     // Get unique counselors for filter dropdown
     const counselors = await Record.distinct("counselor");
@@ -159,6 +170,13 @@ export const updateRecord = async (req, res) => {
       return res.status(404).json({ message: "Record not found" });
     }
 
+    if (record.archivedAt) {
+      return res.status(403).json({
+        success: false,
+        message: "This record is archived. Restore it before editing.",
+      });
+    }
+
     // STRICT 2PL: Additional lock ownership validation (defense in depth)
     const RecordLock = (await import("../../models/RecordLock.js")).default;
     const { cleanupExpiredLocks } = await import("./recordLockController.js");
@@ -214,6 +232,9 @@ export const updateRecord = async (req, res) => {
     // Track changes for audit trail
     const changes = [];
     const updateData = { ...req.body };
+    delete updateData.archivedAt;
+    delete updateData.archivePurgeAt;
+    delete updateData.archivedBy;
 
     // Compare old and new values
     Object.keys(updateData).forEach((key) => {
@@ -413,7 +434,21 @@ export const updateRecord = async (req, res) => {
 export const patchRecordRecommendation = async (req, res) => {
   try {
     const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid record id. Use the record’s database id from the admin records list.",
+      });
+    }
+
     const userInfo = getUserInfo(req);
+    if (!userInfo.userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Admin identity missing from session. Please sign in again.",
+      });
+    }
+
     const raw = req.body?.recommendation;
     const recommendation =
       raw === undefined || raw === null ? "" : String(raw);
@@ -433,6 +468,10 @@ export const patchRecordRecommendation = async (req, res) => {
     }
 
     record.recommendation = recommendation;
+    const recTrimmed = recommendation.trim();
+    record.recommendationAuthorName = recTrimmed
+      ? String(userInfo.userName || userInfo.userEmail || "").trim()
+      : "";
 
     const changedBy = {
       userId: userInfo.userId,

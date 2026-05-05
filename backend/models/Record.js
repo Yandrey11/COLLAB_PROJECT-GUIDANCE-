@@ -31,10 +31,21 @@ const recordSchema = new mongoose.Schema(
     remarks: { type: String },
     /** Set by administrators (optional) */
     recommendation: { type: String },
+    /** Name shown on PDF above the Director, SWEU signature line (last editor of recommendation) */
+    recommendationAuthorName: { type: String },
     driveLink: { type: String },
     googleCalendarEventId: { type: String }, // Links record to Google Calendar event
     counselor: { type: String, required: true },
-    
+
+    /** Counselor archive: hidden from default lists; purged after `archivePurgeAt`. */
+    archivedAt: { type: Date, default: null },
+    archivePurgeAt: { type: Date, default: null },
+    archivedBy: {
+      userId: { type: mongoose.Schema.Types.ObjectId },
+      userName: { type: String },
+      userRole: { type: String },
+    },
+
     // File attachments
     attachments: [
       {
@@ -93,6 +104,8 @@ recordSchema.index({ sessionType: 1 });
 recordSchema.index({ date: -1 });
 recordSchema.index({ "auditTrail.createdAt": -1 });
 recordSchema.index({ "auditTrail.lastModifiedAt": -1 });
+recordSchema.index({ archivePurgeAt: 1 });
+recordSchema.index({ archivedAt: 1 });
 
 // ✅ Prevent OverwriteModelError when models are imported multiple times
 const Record = mongoose.models.Record || mongoose.model("Record", recordSchema);

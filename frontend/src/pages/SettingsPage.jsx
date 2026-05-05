@@ -534,7 +534,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         <motion.main
           className="flex min-w-0 flex-col gap-8"

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
+import { getCounselorCollegeAvatarRingClass } from "../constants/counselorColleges";
 
 const formatCounselorRole = (role) => {
   if (role === "admin") return "Admin";
@@ -93,6 +94,9 @@ export default function CounselorHeaderProfile({ className = "" }) {
   const metaParts = [roleLabel];
   if (sessionUser.college) metaParts.push(sessionUser.college);
   const metaLine = metaParts.join(" · ");
+  const avatarRingClass =
+    getCounselorCollegeAvatarRingClass(sessionUser.college) ??
+    "border border-gray-200/90 shadow-[0_0_0_1px_rgba(0,0,0,0.04)] dark:border-gray-600 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06)]";
 
   return (
     <div className={`flex shrink-0 items-center gap-3.5 sm:gap-4 ${className}`}>
@@ -113,11 +117,13 @@ export default function CounselorHeaderProfile({ className = "" }) {
           alt=""
           width={44}
           height={44}
-          className="h-10 w-10 shrink-0 rounded-full border border-gray-200/90 object-cover shadow-[0_0_0_1px_rgba(0,0,0,0.04)] dark:border-gray-600 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06)] sm:h-11 sm:w-11"
+          className={`h-10 w-10 shrink-0 rounded-full object-cover sm:h-11 sm:w-11 ${avatarRingClass}`}
           onError={() => setAvatarFailed(true)}
         />
       ) : (
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gray-200/90 bg-gray-100 shadow-[0_0_0_1px_rgba(0,0,0,0.04)] dark:border-gray-600 dark:bg-gray-800/80 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06)] sm:h-11 sm:w-11">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800/80 sm:h-11 sm:w-11 ${avatarRingClass}`}
+        >
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"

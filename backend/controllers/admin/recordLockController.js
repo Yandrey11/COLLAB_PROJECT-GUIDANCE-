@@ -116,6 +116,13 @@ export const lockRecord = async (req, res) => {
       });
     }
 
+    if (record.archivedAt) {
+      return res.status(403).json({
+        success: false,
+        message: "Archived records cannot be locked. Restore the record first.",
+      });
+    }
+
     // Check if user can lock this record
     const lockPermission = await canUserLockRecord(userInfo, record);
     if (!lockPermission.canLock) {
@@ -558,6 +565,13 @@ export const startEditing = async (req, res) => {
       });
     }
 
+    if (record.archivedAt) {
+      return res.status(403).json({
+        success: false,
+        message: "Archived records cannot be edited. Restore the record first.",
+      });
+    }
+
     // Check if user can lock this record
     let lockPermission;
     try {
@@ -868,6 +882,14 @@ export const checkLockBeforeUpdate = async (req, res, next) => {
     const userInfo = getUserInfo(req);
 
     console.log(`🔍 checkLockBeforeUpdate: Checking lock for record ${id} by user ${userInfo.userId}`);
+
+    const rec = await Record.findById(id).select("archivedAt");
+    if (rec?.archivedAt) {
+      return res.status(403).json({
+        success: false,
+        message: "This record is archived. Restore it from Archived records before editing.",
+      });
+    }
 
     // Clean up expired locks
     await cleanupExpiredLocks();

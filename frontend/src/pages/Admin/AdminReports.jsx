@@ -9,13 +9,7 @@ import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-const REPORT_TYPES = [
-  "Counseling Records Report",
-  "Counselor Activity Report",
-  "Generated Files Report",
-  "User Account Report",
-  "System Logs Report",
-];
+const REPORT_TYPES = ["Counseling Records Report", "Counseling Summary Report"];
 
 export default function AdminReports() {
   useDocumentTitle("Admin Reports");
@@ -541,7 +535,7 @@ export default function AdminReports() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg admin-typography font-sans p-3 md:p-5 gap-5">
+    <div className="page-bg admin-typography flex min-h-screen w-full flex-col items-center gap-5 p-3 font-sans text-gray-900 dark:text-gray-100 md:p-5">
       {/* Top Progress Bar - Shows when loading */}
       {loading && (
         <div className="fixed top-0 left-0 w-full z-[9999] pointer-events-none">
@@ -559,7 +553,7 @@ export default function AdminReports() {
                   Admin Reports
                 </h1>
                 <p className="text-gray-500 dark:text-gray-400 mt-1 text-xs">
-                  Generate, view, and download system-wide reports for counseling records, activities, and analytics.
+                  Generate, view, and download counseling records reports and monthly counseling summary PDFs.
                 </p>
               </div>
             </div>
@@ -653,6 +647,14 @@ export default function AdminReports() {
               ))}
             </div>
 
+            {activeTab === "Counseling Summary Report" && (
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 mb-0">
+                Builds the official multi-session counseling summary table (same layout as counselor exports). Up to{" "}
+                <span className="font-semibold text-gray-800 dark:text-gray-200">500</span> matching records, oldest to newest. Use filters (especially
+                date range) so the set fits the limit.
+              </p>
+            )}
+
             {/* Filters */}
             <div className="border-t border-gray-200 dark:border-gray-700 pt-3">
               <button
@@ -735,22 +737,28 @@ export default function AdminReports() {
                     className="w-full px-2 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
-                <div className="flex items-end gap-2">
+              </div>
+              )}
+              <div className="flex flex-wrap items-center justify-end gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="px-3 py-1.5 text-xs rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Reset filters
+                </button>
+                {activeTab !== "Counseling Records Report" && (
                   <button
-                    onClick={handleResetFilters}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-                  >
-                    Reset
-                  </button>
-                  <button
+                    type="button"
                     onClick={() => setShowGenerateModal(true)}
                     className="px-3 py-1.5 text-xs rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
                   >
-                    Generate PDF
+                    {activeTab === "Counseling Summary Report"
+                      ? "Generate summary PDF"
+                      : "Generate PDF"}
                   </button>
-                </div>
+                )}
               </div>
-              )}
             </div>
           </div>
 

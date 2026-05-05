@@ -7,6 +7,35 @@ import GoogleUser from "../../models/GoogleUser.js";
 import Notification from "../../models/Notification.js";
 import ActivityLog from "../../models/ActivityLog.js";
 import Session from "../../models/Session.js";
+import { notArchivedFilter } from "../../config/recordArchive.js";
+
+/** Shared date window for admin dashboard analytics (includes 2y / all per consultation charts plan). */
+function resolveDashboardRangeStart(range, now = new Date()) {
+  const startDate = new Date(now);
+  switch (range) {
+    case "7d":
+      startDate.setDate(now.getDate() - 7);
+      break;
+    case "30d":
+      startDate.setDate(now.getDate() - 30);
+      break;
+    case "90d":
+      startDate.setDate(now.getDate() - 90);
+      break;
+    case "1y":
+      startDate.setFullYear(now.getFullYear() - 1);
+      break;
+    case "2y":
+      startDate.setFullYear(now.getFullYear() - 2);
+      break;
+    case "all":
+      startDate.setFullYear(now.getFullYear() - 5);
+      break;
+    default:
+      startDate.setDate(now.getDate() - 30);
+  }
+  return startDate;
+}
 
 /**
  * Get analytics overview (summary cards data)
@@ -17,24 +46,7 @@ export const getAnalyticsOverview = async (req, res) => {
 
     // Calculate date range
     const now = new Date();
-    const startDate = new Date();
-    
-    switch (range) {
-      case "7d":
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case "30d":
-        startDate.setDate(now.getDate() - 30);
-        break;
-      case "90d":
-        startDate.setDate(now.getDate() - 90);
-        break;
-      case "1y":
-        startDate.setFullYear(now.getFullYear() - 1);
-        break;
-      default:
-        startDate.setDate(now.getDate() - 30);
-    }
+    const startDate = resolveDashboardRangeStart(range, now);
 
     // Total counseling records (always accurate - counts all records)
     const totalRecords = await Record.countDocuments();
@@ -143,24 +155,7 @@ export const getPageVisits = async (req, res) => {
 
     // Calculate date range
     const now = new Date();
-    const startDate = new Date();
-    
-    switch (range) {
-      case "7d":
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case "30d":
-        startDate.setDate(now.getDate() - 30);
-        break;
-      case "90d":
-        startDate.setDate(now.getDate() - 90);
-        break;
-      case "1y":
-        startDate.setFullYear(now.getFullYear() - 1);
-        break;
-      default:
-        startDate.setDate(now.getDate() - 30);
-    }
+    const startDate = resolveDashboardRangeStart(range, now);
 
     const query = {
       eventType: "page_visit",
@@ -242,24 +237,7 @@ export const getEvents = async (req, res) => {
 
     // Calculate date range
     const now = new Date();
-    const startDate = new Date();
-    
-    switch (range) {
-      case "7d":
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case "30d":
-        startDate.setDate(now.getDate() - 30);
-        break;
-      case "90d":
-        startDate.setDate(now.getDate() - 90);
-        break;
-      case "1y":
-        startDate.setFullYear(now.getFullYear() - 1);
-        break;
-      default:
-        startDate.setDate(now.getDate() - 30);
-    }
+    const startDate = resolveDashboardRangeStart(range, now);
 
     const limit = parseInt(req.query.limit) || 50;
     const allEvents = [];
@@ -544,24 +522,7 @@ export const getDailyRecordsCreated = async (req, res) => {
 
     // Calculate date range
     const now = new Date();
-    const startDate = new Date();
-    
-    switch (range) {
-      case "7d":
-        startDate.setDate(now.getDate() - 7);
-        break;
-      case "30d":
-        startDate.setDate(now.getDate() - 30);
-        break;
-      case "90d":
-        startDate.setDate(now.getDate() - 90);
-        break;
-      case "1y":
-        startDate.setFullYear(now.getFullYear() - 1);
-        break;
-      default:
-        startDate.setDate(now.getDate() - 30);
-    }
+    const startDate = resolveDashboardRangeStart(range, now);
 
     // Try to get from analytics events first
     let dailyRecords = await AnalyticsEvent.aggregate([
@@ -681,6 +642,219 @@ export const getDailyRecordsCreated = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch daily records",
+      error: error.message,
+    });
+  }
+};
+
+const CONSULT_CATEGORY_ORDER = ["Individual", "Group", "Career", "Academic", "Other"];
+
+function emptyCategoryCounts() {
+  const o = {};
+  for (const k of CONSULT_CATEGORY_ORDER) o[k] = 0;
+  return o;
+}
+
+function monthKey(y, m) {
+  return `${y}-${String(m).padStart(2, "0")}`;
+}
+
+function monthLabel(y, m) {
+  return new Date(y, m - 1, 1).toLocaleString("en-US", { month: "short", year: "numeric" });
+}
+
+function quarterKey(y, q) {
+  return `${y}-Q${q}`;
+}
+
+function quarterLabel(y, q) {
+  return `Q${q} ${y}`;
+}
+
+/**
+ * GET /api/admin/analytics/consultation-volume — records by month/quarter with sessionType breakdown
+ */
+export const getConsultationVolumeByPeriod = async (req, res) => {
+  try {
+    const { range = "1y" } = req.query;
+    const now = new Date();
+    const startDate = resolveDashboardRangeStart(range, now);
+
+    const facetResult = await Record.aggregate([
+      { $match: notArchivedFilter() },
+      {
+        $project: {
+          recordDate: {
+            $ifNull: ["$auditTrail.createdAt", { $ifNull: ["$createdAt", "$date"] }],
+          },
+          categoryTrim: {
+            $trim: { input: { $ifNull: ["$sessionType", ""] } },
+          },
+        },
+      },
+      {
+        $match: {
+          recordDate: { $gte: startDate, $lte: now },
+        },
+      },
+      {
+        $addFields: {
+          category: {
+            $cond: {
+              if: {
+                $in: [
+                  "$categoryTrim",
+                  ["Individual", "Group", "Career", "Academic"],
+                ],
+              },
+              then: "$categoryTrim",
+              else: "Other",
+            },
+          },
+        },
+      },
+      {
+        $facet: {
+          monthBuckets: [
+            {
+              $group: {
+                _id: {
+                  year: { $year: "$recordDate" },
+                  month: { $month: "$recordDate" },
+                  category: "$category",
+                },
+                count: { $sum: 1 },
+              },
+            },
+          ],
+          quarterBuckets: [
+            {
+              $group: {
+                _id: {
+                  year: { $year: "$recordDate" },
+                  quarter: {
+                    $ceil: { $divide: [{ $month: "$recordDate" }, 3] },
+                  },
+                  category: "$category",
+                },
+                count: { $sum: 1 },
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const monthBuckets = facetResult[0]?.monthBuckets || [];
+    const quarterBuckets = facetResult[0]?.quarterBuckets || [];
+
+    const monthAgg = new Map();
+    for (const row of monthBuckets) {
+      const { year, month, category } = row._id;
+      const key = monthKey(year, month);
+      if (!monthAgg.has(key)) {
+        monthAgg.set(key, { year, month, byCategory: emptyCategoryCounts(), total: 0 });
+      }
+      const b = monthAgg.get(key);
+      const c = row.count || 0;
+      b.byCategory[category] = (b.byCategory[category] || 0) + c;
+      b.total += c;
+    }
+
+    const byMonth = [];
+    const cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const endM = new Date(now.getFullYear(), now.getMonth(), 1);
+    while (cursor <= endM) {
+      const y = cursor.getFullYear();
+      const m = cursor.getMonth() + 1;
+      const key = monthKey(y, m);
+      const src = monthAgg.get(key) || {
+        year: y,
+        month: m,
+        byCategory: emptyCategoryCounts(),
+        total: 0,
+      };
+      byMonth.push({
+        periodKey: key,
+        label: monthLabel(y, m),
+        total: src.total,
+        byCategory: { ...src.byCategory },
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
+
+    const quarterAgg = new Map();
+    for (const row of quarterBuckets) {
+      const { year, quarter, category } = row._id;
+      const key = quarterKey(year, quarter);
+      if (!quarterAgg.has(key)) {
+        quarterAgg.set(key, { year, quarter, byCategory: emptyCategoryCounts(), total: 0 });
+      }
+      const b = quarterAgg.get(key);
+      const c = row.count || 0;
+      b.byCategory[category] = (b.byCategory[category] || 0) + c;
+      b.total += c;
+    }
+
+    const byQuarter = [];
+    const startQ = Math.floor(startDate.getMonth() / 3) + 1;
+    const startY = startDate.getFullYear();
+    const endQ = Math.floor(now.getMonth() / 3) + 1;
+    const endY = now.getFullYear();
+    let y = startY;
+    let q = startQ;
+    for (;;) {
+      const key = quarterKey(y, q);
+      const src = quarterAgg.get(key) || {
+        year: y,
+        quarter: q,
+        byCategory: emptyCategoryCounts(),
+        total: 0,
+      };
+      byQuarter.push({
+        periodKey: key,
+        label: quarterLabel(y, q),
+        total: src.total,
+        byCategory: { ...src.byCategory },
+      });
+      if (y === endY && q === endQ) break;
+      q += 1;
+      if (q > 4) {
+        q = 1;
+        y += 1;
+      }
+    }
+
+    let peakMonth = null;
+    let peakTotal = 0;
+    for (const row of byMonth) {
+      if (row.total <= 0) continue;
+      if (!peakMonth || row.total > peakTotal) {
+        peakTotal = row.total;
+        peakMonth = {
+          label: row.label,
+          year: parseInt(row.periodKey.slice(0, 4), 10),
+          month: parseInt(row.periodKey.slice(5, 7), 10),
+          total: row.total,
+        };
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      range,
+      start: startDate,
+      end: now,
+      categories: CONSULT_CATEGORY_ORDER,
+      byMonth,
+      byQuarter,
+      peakMonth,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching consultation volume:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch consultation volume",
       error: error.message,
     });
   }

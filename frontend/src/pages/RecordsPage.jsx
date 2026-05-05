@@ -1,7 +1,5 @@
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { jsPDF } from "jspdf";
-import "jspdf-autotable";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation, useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
@@ -10,20 +8,31 @@ import CounselorSidebar from "../components/CounselorSidebar";
 import CounselorHeaderProfile from "../components/CounselorHeaderProfile.jsx";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import {
-  addCounselorPdfHeaderFooter,
-  loadBuksuLogoDataUrl,
-  PDF_CONTENT_TOP_MM,
-  getPdfMaxContentY,
-} from "../utils/counselorPdfLetterhead.js";
-import {
-  formatProblemsPresentedDisplay,
-  problemsPresentedFieldValue,
-} from "../constants/problemsPresented";
+import { problemsPresentedFieldValue } from "../constants/problemsPresented";
 import ProblemsPresentedCheckboxes from "../components/ProblemsPresentedCheckboxes";
 
 const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/records`;
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+function parseFilenameFromContentDisposition(cd) {
+  if (!cd || typeof cd !== "string") return null;
+  const m = cd.match(/filename\*?=(?:UTF-8'')?["']?([^";\n]+)/i);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1].replace(/"/g, "").trim());
+  } catch {
+    return m[1].replace(/"/g, "").trim();
+  }
+}
+
+function downloadPdfBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const pageStagger = {
   hidden: { opacity: 0 },
@@ -55,8 +64,8 @@ const getImageUrl = (imagePath) => {
   return `${BASE_URL}${path}`;
 };
 
-const RecordsPage = () => {
-  useDocumentTitle("Counseling Records");
+export default function RecordsPage({ archivedView = false }) {
+  useDocumentTitle(archivedView ? "Archived records" : "Counseling Records");
   // Add responsive styles
   useEffect(() => {
     const style = document.createElement("style");
@@ -298,16 +307,17 @@ const RecordsPage = () => {
       }
 
       const res = await axios.get(API_URL, {
-        headers: { 
+        headers: {
           Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json"
-        }
+          "Content-Type": "application/json",
+        },
+        params: archivedView ? { archived: "true" } : {},
       });
-      
+
       setRecords(res.data || []);
-      
-      // Fetch lock status for each record
-      if (res.data && res.data.length > 0) {
+
+      // Fetch lock status for each record (archived list has no active locks)
+      if (res.data && res.data.length > 0 && !archivedView) {
         res.data.forEach((record) => {
           fetchLockStatus(record._id);
         });
@@ -533,11 +543,11 @@ const RecordsPage = () => {
       // Stop loading if user doesn't have permission
       setLoading(false);
     }
-  }, [user, hasPermission]);
+  }, [user, hasPermission, archivedView]);
 
   // Auto-sync records without Drive link to logged-in user's Google Drive (runs once per session)
   useEffect(() => {
-    if (!user || !hasPermission || hasAutoSyncedDriveRef.current) return;
+    if (archivedView || !user || !hasPermission || hasAutoSyncedDriveRef.current) return;
     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
     if (!token) return;
 
@@ -556,7 +566,7 @@ const RecordsPage = () => {
     };
 
     syncDrive();
-  }, [user, hasPermission]);
+  }, [user, hasPermission, archivedView]);
 
   // Handle Google Drive OAuth redirect result
   useEffect(() => {
@@ -588,57 +598,13 @@ const RecordsPage = () => {
       });
     }
 
-    navigate("/records", { replace: true });
+    navigate(archivedView ? "/records/archive" : "/records", { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search, navigate]);
-  
-  // Show error page if no permission (after user is loaded)
-  // Show immediately when permission is denied
-  if (user && !hasPermission) {
-    return (
-      <div className="min-h-screen w-full page-bg counselor-typography font-sans">
-        <div className="mx-auto flex w-full max-w-[1800px] flex-col px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-          <header className="mb-10 flex flex-col gap-4 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex min-w-0 items-center gap-4 sm:gap-5">
-              <CounselorSidebar variant="header" />
-              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
-              <div className="min-w-0">
-                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
-                  Records
-                </p>
-                <h1 className="mt-1.5 m-0 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
-                  Counseling records
-                </h1>
-                <p className="mt-2 m-0 text-sm text-gray-500 dark:text-gray-400">Access status</p>
-              </div>
-            </div>
-            <CounselorHeaderProfile />
-          </header>
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mx-auto w-full max-w-md rounded-2xl border border-gray-200/90 bg-white px-6 py-10 text-center dark:border-gray-700/90 dark:bg-gray-800/80"
-          >
-            <h2 className="m-0 text-lg font-semibold text-red-600 dark:text-red-400">Access denied</h2>
-            <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-              You don&apos;t have permission to open this page. Contact an administrator if this is unexpected.
-            </p>
-            <button
-              type="button"
-              onClick={() => navigate("/dashboard")}
-              className="mt-8 w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
-            >
-              Back to dashboard
-            </button>
-          </motion.div>
-        </div>
-      </div>
-    );
-  }
+  }, [location.search, navigate, archivedView]);
 
-  // Fetch lock status when edit modal opens
+  // Fetch lock status when edit modal opens (archived rows have no locks)
   useEffect(() => {
-    if (selectedRecord) {
+    if (selectedRecord && !selectedRecord.archivedAt) {
       fetchLockStatus(selectedRecord._id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -763,6 +729,14 @@ const RecordsPage = () => {
 
   // Handle Edit button click - Auto-lock when clicking Edit
   const handleEditClick = async (record) => {
+    if (record?.archivedAt) {
+      Swal.fire({
+        icon: "info",
+        title: "Archived",
+        text: "Open Archived records to view or restore this session.",
+      });
+      return;
+    }
     try {
       const token = localStorage.getItem("token") || localStorage.getItem("authToken");
       
@@ -815,7 +789,7 @@ const RecordsPage = () => {
       // Counselors must not overwrite admin-only recommendation
       const counselorUpdatePayload = { ...selectedRecord };
       delete counselorUpdatePayload.recommendation;
-
+      
       // Update the record (lock should already be acquired when Edit was clicked)
       await axios.put(`${API_URL}/${selectedRecord._id}`, counselorUpdatePayload, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
@@ -893,6 +867,98 @@ const RecordsPage = () => {
     }
   };
 
+  const isRecordOwner = (record) => {
+    if (!user) return false;
+    if (user.role === "admin" || user.permissions?.is_admin) return true;
+    const name = user.name || user.email;
+    const email = user.email;
+    return (
+      record.counselor === name ||
+      record.counselor === email ||
+      record.auditTrail?.createdBy?.userName === name
+    );
+  };
+
+  const handleArchiveRow = async (record) => {
+    const result = await Swal.fire({
+      title: "Archive record?",
+      html: `Archive <strong>${record.clientName}</strong>? It will move to Archived records and can be restored before automatic removal (retention policy).`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#4f46e5",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, archive",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return;
+    try {
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      await axios.post(
+        `${API_URL}/${record._id}/archive`,
+        {},
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      await Swal.fire({
+        icon: "success",
+        title: "Archived",
+        text: "Record moved to Archived records.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      fetchRecords();
+    } catch (err) {
+      console.error("Archive error:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.message || "Failed to archive record",
+      });
+    }
+  };
+
+  const handleRestoreRow = async (record) => {
+    const result = await Swal.fire({
+      title: "Restore record?",
+      html: `Restore <strong>${record.clientName}</strong> to your active records?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#059669",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, restore",
+      cancelButtonText: "Cancel",
+    });
+    if (!result.isConfirmed) return false;
+    try {
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      await axios.post(
+        `${API_URL}/${record._id}/unarchive`,
+        {},
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      await Swal.fire({
+        icon: "success",
+        title: "Restored",
+        text: "Record is back in your active list.",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+      fetchRecords();
+      return true;
+    } catch (err) {
+      console.error("Restore error:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.message || "Failed to restore record",
+      });
+      return false;
+    }
+  };
+
+  const handleViewRecordReadOnly = (record) => {
+    setSelectedRecord({ ...record });
+  };
+
   const filteredRecords = records.filter((r) => {
     const matchSearch = r.clientName
       ?.toLowerCase()
@@ -964,181 +1030,121 @@ const RecordsPage = () => {
     const recordsToExport = selectedRecord ? [selectedRecord] : filteredRecords;
     if (recordsToExport.length === 0) return;
 
-    const logoDataUrl = await loadBuksuLogoDataUrl();
-    const doc = new jsPDF();
+    const token = localStorage.getItem("authToken") || localStorage.getItem("token");
+    if (!token) {
+      await Swal.fire({ icon: "warning", title: "Session required", text: "Please log in again." });
+      return;
+    }
+
     const trackingNumber = generateTrackingNumber();
-    const reportDate = new Date().toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-    const reportDateTime = new Date().toLocaleString();
 
-    let estimatedPages = Math.max(2, Math.ceil(recordsToExport.length / 2));
-    if (recordsToExport.length === 1) estimatedPages = 2;
-
-    addCounselorPdfHeaderFooter(doc, 1, estimatedPages, trackingNumber, reportDate, logoDataUrl);
-    let finalY = PDF_CONTENT_TOP_MM;
-    const maxContentHeight = getPdfMaxContentY(doc);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
-    doc.text("COUNSELING RECORDS REPORT", 105, finalY, { align: "center" });
-    finalY += 15;
-
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Report Generated: ${reportDateTime}`, 105, finalY, { align: "center" });
-    finalY += 10;
-    doc.text(`Document Tracking Number: ${trackingNumber}`, 105, finalY, { align: "center" });
-    finalY += 10;
-    doc.text(`Total Records: ${recordsToExport.length}`, 105, finalY, { align: "center" });
-    finalY += 20;
-
-    const completed = recordsToExport.filter((r) => r.status === "Completed").length;
-    const ongoing = recordsToExport.filter((r) => r.status === "Ongoing").length;
-    const referred = recordsToExport.filter((r) => r.status === "Referred").length;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.text("Summary Statistics", 105, finalY, { align: "center" });
-    finalY += 12;
-
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Completed Sessions: ${completed}`, 105, finalY, { align: "center" });
-    finalY += 8;
-    doc.text(`Ongoing Sessions: ${ongoing}`, 105, finalY, { align: "center" });
-    finalY += 8;
-    doc.text(`Referred Sessions: ${referred}`, 105, finalY, { align: "center" });
-    finalY += 20;
-
-    doc.addPage();
-    addCounselorPdfHeaderFooter(doc, 2, estimatedPages, trackingNumber, reportDate, logoDataUrl);
-    finalY = PDF_CONTENT_TOP_MM;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text("DETAILED RECORDS", 105, finalY, { align: "center" });
-    finalY += 15;
-
-    const pageHeight = doc.internal.pageSize.getHeight();
-
-    recordsToExport.forEach((record, idx) => {
-      if (finalY > maxContentHeight && idx < recordsToExport.length - 1) {
-        estimatedPages++;
-        doc.addPage();
-        addCounselorPdfHeaderFooter(
-          doc,
-          doc.internal.getNumberOfPages(),
-          estimatedPages,
-          trackingNumber,
-          reportDate,
-          logoDataUrl
-        );
-        finalY = PDF_CONTENT_TOP_MM;
+    try {
+      if (recordsToExport.length === 1) {
+        const record = recordsToExport[0];
+        const recordId = record._id ?? record.id;
+        const res = await fetch(`${API_URL}/${recordId}/generate-pdf`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          await Swal.fire({
+            icon: "error",
+            title: "Could not generate PDF",
+            text: err.error || res.statusText || "Request failed.",
+          });
+          return;
+        }
+        const blob = await res.blob();
+        const serverName = parseFilenameFromContentDisposition(res.headers.get("Content-Disposition"));
+        const fileName =
+          serverName ||
+          `${(record.clientName || "record").replace(/\s+/g, "_")}_individual_${trackingNumber}.pdf`;
+        downloadPdfBlob(blob, fileName);
+        return;
       }
 
-      if (idx > 0) {
-        doc.setDrawColor(200, 200, 200);
-        doc.line(14, finalY - 5, 196, finalY - 5);
-        finalY += 5;
-      }
-
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text(`Record ${idx + 1}`, 14, finalY);
-      finalY += 10;
-
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "normal");
-
-      const detailRows = [
-        { label: "Student name", value: record.clientName || "N/A" },
-        { label: "School year", value: record.schoolYear || "—" },
-        { label: "Gender", value: record.gender || "—" },
-        { label: "Course", value: record.course || "—" },
-        { label: "Year", value: record.yearLevel || "—" },
-        { label: "Section", value: record.section || "—" },
-        { label: "Date", value: record.date ? new Date(record.date).toLocaleDateString() : "N/A" },
-        { label: "Session no.", value: String(record.sessionNumber ?? "—") },
-        { label: "Session type", value: record.sessionType || "N/A" },
-        { label: "Status", value: record.status || "N/A" },
-        { label: "Counselor", value: record.counselor || "N/A" },
-      ];
-
-      detailRows.forEach((detail) => {
-        doc.setFont("helvetica", "bold");
-        doc.text(`${detail.label}:`, 14, finalY);
-        doc.setFont("helvetica", "normal");
-        doc.text(String(detail.value), 64, finalY);
-        finalY += 7;
+      const res = await fetch(`${API_URL}/summary-pdf`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recordIds: recordsToExport.map((r) => r._id ?? r.id),
+        }),
       });
-
-      const pdfBlock = (title, body, emptyMsg) => {
-        doc.setFont("helvetica", "bold");
-        doc.text(`${title}:`, 14, finalY);
-        finalY += 7;
-        doc.setFont("helvetica", "normal");
-        const text = body || emptyMsg;
-        const split = doc.splitTextToSize(text, 180);
-        doc.text(split, 14, finalY);
-        finalY += split.length * 5 + 4;
-      };
-
-      pdfBlock("Problems presented", formatProblemsPresentedDisplay(record), "—");
-      pdfBlock("Session notes", record.notes, "No session notes");
-      pdfBlock("Outcome", record.outcomes || record.outcome, "No outcome recorded");
-      pdfBlock("Remarks", record.remarks, "—");
-      pdfBlock("Administrative recommendation", record.recommendation, "—");
-      finalY += 6;
-    });
-
-    if (doc.internal.getNumberOfPages() < 2) {
-      doc.addPage();
-      addCounselorPdfHeaderFooter(doc, 2, 2, trackingNumber, reportDate, logoDataUrl);
-      finalY = PDF_CONTENT_TOP_MM;
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.text("ADDITIONAL INFORMATION", 105, finalY, { align: "center" });
-      finalY += 15;
-
-      doc.setFontSize(11);
-      doc.setFont("helvetica", "normal");
-      doc.text("This report contains confidential counseling session records.", 105, finalY, { align: "center" });
-      finalY += 10;
-      doc.text("All information is protected under client confidentiality agreements.", 105, finalY, { align: "center" });
-      finalY += 15;
-
-      doc.setFont("helvetica", "bold");
-      doc.text("Report Metadata:", 14, finalY);
-      finalY += 10;
-      doc.setFont("helvetica", "normal");
-      doc.text(`Document ID: ${trackingNumber}`, 14, finalY);
-      finalY += 7;
-      doc.text(`Generated On: ${reportDateTime}`, 14, finalY);
-      finalY += 7;
-      doc.text(`Total Records Included: ${recordsToExport.length}`, 14, finalY);
-      finalY += 7;
-      doc.text(`Report Type: ${selectedRecord ? "Single Record" : "Multiple Records"}`, 14, finalY);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        await Swal.fire({
+          icon: "error",
+          title: "Could not generate summary PDF",
+          text: err.error || res.statusText || "Request failed.",
+        });
+        return;
+      }
+      const blob = await res.blob();
+      const serverName = parseFilenameFromContentDisposition(res.headers.get("Content-Disposition"));
+      const fileName =
+        serverName ||
+        (selectedRecord
+          ? `${selectedRecord.clientName.replace(/\s+/g, "_")}_summary_${trackingNumber}.pdf`
+          : `counseling_summary_${trackingNumber}_${new Date().toISOString().split("T")[0]}.pdf`);
+      downloadPdfBlob(blob, fileName);
+    } catch (e) {
+      console.error(e);
+      await Swal.fire({
+        icon: "error",
+        title: "PDF download failed",
+        text: e.message || "Network error.",
+      });
     }
-
-    const totalPages = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      addCounselorPdfHeaderFooter(doc, i, totalPages, trackingNumber, reportDate, logoDataUrl);
-    }
-
-    const fileName = selectedRecord
-      ? `${selectedRecord.clientName.replace(/\s+/g, "_")}_record_${trackingNumber}.pdf`
-      : `counseling-records_${trackingNumber}_${new Date().toISOString().split("T")[0]}.pdf`;
-
-    doc.save(fileName);
   };
 
+  // Show error page if no permission (after user is loaded) — must run after all hooks
+  if (user && !hasPermission) {
+    return (
+      <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
+        <div className="mx-auto flex w-full max-w-[1800px] flex-col px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+          <header className="mb-10 flex flex-col gap-4 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-4 sm:gap-5">
+              <CounselorSidebar variant="header" />
+              <div className="hidden h-10 w-px shrink-0 bg-gray-200 dark:bg-gray-700 sm:block" aria-hidden />
+              <div className="min-w-0">
+                <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+                  Records
+                </p>
+                <h1 className="mt-1.5 m-0 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                  Counseling records
+                </h1>
+                <p className="mt-2 m-0 text-sm text-gray-500 dark:text-gray-400">Access status</p>
+              </div>
+            </div>
+            <CounselorHeaderProfile />
+          </header>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mx-auto w-full max-w-md rounded-2xl border border-gray-200/90 bg-white px-6 py-10 text-center dark:border-gray-700/90 dark:bg-gray-800/80"
+          >
+            <h2 className="m-0 text-lg font-semibold text-red-600 dark:text-red-400">Access denied</h2>
+            <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+              You don&apos;t have permission to open this page. Contact an administrator if this is unexpected.
+            </p>
+            <button
+              type="button"
+              onClick={() => navigate("/dashboard")}
+              className="mt-8 w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+            >
+              Back to dashboard
+            </button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         <motion.main
           className="flex w-full min-w-0 flex-col gap-8"
@@ -1160,53 +1166,59 @@ const RecordsPage = () => {
                     Records
                   </p>
                   <h1 className="mt-1.5 m-0 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-3xl">
-                    Counseling records
+                    {archivedView ? "Archived records" : "Counseling records"}
                   </h1>
                   <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-                    Session notes, outcomes, and Drive backups—organized in one list.
+                    {archivedView
+                      ? "Sessions you archived. Restore a record to edit it again, or download PDFs. Records past retention are removed automatically."
+                      : "Session notes, outcomes, and Drive backups—organized in one list."}
                   </p>
-                </div>
+            </div>
               </div>
-              {!user?.isGoogleUser && !user?.isDriveConnected && (
+            {!user?.isGoogleUser && !user?.isDriveConnected && (
                 <div className="flex flex-wrap gap-2 pl-0 sm:pl-[calc(2.75rem+1.25rem)]">
                   <button
                     type="button"
-                    onClick={handleConnectGoogleDrive}
+                onClick={handleConnectGoogleDrive}
                     className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-900 transition-colors hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100 dark:hover:bg-emerald-900/30"
-                  >
-                    Connect Google Drive
+              >
+                Connect Google Drive
                   </button>
                 </div>
-              )}
+            )}
             </div>
             <CounselorHeaderProfile className="sm:pt-0.5" />
           </motion.header>
 
           {/* Primary actions */}
-          <motion.div
+        <motion.div
             variants={pageItem}
             className="flex flex-wrap items-center gap-3"
           >
+            {!archivedView && (
             <button
               type="button"
-              onClick={() => setShowForm(!showForm)}
+            onClick={() => setShowForm(!showForm)}
               className="inline-flex items-center gap-2 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
             >
               <span className="text-lg leading-none">{showForm ? "−" : "+"}</span>
               {showForm ? "Close form" : "New record"}
             </button>
+            )}
+            {!archivedView && (
             <button
               type="button"
-              onClick={handleDownloadPDF}
+            onClick={handleDownloadPDF}
               className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
             >
               Download PDF report
             </button>
-          </motion.div>
+            )}
+        </motion.div>
 
         {/* New Record Form */}
         <AnimatePresence>
-          {showForm && (
+          {showForm && !archivedView && (
             <motion.div
               initial={{ opacity: 0, height: 0, scale: 0.95 }}
               animate={{ opacity: 1, height: "auto", scale: 1 }}
@@ -1371,10 +1383,10 @@ const RecordsPage = () => {
                       className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                     >
                       <option value="">Select session type</option>
-                      <option value="Individual">Individual</option>
-                      <option value="Group">Group</option>
-                      <option value="Career">Career</option>
-                      <option value="Academic">Academic</option>
+                    <option value="Individual">Individual</option>
+                    <option value="Group">Group</option>
+                    <option value="Career">Career</option>
+                    <option value="Academic">Academic</option>
                     </select>
                   </div>
                   <div>
@@ -1388,9 +1400,9 @@ const RecordsPage = () => {
                       }
                       className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                     >
-                      <option value="Ongoing">Ongoing</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Referred">Referred</option>
+                    <option value="Ongoing">Ongoing</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Referred">Referred</option>
                     </select>
                   </div>
                 </div>
@@ -1532,11 +1544,32 @@ const RecordsPage = () => {
           variants={pageItem}
           className="rounded-2xl border border-gray-200/90 bg-white dark:border-gray-700/90 dark:bg-gray-800/80"
         >
-          <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-700/80 sm:px-6 sm:py-5">
-            <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">Your records</h2>
+          <div className="border-b border-gray-100 px-5 py-4 dark:border-gray-700/80 sm:px-6 sm:py-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+            <h2 className="m-0 text-base font-semibold text-gray-900 dark:text-gray-100">
+              {archivedView ? "Archived sessions" : "Your records"}
+            </h2>
             <p className="mt-1 m-0 text-sm text-gray-500 dark:text-gray-400">
               Table on desktop, cards on smaller screens
             </p>
+            </div>
+            {archivedView ? (
+              <button
+                type="button"
+                onClick={() => navigate("/records")}
+                className="shrink-0 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
+              >
+                Back to records
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => navigate("/records/archive")}
+                className="shrink-0 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-900 transition-colors hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-100 dark:hover:bg-indigo-900/30"
+              >
+                Archive
+              </button>
+            )}
           </div>
           <div className="p-4 sm:p-6">
           {loading ? (
@@ -1686,11 +1719,57 @@ const RecordsPage = () => {
                               }}
                             >
                               {(() => {
+                                if (archivedView) {
+                                  return (
+                                    <>
+                                      <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        type="button"
+                                        onClick={() => handleViewRecordReadOnly(record)}
+                                        style={{
+                                          background: "#64748b",
+                                          color: "white",
+                                          padding: "6px 12px",
+                                          borderRadius: 8,
+                                          border: "none",
+                                          cursor: "pointer",
+                                          fontSize: 13,
+                                          fontWeight: 600,
+                                        }}
+                                        title="View record"
+                                      >
+                                        View
+                                      </motion.button>
+                                      {isRecordOwner(record) && (
+                                        <motion.button
+                                          whileHover={{ scale: 1.05 }}
+                                          whileTap={{ scale: 0.95 }}
+                                          type="button"
+                                          onClick={() => handleRestoreRow(record)}
+                                          style={{
+                                            background: "#059669",
+                                            color: "white",
+                                            padding: "6px 12px",
+                                            borderRadius: 8,
+                                            border: "none",
+                                            cursor: "pointer",
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                          }}
+                                          title="Restore to active records"
+                                        >
+                                          Restore
+                                        </motion.button>
+                                      )}
+                                    </>
+                                  );
+                                }
                                 const lockStatus = lockStatuses[record._id];
                                 const isLocked = lockStatus?.locked;
                                 const isLockOwner = lockStatus?.isLockOwner;
                                 const canEdit = !isLocked || isLockOwner;
-                                
+                                const owner = isRecordOwner(record);
                                 return (
                                   <>
                                     {canEdit && (
@@ -1711,6 +1790,27 @@ const RecordsPage = () => {
                                         title="Edit record"
                                       >
                                         Edit
+                                      </motion.button>
+                                    )}
+                                    {owner && (
+                                      <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        type="button"
+                                        onClick={() => handleArchiveRow(record)}
+                                        style={{
+                                          background: "#6366f1",
+                                          color: "white",
+                                          padding: "6px 12px",
+                                          borderRadius: 8,
+                                          border: "none",
+                                          cursor: "pointer",
+                                          fontSize: 13,
+                                          fontWeight: 600,
+                                        }}
+                                        title="Archive record"
+                                      >
+                                        Archive
                                       </motion.button>
                                     )}
                                   </>
@@ -1835,32 +1935,106 @@ const RecordsPage = () => {
                       )}
                       <div className="flex gap-2 mt-3">
                         {(() => {
+                          if (archivedView) {
+                            return (
+                              <>
+                                <motion.button
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                  type="button"
+                                  onClick={() => handleViewRecordReadOnly(record)}
+                                  style={{
+                                    flex: 1,
+                                    background: "#64748b",
+                                    color: "white",
+                                    padding: "10px",
+                                    borderRadius: 8,
+                                    border: "none",
+                                    cursor: "pointer",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                  }}
+                                  title="View record"
+                                >
+                                  View
+                                </motion.button>
+                                {isRecordOwner(record) && (
+                                  <motion.button
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    type="button"
+                                    onClick={() => handleRestoreRow(record)}
+                                    style={{
+                                      flex: 1,
+                                      background: "#059669",
+                                      color: "white",
+                                      padding: "10px",
+                                      borderRadius: 8,
+                                      border: "none",
+                                      cursor: "pointer",
+                                      fontSize: 13,
+                                      fontWeight: 600,
+                                    }}
+                                    title="Restore"
+                                  >
+                                    Restore
+                                  </motion.button>
+                                )}
+                              </>
+                            );
+                          }
                           const lockStatus = lockStatuses[record._id];
                           const isLocked = lockStatus?.locked;
                           const isLockOwner = lockStatus?.isLockOwner;
                           const canEdit = !isLocked || isLockOwner;
-                          
-                          return canEdit ? (
-                            <motion.button
-                              whileHover={{ scale: 1.02 }}
-                              whileTap={{ scale: 0.98 }}
-                              onClick={() => handleEditClick(record)}
-                              style={{
-                                flex: 1,
-                                background: "#4f46e5",
-                                color: "white",
-                                padding: "10px",
-                                borderRadius: 8,
-                                border: "none",
-                                cursor: "pointer",
-                                fontSize: 13,
-                                fontWeight: 600,
-                              }}
-                              title="Edit record"
-                            >
-                              Edit
-                            </motion.button>
-                          ) : null;
+                          const owner = isRecordOwner(record);
+                          return (
+                            <>
+                              {canEdit ? (
+                                <motion.button
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                  onClick={() => handleEditClick(record)}
+                                  style={{
+                                    flex: 1,
+                                    background: "#4f46e5",
+                                    color: "white",
+                                    padding: "10px",
+                                    borderRadius: 8,
+                                    border: "none",
+                                    cursor: "pointer",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                  }}
+                                  title="Edit record"
+                                >
+                                  Edit
+                                </motion.button>
+                              ) : null}
+                              {owner && (
+                                <motion.button
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                  type="button"
+                                  onClick={() => handleArchiveRow(record)}
+                                  style={{
+                                    flex: 1,
+                                    background: "#6366f1",
+                                    color: "white",
+                                    padding: "10px",
+                                    borderRadius: 8,
+                                    border: "none",
+                                    cursor: "pointer",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                  }}
+                                  title="Archive"
+                                >
+                                  Archive
+                                </motion.button>
+                              )}
+                            </>
+                          );
                         })()}
                       </div>
                     </motion.div>
@@ -2208,8 +2382,17 @@ const RecordsPage = () => {
                         color: "var(--text-primary)",
                       }}
                     >
-                      Edit Record — {selectedRecord.clientName}
+                      {selectedRecord.archivedAt ? "View record" : "Edit Record"} —{" "}
+                      {selectedRecord.clientName}
                     </h2>
+                    {selectedRecord.archivedAt && (
+                      <p className="m-0 mt-2 text-xs text-amber-700 dark:text-amber-300">
+                        Archived — read only.
+                        {selectedRecord.archivePurgeAt
+                          ? ` Scheduled removal after ${new Date(selectedRecord.archivePurgeAt).toLocaleDateString()}.`
+                          : ""}
+                      </p>
+                    )}
                     {(() => {
                       const lockStatus = lockStatuses[selectedRecord?._id];
                       if (lockStatus?.locked) {
@@ -2263,7 +2446,8 @@ const RecordsPage = () => {
                   const lockStatus = lockStatuses[selectedRecord?._id];
                   const isLocked = lockStatus?.locked;
                   const isLockOwner = lockStatus?.isLockOwner;
-                  const isReadOnly = isLocked && !isLockOwner;
+                  const isArchivedRecord = !!selectedRecord?.archivedAt;
+                  const isReadOnly = isArchivedRecord || (isLocked && !isLockOwner);
                   
                   const ro = isReadOnly
                     ? "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
@@ -2272,7 +2456,7 @@ const RecordsPage = () => {
                     selectedRecord.date && !Number.isNaN(new Date(selectedRecord.date).getTime())
                       ? new Date(selectedRecord.date).toISOString().slice(0, 10)
                       : "";
-
+                  
                   return (
                     <div>
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
@@ -2288,17 +2472,17 @@ const RecordsPage = () => {
                         <div>
                           <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                             Name of the student
-                          </label>
-                          <input
-                            type="text"
+                        </label>
+                        <input
+                          type="text"
                             value={selectedRecord.clientName || ""}
-                            onChange={(e) =>
-                              setSelectedRecord({
-                                ...selectedRecord,
+                          onChange={(e) =>
+                            setSelectedRecord({
+                              ...selectedRecord,
                                 clientName: e.target.value.replace(/[0-9]/g, ""),
-                              })
-                            }
-                            disabled={isReadOnly}
+                            })
+                          }
+                          disabled={isReadOnly}
                             className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro}`}
                           />
                         </div>
@@ -2413,7 +2597,7 @@ const RecordsPage = () => {
                             {selectedRecord.sessionNumber ?? "—"}
                           </div>
                         </div>
-                      </div>
+                </div>
 
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                         Session
@@ -2449,30 +2633,30 @@ const RecordsPage = () => {
                         </div>
                         <div>
                           <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Status
-                          </label>
-                          <select
-                            value={selectedRecord.status}
-                            onChange={(e) =>
-                              setSelectedRecord({
-                                ...selectedRecord,
-                                status: e.target.value,
-                              })
-                            }
-                            disabled={isReadOnly}
+                    Status
+                  </label>
+                  <select
+                    value={selectedRecord.status}
+                    onChange={(e) =>
+                      setSelectedRecord({
+                        ...selectedRecord,
+                        status: e.target.value,
+                      })
+                    }
+                    disabled={isReadOnly}
                             className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro} ${isReadOnly ? "" : "cursor-pointer"}`}
-                          >
-                            <option value="Ongoing">Ongoing</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Referred">Referred</option>
-                          </select>
+                  >
+                    <option value="Ongoing">Ongoing</option>
+                    <option value="Completed">Completed</option>
+                    <option value="Referred">Referred</option>
+                  </select>
                         </div>
-                      </div>
+                </div>
 
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                         Case notes
                       </p>
-                      <div style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 16 }}>
                         <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                           Problems presented
                         </label>
@@ -2491,40 +2675,40 @@ const RecordsPage = () => {
                       <div style={{ marginBottom: 16 }}>
                         <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                           Session notes
-                        </label>
-                        <textarea
-                          value={selectedRecord.notes || ""}
-                          onChange={(e) =>
-                            setSelectedRecord({
-                              ...selectedRecord,
-                              notes: e.target.value,
-                            })
-                          }
-                          disabled={isReadOnly}
+                  </label>
+                  <textarea
+                    value={selectedRecord.notes || ""}
+                    onChange={(e) =>
+                      setSelectedRecord({
+                        ...selectedRecord,
+                        notes: e.target.value,
+                      })
+                    }
+                    disabled={isReadOnly}
                           rows={3}
-                          placeholder={isReadOnly ? "Record is locked. Please unlock it first." : ""}
+                    placeholder={isReadOnly ? "Record is locked. Please unlock it first." : ""}
                           className={`w-full resize-y rounded-lg border px-3 py-2.5 font-sans text-sm ${ro}`}
-                        />
-                      </div>
+                  />
+                </div>
 
                       <div style={{ marginBottom: 16 }}>
                         <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                           Outcome of the counseling session
-                        </label>
-                        <textarea
-                          value={selectedRecord.outcomes || ""}
-                          onChange={(e) =>
-                            setSelectedRecord({
-                              ...selectedRecord,
-                              outcomes: e.target.value,
-                            })
-                          }
-                          disabled={isReadOnly}
+                  </label>
+                  <textarea
+                    value={selectedRecord.outcomes || ""}
+                    onChange={(e) =>
+                      setSelectedRecord({
+                        ...selectedRecord,
+                        outcomes: e.target.value,
+                      })
+                    }
+                    disabled={isReadOnly}
                           rows={3}
-                          placeholder={isReadOnly ? "Record is locked. Please unlock it first." : ""}
+                    placeholder={isReadOnly ? "Record is locked. Please unlock it first." : ""}
                           className={`w-full resize-y rounded-lg border px-3 py-2.5 font-sans text-sm ${ro}`}
-                        />
-                      </div>
+                  />
+                </div>
 
                       <div style={{ marginBottom: 20 }}>
                         <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -2585,7 +2769,7 @@ const RecordsPage = () => {
                   </motion.button>
                   <div style={{ display: "flex", gap: 12 }}>
                     {/* STRICT 2PL: Show unlock button only if user owns the lock (after editing) */}
-                    {isLocked && isLockOwner && (
+                    {isLocked && isLockOwner && !isArchivedRecord && (
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
@@ -2619,6 +2803,41 @@ const RecordsPage = () => {
                     >
                       Cancel
                     </motion.button>
+                    {isArchivedRecord && (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        type="button"
+                        onClick={() => handleDownloadPDF()}
+                        className="px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-800 font-semibold text-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80 transition-colors cursor-pointer"
+                      >
+                        Download PDF
+                      </motion.button>
+                    )}
+                    {isArchivedRecord && isRecordOwner(selectedRecord) && (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        type="button"
+                        onClick={async () => {
+                          const ok = await handleRestoreRow(selectedRecord);
+                          if (ok) setSelectedRecord(null);
+                        }}
+                        style={{
+                          background: "#059669",
+                          color: "white",
+                          padding: "10px 20px",
+                          borderRadius: 10,
+                          border: "none",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                          fontSize: 14,
+                          boxShadow: "0 4px 12px rgba(5, 150, 105, 0.3)",
+                        }}
+                      >
+                        Restore
+                      </motion.button>
+                    )}
                     <motion.button
                       whileHover={{ scale: isReadOnly ? 1 : 1.02 }}
                       whileTap={{ scale: isReadOnly ? 1 : 0.98 }}
@@ -2760,6 +2979,4 @@ const RecordsPage = () => {
       </div>
     </div>
   );
-};
-
-export default RecordsPage;
+}

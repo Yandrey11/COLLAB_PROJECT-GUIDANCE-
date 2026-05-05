@@ -1,17 +1,20 @@
 import AdminReport from "../../models/AdminReport.js";
 import Record from "../../models/Record.js";
 import Counselor from "../../models/Counselor.js";
-import Admin from "../../models/Admin.js";
-import Session from "../../models/Session.js";
-import AnalyticsEvent from "../../models/AnalyticsEvent.js";
 import ActivityLog from "../../models/ActivityLog.js";
-import Notification from "../../models/Notification.js";
 import fs from "fs";
 import path from "path";
 import { generateCounselingRecordPDF } from "../../utils/pdfUtils.js";
+import {
+  generateCounselingSummaryPdf,
+  buildSummaryMonthLabel,
+  buildSummaryMonthLabelFromRecords,
+  inferSummarySchoolYear,
+} from "../../utils/counselingSummaryPdf.js";
 import { google } from "googleapis";
 import { getDriveClientFromRequest, getOrCreateReportsFolder } from "../../utils/driveUtils.js";
 import mongoose from "mongoose";
+import { notArchivedFilter, isArchivedFilter } from "../../config/recordArchive.js";
 
 // Helper function to generate tracking number
 const generateTrackingNumber = () => {
@@ -31,6 +34,59 @@ const getUserInfo = (req) => {
 };
 
 // Helper to log activity
+/** Shared Mongo filter for admin report types that query counseling records. */
+async function buildAdminRecordsFilter({
+  clientName,
+  counselorName,
+  status,
+  recordType,
+  sessionType,
+  startDate,
+  endDate,
+  counselorId,
+  archived,
+}) {
+  const filter = {};
+  if (clientName && String(clientName).trim() !== "") {
+    filter.clientName = { $regex: String(clientName).trim(), $options: "i" };
+  }
+  if (recordType && String(recordType).trim() !== "") {
+    filter.status = recordType;
+  } else if (status && String(status).trim() !== "") {
+    filter.status = status;
+  }
+  if (sessionType && String(sessionType).trim() !== "") {
+    filter.sessionType = sessionType;
+  }
+  if (startDate && endDate) {
+    filter.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
+  } else if (startDate) {
+    filter.date = { $gte: new Date(startDate) };
+  } else if (endDate) {
+    filter.date = { $lte: new Date(endDate) };
+  }
+
+  const cid = counselorId != null ? String(counselorId).trim() : "";
+  if (cid && mongoose.Types.ObjectId.isValid(cid)) {
+    const c = await Counselor.findById(cid).select("name email").lean();
+    if (c) {
+      const parts = [];
+      if (c.name) parts.push({ counselor: c.name });
+      if (c.email) parts.push({ counselor: c.email });
+      if (parts.length) filter.$or = parts;
+    }
+  } else if (counselorName && String(counselorName).trim() !== "") {
+    filter.counselor = { $regex: String(counselorName).trim(), $options: "i" };
+  }
+
+  const archFrag =
+    archived === true || archived === "true" ? isArchivedFilter() : notArchivedFilter();
+  if (Object.keys(filter).length === 0) {
+    return archFrag;
+  }
+  return { $and: [filter, archFrag] };
+}
+
 const logActivity = async (req, activityType, description, metadata = {}) => {
   try {
     const userInfo = getUserInfo(req);
@@ -157,20 +213,16 @@ export const getFilteredRecords = async (req, res) => {
       limit = 3,
     } = req.query;
 
-    const filter = {};
-
-    if (clientName) filter.clientName = { $regex: clientName, $options: "i" };
-    if (counselorName) filter.counselor = { $regex: counselorName, $options: "i" };
-    if (status) filter.status = status;
-    if (recordType) filter.status = recordType; // recordType maps to status
-    if (sessionType) filter.sessionType = sessionType;
-    if (startDate && endDate) {
-      filter.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
-    } else if (startDate) {
-      filter.date = { $gte: new Date(startDate) };
-    } else if (endDate) {
-      filter.date = { $lte: new Date(endDate) };
-    }
+    const filter = await buildAdminRecordsFilter({
+      clientName,
+      counselorName,
+      status,
+      recordType,
+      sessionType,
+      startDate,
+      endDate,
+      counselorId,
+    });
 
     // Calculate pagination
     const pageNum = parseInt(page);
@@ -241,20 +293,16 @@ export const generateReport = async (req, res) => {
       day: "numeric",
     });
 
-    // Build filter for records
-    const filter = {};
-    if (clientName) filter.clientName = { $regex: clientName, $options: "i" };
-    if (counselorName) filter.counselor = { $regex: counselorName, $options: "i" };
-    if (status) filter.status = status;
-    if (recordType) filter.status = recordType;
-    if (sessionType) filter.sessionType = sessionType;
-    if (startDate && endDate) {
-      filter.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
-    } else if (startDate) {
-      filter.date = { $gte: new Date(startDate) };
-    } else if (endDate) {
-      filter.date = { $lte: new Date(endDate) };
-    }
+    const filter = await buildAdminRecordsFilter({
+      clientName,
+      counselorName,
+      status,
+      recordType,
+      sessionType,
+      startDate,
+      endDate,
+      counselorId,
+    });
 
     // Fetch data based on report type
     let records = [];
@@ -270,47 +318,29 @@ export const generateReport = async (req, res) => {
           referredSessions: records.filter((r) => r.status === "Referred").length,
         };
         break;
-      case "Counselor Activity Report":
-        // Get all counselors and their activity
-        records = await Record.find(filter)
-          .sort({ date: -1 })
-          .lean();
-        const counselors = await Counselor.find({ role: "counselor" }).lean();
+      case "Counseling Summary Report": {
+        const matchCount = await Record.countDocuments(filter);
+        if (matchCount > 500) {
+          return res.status(400).json({
+            success: false,
+            message: `Too many records (${matchCount}) match your filters. Counseling summary reports are limited to 500 records. Narrow the date range or add filters.`,
+          });
+        }
+        records = await Record.find(filter).sort({ date: 1 }).limit(500).lean();
+        if (records.length === 0) {
+          return res.status(400).json({
+            success: false,
+            message: "No records match your filters. Cannot generate an empty counseling summary.",
+          });
+        }
         statistics = {
-          totalCounselors: counselors.length,
           totalRecords: records.length,
+          completedSessions: records.filter((r) => r.status === "Completed").length,
+          ongoingSessions: records.filter((r) => r.status === "Ongoing").length,
+          referredSessions: records.filter((r) => r.status === "Referred").length,
         };
         break;
-      case "Generated Files Report":
-        records = await Record.find({
-          ...filter,
-          driveLink: { $exists: true, $ne: null, $ne: "" },
-        })
-          .sort({ date: -1 })
-          .lean();
-        statistics = {
-          totalPDFs: records.length,
-        };
-        break;
-      case "User Account Report":
-        const users = await Counselor.find().lean();
-        const admins = await Admin.find().lean();
-        statistics = {
-          totalUsers: users.length,
-          totalAdmins: admins.length,
-          totalCounselors: users.filter((u) => u.role === "counselor").length,
-        };
-        break;
-      case "System Logs Report":
-        // Get recent activity logs
-        const logs = await ActivityLog.find()
-          .sort({ createdAt: -1 })
-          .limit(100)
-          .lean();
-        statistics = {
-          totalLogs: logs.length,
-        };
-        break;
+      }
       default:
         return res.status(400).json({
           success: false,
@@ -321,18 +351,50 @@ export const generateReport = async (req, res) => {
 
     const sanitizedReportName = reportName.replace(/[^a-zA-Z0-9]/g, "_");
     const sanitizedAdminName = userInfo.userName.replace(/[^a-zA-Z0-9]/g, "_");
-    const pdfRecord = buildAdminPdfRecord({
-      reportName,
-      reportType,
-      records,
-      statistics,
-      userInfo,
-      reportDate,
-      filter,
-    });
 
-    const pdfPath = await generateCounselingRecordPDF(pdfRecord, `${sanitizedAdminName}_${sanitizedReportName}`);
-    const generatedPdfFileName = path.basename(pdfPath);
+    let pdfPath;
+    let generatedPdfFileName;
+
+    if (reportType === "Counseling Summary Report") {
+      const monthLabel =
+        startDate || endDate
+          ? buildSummaryMonthLabel(startDate, endDate)
+          : buildSummaryMonthLabelFromRecords(records);
+      const schoolYear = inferSummarySchoolYear(records);
+      const tempSummaryPath = await generateCounselingSummaryPdf(records, {
+        monthLabel,
+        schoolYear,
+        trackingNumber,
+        reportDate,
+      });
+      const desiredName = `counseling_summary_${trackingNumber}.pdf`;
+      const targetPath = path.join(path.dirname(tempSummaryPath), desiredName.replace(/[^\w.\-]/g, "_"));
+      try {
+        if (tempSummaryPath !== targetPath && fs.existsSync(tempSummaryPath)) {
+          if (fs.existsSync(targetPath)) fs.unlinkSync(targetPath);
+          fs.renameSync(tempSummaryPath, targetPath);
+          pdfPath = targetPath;
+        } else {
+          pdfPath = tempSummaryPath;
+        }
+      } catch (renameErr) {
+        console.error("Summary PDF rename failed, using temp name:", renameErr.message);
+        pdfPath = tempSummaryPath;
+      }
+      generatedPdfFileName = path.basename(pdfPath);
+    } else {
+      const pdfRecord = buildAdminPdfRecord({
+        reportName,
+        reportType,
+        records,
+        statistics,
+        userInfo,
+        reportDate,
+        filter,
+      });
+      pdfPath = await generateCounselingRecordPDF(pdfRecord, `${sanitizedAdminName}_${sanitizedReportName}`);
+      generatedPdfFileName = path.basename(pdfPath);
+    }
 
     // Get file size
     const stats = fs.statSync(pdfPath);

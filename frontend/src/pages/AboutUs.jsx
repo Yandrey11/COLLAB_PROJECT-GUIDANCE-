@@ -1,182 +1,172 @@
 import { Link } from "react-router-dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { initializeTheme } from "../utils/themeUtils";
+import { useEffect } from "react";
+
+const cardSurface =
+  "rounded-2xl border border-gray-200/90 bg-white shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80";
+
+const features = [
+  {
+    title: "Record management",
+    body: "Create, update, and organize counseling records with a clear, efficient workflow.",
+  },
+  {
+    title: "Analytics & reports",
+    body: "Generate reports and review activity so you can focus on outcomes, not paperwork.",
+  },
+  {
+    title: "Notifications",
+    body: "Stay informed about records, tasks, and announcements in one place.",
+  },
+  {
+    title: "Cloud integration",
+    body: "Connect with Google Drive for secure storage and access when you need it.",
+  },
+  {
+    title: "Security & privacy",
+    body: "Built with confidentiality in mind—your clients’ information deserves careful handling.",
+  },
+  {
+    title: "Efficient workflow",
+    body: "Reduce repetitive admin work so sessions and follow-ups stay front and center.",
+  },
+];
+
+const values = [
+  {
+    title: "Confidentiality",
+    body: "We treat sensitive client information with the care and discretion it requires.",
+  },
+  {
+    title: "Efficiency",
+    body: "Less time on admin means more time for meaningful guidance and support.",
+  },
+  {
+    title: "Reliability",
+    body: "A stable platform you can depend on for day-to-day counseling operations.",
+  },
+  {
+    title: "Innovation",
+    body: "We keep improving based on counselor feedback and evolving needs in the field.",
+  },
+];
 
 export default function AboutUs() {
   useDocumentTitle("About Us");
-  
+
+  useEffect(() => {
+    initializeTheme();
+  }, []);
+
   return (
-    <div className="min-h-screen w-full flex flex-col overflow-x-hidden page-bg font-sans text-gray-900 dark:text-gray-100">
-      <main className="flex-1 w-full max-w-6xl mx-auto px-4 py-12 md:py-16">
-        {/* Hero Section */}
-        <div className="text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 dark:text-white mb-4">
-            About Us
-          </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
-            Empowering guidance counselors with a comprehensive record management system
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
+      <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
+        <header className="mb-12 border-b border-gray-200/80 pb-10 text-center dark:border-gray-700/80 sm:mb-14 sm:pb-12">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+            Guidance system
           </p>
-        </div>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
+            About us
+          </h1>
+          <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-gray-500 dark:text-gray-400">
+            Supporting guidance counselors with thoughtful record management so you can focus on people, not process.
+          </p>
+        </header>
 
-        {/* Mission Section */}
-        <section className="mb-16">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 md:p-12">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Our Mission</h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
-              The Guidance Counsel Record System is designed to streamline and enhance the work of guidance counselors 
-              by providing a centralized platform for managing counseling records, client information, and session documentation.
+        <section className="mb-12 sm:mb-14">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+            Mission
+          </h2>
+          <div className={`${cardSurface} p-6 sm:p-8`}>
+            <p className="text-base leading-relaxed text-gray-600 dark:text-gray-300">
+              The Guidance Counsel Record System centralizes session documentation, client context, and follow-ups—so
+              counselors spend less energy hunting for information and more time in conversation.
             </p>
-            <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed">
-              Our mission is to empower counselors with tools that help them focus on what matters most: providing 
-              quality guidance and support to those who need it. We believe that by simplifying administrative tasks, 
-              counselors can dedicate more time to meaningful interactions with their clients.
+            <p className="mt-4 text-base leading-relaxed text-gray-600 dark:text-gray-300">
+              Our goal is simple: streamline the administrative side of guidance work so quality support stays at the
+              center of every day.
             </p>
           </div>
         </section>
 
-        {/* Features Section */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Key Features</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-              <div className="text-4xl mb-4">📋</div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Record Management</h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Easily create, update, and manage counseling records with a user-friendly interface designed for efficiency.
-              </p>
-            </div>
+        <section className="mb-12 sm:mb-14">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+            Capabilities
+          </h2>
+          <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">
+            Everything in one calm, organized workspace.
+          </p>
+          <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {features.map(({ title, body }) => (
+              <li key={title} className={`${cardSurface} p-5 sm:p-6`}>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">{body}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-              <div className="text-4xl mb-4">📊</div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Analytics & Reports</h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Generate comprehensive reports and gain insights through powerful analytics tools tailored for counselors.
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-              <div className="text-4xl mb-4">🔔</div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Notifications</h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Stay updated with real-time notifications about records, assignments, and important announcements.
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-              <div className="text-4xl mb-4">☁️</div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Cloud Integration</h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Seamlessly integrate with Google Drive for secure document storage and easy access from anywhere.
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-              <div className="text-4xl mb-4">🔒</div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Security & Privacy</h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Your data is protected with industry-standard security measures and privacy controls.
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow">
-              <div className="text-4xl mb-4">⚡</div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Efficient Workflow</h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                Streamline your workflow with intuitive tools that save time and reduce administrative burden.
-              </p>
-            </div>
+        <section className="mb-12 sm:mb-14">
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+            Values
+          </h2>
+          <p className="mb-6 text-sm text-gray-500 dark:text-gray-400">What guides how we build the product.</p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {values.map(({ title, body }) => (
+              <div key={title} className={`${cardSurface} p-5 sm:p-6`}>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">{body}</p>
+              </div>
+            ))}
           </div>
         </section>
 
-        {/* Values Section */}
-        <section className="mb-16">
-          <div className="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl shadow-lg p-8 md:p-12 text-white">
-            <h2 className="text-3xl font-bold mb-8">Our Values</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-xl font-bold mb-3">Confidentiality</h3>
-                <p className="text-indigo-100">
-                  We prioritize the privacy and confidentiality of all client information, ensuring that sensitive data 
-                  is handled with the utmost care and security.
-                </p>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold mb-3">Efficiency</h3>
-                <p className="text-indigo-100">
-                  Our system is designed to minimize time spent on administrative tasks, allowing counselors to focus 
-                  on providing quality guidance and support.
-                </p>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold mb-3">Reliability</h3>
-                <p className="text-indigo-100">
-                  We are committed to providing a stable and reliable platform that counselors can depend on for their 
-                  daily operations.
-                </p>
-              </div>
-              <div>
-                <h3 className="text-xl font-bold mb-3">Innovation</h3>
-                <p className="text-indigo-100">
-                  We continuously work to improve and enhance our platform based on feedback from counselors and 
-                  evolving needs of the guidance community.
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Call to Action */}
-        <section className="text-center">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 md:p-12">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Ready to Get Started?
-            </h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
-              Join counselors who are already using our system to streamline their work and provide better support to their clients.
-            </p>
-            <div className="flex flex-wrap gap-4 justify-center">
-              <Link
-                to="/signup"
-                className="px-8 py-3 rounded-full font-semibold transition-all duration-200 transform hover:-translate-y-0.5 shadow-lg hover:shadow-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white hover:shadow-indigo-500/30"
-              >
-                Sign Up
-              </Link>
-              <Link
-                to="/login"
-                className="px-8 py-3 rounded-full font-semibold transition-all duration-200 transform hover:-translate-y-0.5 shadow-lg hover:shadow-xl bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-gray-600 hover:border-indigo-200 dark:hover:border-gray-500"
-              >
-                Log In
-              </Link>
-            </div>
+        <section className={`${cardSurface} p-6 text-center sm:p-8`}>
+          <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white sm:text-xl">
+            Ready to get started?
+          </h2>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+            Create an account or sign in to explore the system.
+          </p>
+          <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <Link
+              to="/signup"
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-gray-900 px-6 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+            >
+              Sign up
+            </Link>
+            <Link
+              to="/login"
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-gray-200 bg-white px-6 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
+            >
+              Log in
+            </Link>
           </div>
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="bg-white dark:bg-gray-800 border-t border-slate-200 dark:border-gray-700 py-8 mt-16">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              © {new Date().getFullYear()} Collab Project. All rights reserved.
-            </p>
-            <div className="flex gap-6">
-              <Link
-                to="/"
-                className="text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-              >
-                Home
-              </Link>
-              <Link
-                to="/about"
-                className="text-sm text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-              >
-                About Us
-              </Link>
-            </div>
-          </div>
+      <footer className="border-t border-gray-200/90 bg-white/80 py-8 dark:border-gray-700/90 dark:bg-gray-900/40">
+        <div className="mx-auto flex max-w-3xl flex-col items-center justify-between gap-4 px-4 sm:flex-row sm:px-6">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            © {new Date().getFullYear()} Collab Project. All rights reserved.
+          </p>
+          <nav className="flex gap-6 text-xs font-medium">
+            <Link
+              to="/"
+              className="text-gray-500 transition hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              Home
+            </Link>
+            <Link
+              to="/about"
+              className="text-gray-900 dark:text-white"
+            >
+              About
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>
   );
 }
-
-

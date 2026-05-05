@@ -4,6 +4,12 @@ import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { validatePassword } from "../utils/passwordValidation";
 import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { initializeTheme } from "../utils/themeUtils";
+
+const labelClass =
+  "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500";
+const inputClass =
+  "h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-indigo-400 dark:focus:ring-indigo-400";
 
 export default function ResetPassword() {
   useDocumentTitle("Reset Password");
@@ -11,6 +17,8 @@ export default function ResetPassword() {
   const navigate = useNavigate();
   const returnTo = searchParams.get("returnTo");
   const isAdmin = returnTo === "admin";
+  const loginPath = isAdmin ? "/adminlogin" : "/login";
+
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [token, setToken] = useState("");
@@ -19,6 +27,10 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [useToken, setUseToken] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState([]);
+
+  useEffect(() => {
+    initializeTheme();
+  }, []);
 
   useEffect(() => {
     const tokenParam = searchParams.get("token");
@@ -51,15 +63,12 @@ export default function ResetPassword() {
     }
 
     try {
-      const payload = useToken
-        ? { email, token, newPassword }
-        : { email, code, newPassword };
+      const payload = useToken ? { email, token, newPassword } : { email, code, newPassword };
 
       const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
       const res = await axios.post(`${baseUrl}/api/reset/reset-password`, payload);
 
       setMessage(res.data.message || "Password reset successful!");
-      const loginPath = isAdmin ? "/adminlogin" : "/login";
       setTimeout(() => navigate(loginPath), 2000);
     } catch (err) {
       console.error("Reset password error:", err);
@@ -69,202 +78,93 @@ export default function ResetPassword() {
     }
   };
 
-  return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
-        .reset-page * { box-sizing: border-box; }
-        .reset-page {
-          font-family: 'Montserrat', sans-serif;
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
-          background: linear-gradient(135deg, #eef2ff, #c7d2fe);
-          min-height: 100vh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 32px 16px;
-        }
-        .reset-card {
-          width: 100%;
-          max-width: 440px;
-          background: #fff;
-          border-radius: 24px;
-          padding: 48px 40px;
-          box-shadow: 0 25px 70px rgba(79, 70, 229, 0.15);
-          border: 1px solid rgba(226,232,240,0.8);
-          color: #111827;
-        }
-        .reset-heading h1 {
-          margin: 0;
-          font-size: 28px;
-          font-weight: 700;
-          color: #111827;
-        }
-        .reset-heading p {
-          color: #6b7280;
-          margin: 8px 0 0 0;
-          font-size: 15px;
-        }
-        .reset-form input {
-          width: 100%;
-          padding: 12px 14px;
-          border-radius: 12px;
-          border: 1px solid #e5e7eb;
-          background: #f9fafb;
-          color: #111827;
-          font-size: 15px;
-          transition: border 0.2s ease, background 0.2s ease;
-        }
-        .reset-form input:focus {
-          outline: none;
-          border-color: #4f46e5;
-          background: #fff;
-        }
-        .reset-form label {
-          font-size: 13px;
-          font-weight: 600;
-          color: #374151;
-          margin-bottom: 6px;
-          display: block;
-        }
-        .reset-primary {
-          width: 100%;
-          padding: 14px;
-          border: none;
-          border-radius: 12px;
-          font-weight: 700;
-          cursor: pointer;
-          background: linear-gradient(120deg, #4f46e5, #7c3aed);
-          color: #fff;
-          margin-top: 4px;
-          transition: transform 0.15s ease, box-shadow 0.15s ease;
-          font-family: inherit;
-        }
-        .reset-primary:disabled {
-          opacity: 0.65;
-          cursor: not-allowed;
-        }
-        .reset-primary:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 15px 30px rgba(99,102,241,0.35);
-        }
-        .reset-back {
-          background: transparent;
-          color: #6b7280;
-          border: 1px solid #e5e7eb;
-          padding: 8px 16px;
-          border-radius: 999px;
-          font-weight: 600;
-          cursor: pointer;
-          font-family: inherit;
-          margin-bottom: 24px;
-        }
-        .reset-back:hover {
-          color: #111827;
-          border-color: #c7d2fe;
-        }
-        .reset-email-box {
-          padding: 12px 14px;
-          background: #f9fafb;
-          border-radius: 12px;
-          border: 1px solid #e5e7eb;
-          font-size: 14px;
-          color: #6b7280;
-        }
-        .reset-email-box strong {
-          color: #111827;
-        }
-        .reset-message {
-          margin-top: 12px;
-          padding: 10px 12px;
-          border-radius: 10px;
-          font-size: 13px;
-        }
-        .reset-message.success {
-          background: rgba(34,197,94,0.1);
-          color: #16a34a;
-        }
-        .reset-message.error {
-          background: rgba(239,68,68,0.1);
-          color: #dc2626;
-        }
-        .reset-errors {
-          font-size: 12px;
-          color: #dc2626;
-          list-style: disc;
-          padding-left: 20px;
-          margin: 4px 0 0 0;
-        }
-        .reset-link {
-          color: #4f46e5;
-          text-decoration: none;
-          font-weight: 600;
-        }
-        .reset-link:hover {
-          text-decoration: underline;
-        }
-        @media (max-width: 520px) {
-          .reset-card {
-            padding: 32px 24px;
-          }
-        }
-      `}</style>
+  const messageSuccess = message && message.toLowerCase().includes("success");
 
-      <div className="reset-page">
-        <div className="reset-card" role="main">
+  return (
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-10 sm:px-6 sm:py-12">
+        <div className="rounded-2xl border border-gray-200/90 bg-white p-6 shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80 sm:p-8">
           <button
             type="button"
-            className="reset-back"
-            onClick={() => navigate(isAdmin ? "/adminlogin" : "/login")}
+            onClick={() => navigate(loginPath)}
+            className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
           >
-            ← Back to Login
+            <span aria-hidden>←</span>
+            Back to {isAdmin ? "admin " : ""}login
           </button>
-          <div className="reset-heading">
-            <h1>Reset Password</h1>
-            <p>
-              {isAdmin
-                ? "Enter your reset code and new password."
-                : "Enter your reset code and new password."}
+
+          <div className="mb-8 space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+              Security
+            </p>
+            <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
+              Reset password
+            </h1>
+            <p className="text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+              {useToken
+                ? "Choose a new password for your account."
+                : "Enter the email and code from your inbox, then choose a new password."}
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="reset-form" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {message && (
+            <div
+              role="status"
+              className={`mb-6 rounded-xl border px-4 py-3 text-sm font-medium ${
+                messageSuccess
+                  ? "border-green-200/90 bg-green-50/90 text-green-800 dark:border-green-800/80 dark:bg-green-950/30 dark:text-green-300"
+                  : "border-red-200/90 bg-red-50/90 text-red-800 dark:border-red-800/80 dark:bg-red-950/30 dark:text-red-300"
+              }`}
+            >
+              {message}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
             {!useToken && (
               <>
                 <div>
-                  <label htmlFor="reset-email">Email</label>
+                  <label htmlFor="reset-email" className={labelClass}>
+                    Email
+                  </label>
                   <input
                     id="reset-email"
                     type="email"
-                    placeholder="Enter your email"
+                    placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    className={inputClass}
                   />
                 </div>
                 <div>
-                  <label htmlFor="reset-code">Reset Code</label>
+                  <label htmlFor="reset-code" className={labelClass}>
+                    Reset code
+                  </label>
                   <input
                     id="reset-code"
                     type="text"
-                    placeholder="Enter 6-digit reset code"
+                    placeholder="6-digit code"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     required
+                    className={inputClass}
                   />
                 </div>
               </>
             )}
 
             {useToken && (
-              <div className="reset-email-box">
-                Resetting password for: <strong>{email}</strong>
+              <div className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3 text-sm text-gray-600 dark:border-gray-600 dark:bg-gray-900/40 dark:text-gray-300">
+                Resetting password for{" "}
+                <span className="font-medium text-gray-900 dark:text-white">{email}</span>
               </div>
             )}
 
             <div>
-              <label htmlFor="reset-password">New Password</label>
+              <label htmlFor="reset-password" className={labelClass}>
+                New password
+              </label>
               <input
                 id="reset-password"
                 type="password"
@@ -277,12 +177,13 @@ export default function ResetPassword() {
                   setPasswordErrors(result.errors);
                 }}
                 required
+                className={inputClass}
               />
-              <div style={{ marginTop: 6 }}>
+              <div className="mt-2">
                 <PasswordStrengthMeter password={newPassword} email={email} />
               </div>
               {passwordErrors.length > 0 && (
-                <ul className="reset-errors">
+                <ul className="mt-2 list-inside list-disc space-y-0.5 text-xs text-red-600 dark:text-red-400">
                   {passwordErrors.map((err) => (
                     <li key={err}>{err}</li>
                   ))}
@@ -292,27 +193,24 @@ export default function ResetPassword() {
 
             <button
               type="submit"
-              className="reset-primary"
               disabled={loading}
+              className="h-11 w-full rounded-xl bg-gray-900 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
             >
-              {loading ? "Resetting..." : "Reset Password"}
+              {loading ? "Updating…" : "Reset password"}
             </button>
           </form>
 
-          {message && (
-            <p className={`reset-message ${message.includes("Failed") ? "error" : "success"}`}>
-              {message}
-            </p>
-          )}
-
-          <p style={{ textAlign: "center", marginTop: "24px", color: "#6b7280", fontSize: "14px" }}>
+          <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
             Remembered your password?{" "}
-            <Link to={isAdmin ? "/adminlogin" : "/login"} className="reset-link">
-              Back to {isAdmin ? "Admin " : ""}Login
+            <Link
+              to={loginPath}
+              className="font-medium text-indigo-600 underline-offset-2 transition hover:text-indigo-500 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300"
+            >
+              Sign in
             </Link>
           </p>
         </div>
       </div>
-    </>
+    </div>
   );
 }

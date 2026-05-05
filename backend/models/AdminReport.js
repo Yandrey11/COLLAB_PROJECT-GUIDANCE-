@@ -9,13 +9,7 @@ const adminReportSchema = new mongoose.Schema(
     reportType: {
       type: String,
       required: true,
-      enum: [
-        "Counseling Records Report",
-        "Counselor Activity Report",
-        "Generated Files Report",
-        "User Account Report",
-        "System Logs Report",
-      ],
+      enum: ["Counseling Records Report", "Counseling Summary Report"],
     },
     trackingNumber: {
       type: String,

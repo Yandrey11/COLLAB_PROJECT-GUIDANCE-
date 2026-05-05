@@ -6,7 +6,7 @@ import Swal from "sweetalert2";
 import CounselorSidebar from "../components/CounselorSidebar";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { COUNSELOR_COLLEGES } from "../constants/counselorColleges";
+import { COUNSELOR_COLLEGES, getCounselorCollegeAvatarRingClass } from "../constants/counselorColleges";
 
 const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/profile`;
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -388,8 +388,11 @@ export default function ProfilePage() {
     }
   };
 
+  const activeCollege = profileForm.college || profile?.college || "";
+  const collegeAvatarRing = getCounselorCollegeAvatarRingClass(activeCollege);
+
   return (
-    <div className="min-h-screen w-full page-bg counselor-typography font-sans">
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
       <div className="mx-auto flex w-full max-w-[1800px] flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         <motion.main
           className="flex min-w-0 flex-col gap-8"
@@ -431,7 +434,11 @@ export default function ProfilePage() {
             <div className="grid min-h-0 grid-cols-1 gap-8 p-5 md:p-8 lg:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] lg:gap-10 xl:grid-cols-[minmax(14rem,22rem)_minmax(0,1fr)] lg:items-start">
                 {/* Photo column */}
                 <div className="flex flex-col items-center border-b border-gray-100 pb-8 dark:border-gray-700/80 lg:items-stretch lg:border-b-0 lg:border-r lg:pb-0 lg:pr-10">
-                  <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-full border-2 border-gray-200 bg-gray-50 dark:border-gray-600 dark:bg-gray-900/30 sm:h-32 sm:w-32 lg:h-40 lg:w-40">
+                  <div
+                    className={`relative h-28 w-28 shrink-0 overflow-hidden rounded-full bg-gray-50 dark:bg-gray-900/30 sm:h-32 sm:w-32 lg:h-40 lg:w-40 ${
+                      collegeAvatarRing ?? "border-2 border-gray-200 dark:border-gray-600"
+                    }`}
+                  >
                     {previewImage ? (
                       <img
                         src={previewImage}

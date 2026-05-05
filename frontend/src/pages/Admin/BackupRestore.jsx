@@ -328,7 +328,7 @@ export default function BackupRestore() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg admin-typography font-sans p-3 md:p-5 gap-5">
+    <div className="page-bg admin-typography flex min-h-screen w-full flex-col items-center gap-5 p-3 font-sans text-gray-900 dark:text-gray-100 md:p-5">
       {/* Top Progress Bar - page-level loading indicator */}
       {loading && (
         <div className="fixed top-0 left-0 w-full z-[9999] pointer-events-none">

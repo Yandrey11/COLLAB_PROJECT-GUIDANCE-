@@ -2,7 +2,7 @@
  * Same taxonomy as frontend `constants/problemsPresented.js` (PDF + DB normalization).
  */
 
-const PROBLEMS_PRESENTED_OPTIONS = [
+export const PROBLEMS_PRESENTED_OPTIONS = [
   { code: "HF", label: "Home and Family" },
   { code: "HPC", label: "Health and Physical Concerns" },
   { code: "FLE", label: "Finances, Living Conditions, Employment" },

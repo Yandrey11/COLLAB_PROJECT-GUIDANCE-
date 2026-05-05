@@ -9,6 +9,7 @@ import cookieParser from "cookie-parser"; // ✅ Keep only ONE
 import path from "path";
 import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
+import { purgeExpiredArchivedRecords } from "./controllers/recordController.js";
 
 // ES6 module dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -26,6 +27,14 @@ if (!process.env.JWT_SECRET || !process.env.SESSION_SECRET) {
 // ✅ Connect to MongoDB
 connectDB();
 
+const ARCHIVE_PURGE_INTERVAL_MS = 24 * 60 * 60 * 1000;
+setTimeout(() => {
+  purgeExpiredArchivedRecords().catch((e) => console.error("[archive-purge] initial run:", e));
+}, 60_000);
+setInterval(() => {
+  purgeExpiredArchivedRecords().catch((e) => console.error("[archive-purge] scheduled run:", e));
+}, ARCHIVE_PURGE_INTERVAL_MS);
+
 // ✅ Initialize Express
 const app = express();
 
@@ -37,7 +46,7 @@ import "./config/adminPassport.js";         // admin Google/local auth
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:5173",
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
   })
 );
@@ -102,6 +111,8 @@ import analyticsRoutes from "./routes/admin/analyticsRoutes.js";
 import publicAnalyticsRoutes from "./routes/analyticsRoutes.js";
 import reportsRoutes from "./routes/admin/reportsRoutes.js";
 import counselorNotificationRoutes from "./routes/counselorNotificationRoutes.js";
+import counselorMessageRoutes from "./routes/counselorMessageRoutes.js";
+import adminMessageRoutes from "./routes/admin/adminMessageRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import counselorSettingsRoutes from "./routes/counselorSettingsRoutes.js";
 app.use("/api/admin", adminRoutes);
@@ -110,6 +121,7 @@ app.use("/api/admin", adminSignupRoutes);
 app.use("/api/admin", adminTokenRoutes);
 app.use("/api/admin", sessionRoutes);
 app.use("/api/admin", notificationRoutes);
+app.use("/api/admin", adminMessageRoutes);
 app.use("/api/admin", userManagementRoutes);
 app.use("/api/admin", adminRecordRoutes);
 app.use("/api/admin/profile", adminProfileRoutes);
@@ -120,6 +132,7 @@ app.use("/api/admin/analytics", analyticsRoutes);
 app.use("/api/admin/reports", reportsRoutes);
 app.use("/api/analytics", publicAnalyticsRoutes);
 app.use("/api/counselor/notifications", counselorNotificationRoutes);
+app.use("/api/counselor/messages", counselorMessageRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/counselor/settings", counselorSettingsRoutes);
 

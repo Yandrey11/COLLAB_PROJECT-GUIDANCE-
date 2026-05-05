@@ -352,7 +352,7 @@ export default function AdminProfilePage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-stretch page-bg admin-typography font-sans p-3 md:p-5 gap-4">
+    <div className="page-bg admin-typography flex min-h-screen w-full flex-col items-stretch gap-4 p-3 font-sans text-gray-900 dark:text-gray-100 md:p-5">
       <div className="w-full max-w-[1800px] mx-auto flex flex-1 flex-col min-h-0 min-w-0">
         <main className="flex-1 flex flex-col min-w-0 min-h-0">
           <motion.div

@@ -71,6 +71,15 @@ export default function AdminDashboard() {
   const [pageNameFilter, setPageNameFilter] = useState("");
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
+  /** Consultation (record) volume by month/quarter and session type */
+  const [consultationVolume, setConsultationVolume] = useState({
+    byMonth: [],
+    byQuarter: [],
+    peakMonth: null,
+    categories: ["Individual", "Group", "Career", "Academic", "Other"],
+  });
+  const [consultationPeriodView, setConsultationPeriodView] = useState("month");
+
   // Announcement modal state
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcementData, setAnnouncementData] = useState({
@@ -305,6 +314,25 @@ export default function AdminDashboard() {
       });
       if (statusRes.data.success) {
         setRecordStatusDistribution(statusRes.data.distribution);
+      }
+
+      const volRes = await axios.get(`${BASE_URL}/api/admin/analytics/consultation-volume`, {
+        headers: { Authorization: `Bearer ${token}` },
+        params: { range: dateRange },
+      });
+      if (volRes.data?.success) {
+        setConsultationVolume({
+          byMonth: volRes.data.byMonth || [],
+          byQuarter: volRes.data.byQuarter || [],
+          peakMonth: volRes.data.peakMonth ?? null,
+          categories: volRes.data.categories || [
+            "Individual",
+            "Group",
+            "Career",
+            "Academic",
+            "Other",
+          ],
+        });
       }
 
       // Fetch recent events
@@ -601,6 +629,8 @@ export default function AdminDashboard() {
                     <option value="30d">Last 30 days</option>
                     <option value="90d">Last 90 days</option>
                     <option value="1y">Last year</option>
+                    <option value="2y">Last 2 years</option>
+                    <option value="all">Last 5 years</option>
                   </select>
                 </div>
                 <div>
@@ -704,6 +734,71 @@ export default function AdminDashboard() {
                 <PieChart data={recordStatusDistribution} />
               </ChartCard>
             </div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className={`${cardSurface} p-5 sm:p-6`}
+            >
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <h3 className="m-0 text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                    Consultations by session type
+                  </h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Counseling records in the selected date range, stacked by session category.
+                  </p>
+                  {consultationVolume.peakMonth && consultationPeriodView === "month" ? (
+                    <p className="mt-2 m-0 text-xs font-medium text-indigo-600 dark:text-indigo-400">
+                      Highest month:{" "}
+                      <span className="text-gray-900 dark:text-gray-100">
+                        {consultationVolume.peakMonth.label}
+                      </span>{" "}
+                      ({consultationVolume.peakMonth.total.toLocaleString()} consultations)
+                    </p>
+                  ) : null}
+                </div>
+                <div
+                  className="flex shrink-0 rounded-xl border border-gray-200 p-0.5 dark:border-gray-600"
+                  role="group"
+                  aria-label="Period grouping"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setConsultationPeriodView("month")}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                      consultationPeriodView === "month"
+                        ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+                        : "text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/80"
+                    }`}
+                  >
+                    By month
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConsultationPeriodView("quarter")}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                      consultationPeriodView === "quarter"
+                        ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+                        : "text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-700/80"
+                    }`}
+                  >
+                    By quarter
+                  </button>
+                </div>
+              </div>
+              <div className="h-56 min-h-[14rem]">
+                <ConsultationVolumeChart
+                  series={
+                    consultationPeriodView === "month"
+                      ? consultationVolume.byMonth
+                      : consultationVolume.byQuarter
+                  }
+                  categories={consultationVolume.categories}
+                />
+              </div>
+            </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -1088,6 +1183,108 @@ function SummaryCard({ title, value, accent }) {
       <p className="mt-2 text-2xl font-semibold tabular-nums tracking-tight text-gray-900 dark:text-gray-100">{value}</p>
       <div className={`mt-4 h-0.5 w-10 rounded-full ${accentBar[accent] || accentBar.indigo}`} />
     </motion.div>
+  );
+}
+
+const CONSULT_CHART_COLORS = {
+  Individual: "#4f46e5",
+  Group: "#10b981",
+  Career: "#f59e0b",
+  Academic: "#8b5cf6",
+  Other: "#94a3b8",
+};
+
+function ConsultationVolumeChart({ series, categories }) {
+  if (!series || series.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+        No consultation data in this range
+      </div>
+    );
+  }
+
+  const chartH = 168;
+  const padL = 10;
+  const padR = 10;
+  const padT = 6;
+  const padB = 40;
+  const n = series.length;
+  const gap = n > 18 ? 4 : 8;
+  const innerW = 560;
+  const barW = Math.max(6, Math.min(26, (innerW - gap * Math.max(0, n - 1)) / Math.max(n, 1)));
+  const chartW = padL + padR + n * barW + Math.max(0, n - 1) * gap;
+
+  const maxTotal = Math.max(...series.map((s) => s.total || 0), 1);
+  const plotH = chartH - padT - padB;
+  const order =
+    Array.isArray(categories) && categories.length > 0
+      ? categories
+      : ["Individual", "Group", "Career", "Academic", "Other"];
+  const tilt = n > 12;
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
+        <svg
+          width={chartW}
+          height={chartH}
+          viewBox={`0 0 ${chartW} ${chartH}`}
+          className="mx-auto block max-w-none"
+          role="img"
+          aria-label="Consultation volume stacked by session type"
+        >
+          {series.map((row, i) => {
+            const x = padL + i * (barW + gap);
+            let yBottom = padT + plotH;
+            const rects = [];
+            for (const cat of order) {
+              const c = row.byCategory?.[cat] || 0;
+              if (c <= 0) continue;
+              const segH = Math.max((c / maxTotal) * plotH, row.total > 0 ? 1 : 0);
+              yBottom -= segH;
+              rects.push(
+                <rect
+                  key={cat}
+                  x={x}
+                  y={yBottom}
+                  width={barW}
+                  height={segH}
+                  fill={CONSULT_CHART_COLORS[cat] || "#94a3b8"}
+                  rx={1}
+                />
+              );
+            }
+            const cx = x + barW / 2;
+            return (
+              <g key={row.periodKey || String(i)}>
+                {rects}
+                <text
+                  x={cx}
+                  y={chartH - (tilt ? 4 : 10)}
+                  textAnchor="middle"
+                  className="fill-gray-600 dark:fill-gray-400"
+                  fontSize={tilt ? 8 : 9}
+                  transform={tilt ? `rotate(-38 ${cx} ${chartH - 10})` : undefined}
+                >
+                  {row.label}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2 border-t border-gray-100 pt-2 dark:border-gray-700/80">
+        {order.map((cat) => (
+          <div key={cat} className="flex items-center gap-1.5 text-[10px] text-gray-600 dark:text-gray-400">
+            <span
+              className="h-2 w-2 shrink-0 rounded-sm"
+              style={{ backgroundColor: CONSULT_CHART_COLORS[cat] || "#94a3b8" }}
+            />
+            <span>{cat}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

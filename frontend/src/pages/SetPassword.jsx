@@ -1,9 +1,15 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { validatePassword } from "../utils/passwordValidation";
 import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { initializeTheme } from "../utils/themeUtils";
+
+const labelClass =
+  "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500";
+const inputClass =
+  "h-10 w-full rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 shadow-sm transition-all placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:border-indigo-400 dark:focus:ring-indigo-400";
 
 export default function SetPassword() {
   useDocumentTitle("Set Password");
@@ -16,6 +22,10 @@ export default function SetPassword() {
   const [token, setToken] = useState("");
   const [email, setEmail] = useState("");
   const [passwordErrors, setPasswordErrors] = useState([]);
+
+  useEffect(() => {
+    initializeTheme();
+  }, []);
 
   useEffect(() => {
     const tokenParam = searchParams.get("token");
@@ -35,7 +45,6 @@ export default function SetPassword() {
     setMessage("");
     setLoading(true);
 
-    // Validation
     if (!newPassword) {
       setMessage("Password is required");
       setLoading(false);
@@ -80,167 +89,107 @@ export default function SetPassword() {
     }
   };
 
+  const messageSuccess =
+    message && message.toLowerCase().includes("success");
+
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #eef2ff, #c7d2fe)",
-        fontFamily: "'Montserrat', sans-serif",
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: "white",
-          padding: "2rem",
-          boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
-          borderRadius: "16px",
-          width: "100%",
-          maxWidth: "400px",
-        }}
-      >
-        <h2
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: "bold",
-            textAlign: "center",
-            marginBottom: "1.5rem",
-            color: "#111827",
-          }}
-        >
-          Set Your Password
-        </h2>
-
-        {message && (
-          <div
-            style={{
-              padding: "12px",
-              borderRadius: "8px",
-              marginBottom: "1rem",
-              backgroundColor: message.includes("successfully") ? "#d1fae5" : "#fee2e2",
-              color: message.includes("successfully") ? "#065f46" : "#991b1b",
-              fontSize: "14px",
-            }}
-          >
-            {message}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          <div>
-            <label
-              style={{
-                display: "block",
-                color: "#6b7280",
-                fontSize: "14px",
-                fontWeight: "600",
-                marginBottom: "8px",
-              }}
-            >
-              New Password *
-            </label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => {
-                const value = e.target.value;
-                setNewPassword(value);
-                const result = validatePassword(value, { email });
-                setPasswordErrors(result.errors);
-              }}
-              placeholder="Enter your new password"
-              required
-              style={{
-                width: "100%",
-                padding: "10px 15px",
-                borderRadius: "10px",
-                border: "1px solid #e6e9ef",
-                outline: "none",
-                fontSize: "14px",
-              }}
-            />
-            <div className="mt-1">
-              <PasswordStrengthMeter password={newPassword} email={email} />
-            </div>
-            {passwordErrors.length > 0 && (
-              <ul className="mt-2 text-xs text-red-600 list-disc list-inside">
-                {passwordErrors.map((err) => (
-                  <li key={err}>{err}</li>
-                ))}
-              </ul>
+    <div className="min-h-screen w-full page-bg counselor-typography font-sans text-gray-900 dark:text-gray-100">
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-4 py-10 sm:px-6 sm:py-12">
+        <div className="rounded-2xl border border-gray-200/90 bg-white p-6 shadow-sm dark:border-gray-700/90 dark:bg-gray-800/80 sm:p-8">
+          <div className="mb-8 space-y-2 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
+              Account setup
+            </p>
+            <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white sm:text-2xl">
+              Set your password
+            </h1>
+            {email && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                For <span className="font-medium text-gray-700 dark:text-gray-300">{email}</span>
+              </p>
             )}
           </div>
 
-          <div>
-            <label
-              style={{
-                display: "block",
-                color: "#6b7280",
-                fontSize: "14px",
-                fontWeight: "600",
-                marginBottom: "8px",
-              }}
+          {message && (
+            <div
+              role="status"
+              className={`mb-6 rounded-xl border px-4 py-3 text-sm font-medium ${
+                messageSuccess
+                  ? "border-green-200/90 bg-green-50/90 text-green-800 dark:border-green-800/80 dark:bg-green-950/30 dark:text-green-300"
+                  : "border-red-200/90 bg-red-50/90 text-red-800 dark:border-red-800/80 dark:bg-red-950/30 dark:text-red-300"
+              }`}
             >
-              Confirm Password *
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirm your new password"
-              required
-              style={{
-                width: "100%",
-                padding: "10px 15px",
-                borderRadius: "10px",
-                border: "1px solid #e6e9ef",
-                outline: "none",
-                fontSize: "14px",
-              }}
-            />
-          </div>
+              {message}
+            </div>
+          )}
 
-          <button
-            type="submit"
-            disabled={loading || !token || !email}
-            style={{
-              width: "100%",
-              padding: "12px",
-              borderRadius: "10px",
-              border: "none",
-              background: loading || !token || !email
-                ? "#cbd5e0"
-                : "linear-gradient(90deg, #06b6d4, #3b82f6)",
-              color: "white",
-              cursor: loading || !token || !email ? "not-allowed" : "pointer",
-              fontWeight: "600",
-              fontSize: "14px",
-              marginTop: "8px",
-            }}
-          >
-            {loading ? "Setting Password..." : "Set Password"}
-          </button>
-        </form>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            <div>
+              <label htmlFor="set-password-new" className={labelClass}>
+                New password <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="set-password-new"
+                type="password"
+                value={newPassword}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNewPassword(value);
+                  const result = validatePassword(value, { email });
+                  setPasswordErrors(result.errors);
+                }}
+                placeholder="Enter a strong password"
+                required
+                disabled={!token || !email}
+                className={inputClass}
+              />
+              <div className="mt-2">
+                <PasswordStrengthMeter password={newPassword} email={email} />
+              </div>
+              {passwordErrors.length > 0 && (
+                <ul className="mt-2 list-inside list-disc space-y-0.5 text-xs text-red-600 dark:text-red-400">
+                  {passwordErrors.map((err) => (
+                    <li key={err}>{err}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
-        <p
-          style={{
-            textAlign: "center",
-            marginTop: "1rem",
-            color: "#9ca3af",
-            fontSize: "12px",
-          }}
-        >
-          <a
-            href="/login"
-            style={{ color: "#4f46e5", textDecoration: "none" }}
-          >
-            Back to Login
-          </a>
-        </p>
+            <div>
+              <label htmlFor="set-password-confirm" className={labelClass}>
+                Confirm password <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="set-password-confirm"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-enter your password"
+                required
+                disabled={!token || !email}
+                className={inputClass}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading || !token || !email}
+              className="mt-1 h-11 w-full rounded-xl bg-gray-900 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+            >
+              {loading ? "Saving…" : "Set password"}
+            </button>
+          </form>
+
+          <p className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400">
+            <Link
+              to="/login"
+              className="font-medium text-indigo-600 underline-offset-2 transition hover:text-indigo-500 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300"
+            >
+              Back to login
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );
 }
-

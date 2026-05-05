@@ -7,8 +7,11 @@ import {
   createRecord,
   deleteRecord,
   generateRecordPDF,
+  generateSummaryRecordsPDF,
   syncAllRecordsToGoogleCalendar,
   syncRecordsToDrive,
+  archiveRecord,
+  unarchiveRecord,
 } from "../controllers/recordController.js";
 import {
   lockRecord,
@@ -33,12 +36,17 @@ router.post("/sync-google-calendar", protect, authorize("can_edit_records"), syn
 // Sync records without Drive link to logged-in user's Google Drive
 router.post("/sync-drive", protect, authorize("can_edit_records"), syncRecordsToDrive);
 
+// Multi-record counseling summary PDF (must be before /:id routes)
+router.post("/summary-pdf", protect, authorize("can_view_records"), generateSummaryRecordsPDF);
+
 // Generate PDF for a single record - requires can_view_records permission
 router.get("/:id/generate-pdf", protect, authorize("can_view_records"), generateRecordPDF);
 
 // Lock/Unlock routes (for counselors)
 // CRITICAL: More specific routes (with additional path segments) MUST come before less specific /:id routes
 router.get("/lock-logs/all", protect, authorize("can_view_records"), getAllLockLogs); // Get all recent lock/unlock logs
+router.post("/:id/archive", protect, authorize("can_edit_records"), archiveRecord);
+router.post("/:id/unarchive", protect, authorize("can_edit_records"), unarchiveRecord);
 router.post("/:id/start-editing", protect, authorize("can_edit_records"), startEditing); // Auto-lock when editing starts
 router.get("/:id/lock-status", protect, authorize("can_view_records"), getLockStatus);
 router.get("/:id/lock-logs", protect, authorize("can_view_records"), getLockLogs);

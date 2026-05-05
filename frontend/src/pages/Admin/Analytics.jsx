@@ -140,9 +140,9 @@ export default function Analytics() {
 
   if (loading && !admin) {
     return (
-      <div className="min-h-screen flex items-center justify-center page-bg">
+      <div className="page-bg flex min-h-screen items-center justify-center font-sans text-gray-900 dark:text-gray-100">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-indigo-600" />
           <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
         </div>
       </div>
@@ -150,7 +150,7 @@ export default function Analytics() {
   }
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center page-bg admin-typography font-sans p-3 md:p-5 gap-5">
+    <div className="page-bg admin-typography flex min-h-screen w-full flex-col items-center gap-5 p-3 font-sans text-gray-900 dark:text-gray-100 md:p-5">
       <div className="w-full max-w-[1800px]">
         <main className="w-full min-w-0 space-y-5">
           {/* Header */}
