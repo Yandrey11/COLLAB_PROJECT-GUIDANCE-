@@ -106,6 +106,7 @@ export default function RecordsPage({ archivedView = false }) {
     clientName: "",
     schoolYear: "",
     gender: "",
+    college: "",
     course: "",
     yearLevel: "",
     section: "",
@@ -139,6 +140,11 @@ export default function RecordsPage({ archivedView = false }) {
   const [lockLogFilter, setLockLogFilter] = useState("all"); // Filter: "all", "LOCK", "UNLOCK", "UPDATE"
   const [showLockLogsCard, setShowLockLogsCard] = useState(true); // Toggle to show/hide the lock logs card
   const hasAutoSyncedDriveRef = useRef(false);
+  const [catalogOptions, setCatalogOptions] = useState({
+    colleges: [],
+    courses: [],
+    yearLevels: [],
+  });
 
   const generateTrackingNumber = () => {
     const timestamp = Date.now();
@@ -285,6 +291,25 @@ export default function RecordsPage({ archivedView = false }) {
         localStorage.removeItem("user");
         setUser(null);
       }
+    }
+  };
+
+  const fetchCatalogOptions = async () => {
+    try {
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      if (!token) return;
+      const res = await axios.get(`${API_URL}/catalog-options`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data?.success) {
+        setCatalogOptions({
+          colleges: Array.isArray(res.data.colleges) ? res.data.colleges : [],
+          courses: Array.isArray(res.data.courses) ? res.data.courses : [],
+          yearLevels: Array.isArray(res.data.yearLevels) ? res.data.yearLevels : [],
+        });
+      }
+    } catch (err) {
+      console.warn("Failed to fetch record catalog options:", err?.response?.data || err.message);
     }
   };
 
@@ -539,6 +564,7 @@ export default function RecordsPage({ archivedView = false }) {
     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
     if (token && user && hasPermission) {
       fetchRecords();
+      fetchCatalogOptions();
     } else if (user && !hasPermission) {
       // Stop loading if user doesn't have permission
       setLoading(false);
@@ -702,6 +728,7 @@ export default function RecordsPage({ archivedView = false }) {
         clientName: "",
         schoolYear: "",
         gender: "",
+        college: "",
         course: "",
         yearLevel: "",
         section: "",
@@ -967,6 +994,28 @@ export default function RecordsPage({ archivedView = false }) {
     return matchSearch && matchType;
   });
 
+  const fallbackYearLevels = [
+    "1st Year",
+    "2nd Year",
+    "3rd Year",
+    "4th Year",
+    "5th Year",
+    "Graduate",
+  ];
+  const yearLevelOptions =
+    catalogOptions.yearLevels.length > 0
+      ? catalogOptions.yearLevels.map((y) => y.value || y.label).filter(Boolean)
+      : fallbackYearLevels;
+  const collegeOptions = catalogOptions.colleges;
+  const createCourseOptions =
+    newRecord.college && catalogOptions.courses.length > 0
+      ? catalogOptions.courses.filter((c) => c.collegeName === newRecord.college)
+      : catalogOptions.courses;
+  const editCourseOptions =
+    selectedRecord?.college && catalogOptions.courses.length > 0
+      ? catalogOptions.courses.filter((c) => c.collegeName === selectedRecord.college)
+      : catalogOptions.courses;
+
   // Pagination logic
   const totalPages = Math.ceil(filteredRecords.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -1049,7 +1098,7 @@ export default function RecordsPage({ archivedView = false }) {
           const err = await res.json().catch(() => ({}));
           await Swal.fire({
             icon: "error",
-            title: "Could not generate PDF",
+            title: "Could not generate individual report",
             text: err.error || res.statusText || "Request failed.",
           });
           return;
@@ -1058,7 +1107,7 @@ export default function RecordsPage({ archivedView = false }) {
         const serverName = parseFilenameFromContentDisposition(res.headers.get("Content-Disposition"));
         const fileName =
           serverName ||
-          `${(record.clientName || "record").replace(/\s+/g, "_")}_individual_${trackingNumber}.pdf`;
+          `individual-counseling-report-${recordId}.pdf`;
         downloadPdfBlob(blob, fileName);
         return;
       }
@@ -1209,9 +1258,14 @@ export default function RecordsPage({ archivedView = false }) {
             <button
               type="button"
             onClick={handleDownloadPDF}
+              title={
+                filteredRecords.length === 1
+                  ? "Download an Individual Counseling Report PDF for the one visible session."
+                  : "Download a Counseling Summary Report PDF (table) for all sessions in the current list."
+              }
               className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
             >
-              Download PDF report
+              {filteredRecords.length === 1 ? "Download Individual PDF" : "Download summary PDF"}
             </button>
             )}
         </motion.div>
@@ -1292,17 +1346,57 @@ export default function RecordsPage({ archivedView = false }) {
                   </div>
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      College
+                    </label>
+                    <select
+                      value={newRecord.college || ""}
+                      onChange={(e) =>
+                        setNewRecord({
+                          ...newRecord,
+                          college: e.target.value,
+                          course: "",
+                        })
+                      }
+                      className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
+                    >
+                      <option value="">Select college</option>
+                      {collegeOptions.map((c) => (
+                        <option key={c.id} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
                       Course
                     </label>
-                    <input
-                      type="text"
-                      placeholder="Program or course"
-                      value={newRecord.course}
-                      onChange={(e) =>
-                        setNewRecord({ ...newRecord, course: e.target.value })
-                      }
-                      className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
-                    />
+                    {catalogOptions.courses.length > 0 ? (
+                      <select
+                        value={newRecord.course}
+                        onChange={(e) =>
+                          setNewRecord({ ...newRecord, course: e.target.value })
+                        }
+                        className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
+                      >
+                        <option value="">Select course</option>
+                        {createCourseOptions.map((c) => (
+                          <option key={c.id} value={c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder="Program or course"
+                        value={newRecord.course}
+                        onChange={(e) =>
+                          setNewRecord({ ...newRecord, course: e.target.value })
+                        }
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1316,12 +1410,11 @@ export default function RecordsPage({ archivedView = false }) {
                       className="w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-all focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:focus:border-indigo-400 dark:focus:ring-indigo-400"
                     >
                       <option value="">Select</option>
-                      <option value="1st Year">1st Year</option>
-                      <option value="2nd Year">2nd Year</option>
-                      <option value="3rd Year">3rd Year</option>
-                      <option value="4th Year">4th Year</option>
-                      <option value="5th Year">5th Year</option>
-                      <option value="Graduate">Graduate</option>
+                      {yearLevelOptions.map((level) => (
+                        <option key={level} value={level}>
+                          {level}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div>
@@ -2521,17 +2614,59 @@ export default function RecordsPage({ archivedView = false }) {
                         </div>
                         <div>
                           <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Course
+                            College
                           </label>
-                          <input
-                            type="text"
-                            value={selectedRecord.course || ""}
+                          <select
+                            value={selectedRecord.college || ""}
                             onChange={(e) =>
-                              setSelectedRecord({ ...selectedRecord, course: e.target.value })
+                              setSelectedRecord({
+                                ...selectedRecord,
+                                college: e.target.value,
+                                course: "",
+                              })
                             }
                             disabled={isReadOnly}
-                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro}`}
-                          />
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro} ${isReadOnly ? "" : "cursor-pointer"}`}
+                          >
+                            <option value="">Select college</option>
+                            {collegeOptions.map((c) => (
+                              <option key={c.id} value={c.name}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Course
+                          </label>
+                          {catalogOptions.courses.length > 0 ? (
+                            <select
+                              value={selectedRecord.course || ""}
+                              onChange={(e) =>
+                                setSelectedRecord({ ...selectedRecord, course: e.target.value })
+                              }
+                              disabled={isReadOnly}
+                              className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro} ${isReadOnly ? "" : "cursor-pointer"}`}
+                            >
+                              <option value="">Select course</option>
+                              {editCourseOptions.map((c) => (
+                                <option key={c.id} value={c.name}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="text"
+                              value={selectedRecord.course || ""}
+                              onChange={(e) =>
+                                setSelectedRecord({ ...selectedRecord, course: e.target.value })
+                              }
+                              disabled={isReadOnly}
+                              className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro}`}
+                            />
+                          )}
                         </div>
                         <div>
                           <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -2546,12 +2681,11 @@ export default function RecordsPage({ archivedView = false }) {
                             className={`w-full rounded-lg border px-3 py-2.5 text-sm ${ro} ${isReadOnly ? "" : "cursor-pointer"}`}
                           >
                             <option value="">Select</option>
-                            <option value="1st Year">1st Year</option>
-                            <option value="2nd Year">2nd Year</option>
-                            <option value="3rd Year">3rd Year</option>
-                            <option value="4th Year">4th Year</option>
-                            <option value="5th Year">5th Year</option>
-                            <option value="Graduate">Graduate</option>
+                            {yearLevelOptions.map((level) => (
+                              <option key={level} value={level}>
+                                {level}
+                              </option>
+                            ))}
                           </select>
                         </div>
                         <div>
@@ -2809,9 +2943,10 @@ export default function RecordsPage({ archivedView = false }) {
                         whileTap={{ scale: 0.98 }}
                         type="button"
                         onClick={() => handleDownloadPDF()}
+                        title="Download an Individual Counseling Report PDF for this archived session."
                         className="px-5 py-2.5 rounded-lg border border-gray-200 bg-white text-gray-800 font-semibold text-sm hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80 transition-colors cursor-pointer"
                       >
-                        Download PDF
+                        Download Individual PDF
                       </motion.button>
                     )}
                     {isArchivedRecord && isRecordOwner(selectedRecord) && (

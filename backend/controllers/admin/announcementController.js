@@ -46,11 +46,14 @@ export const createAnnouncement = async (req, res) => {
           announcementId: announcement._id,
         });
       } else if (targetAudience === "specific" && targetCounselorIds.length > 0) {
-        // Send to specific counselors
+        // Send to specific counselors (look up in both Counselor and GoogleUser).
         const Counselor = (await import("../../models/Counselor.js")).default;
+        const GoogleUser = (await import("../../models/GoogleUser.js")).default;
         for (const counselorId of targetCounselorIds) {
-          const counselor = await Counselor.findById(counselorId);
-          if (counselor && counselor.role === "counselor") {
+          const counselor =
+            (await Counselor.findById(counselorId)) ||
+            (await GoogleUser.findById(counselorId));
+          if (counselor && (counselor.role === "counselor" || !counselor.role)) {
             const { createCounselorNotification } = await import("../counselorNotificationController.js");
             await createCounselorNotification({
               counselorId: counselor._id,

@@ -37,6 +37,30 @@ const counselorSettingsSchema = new mongoose.Schema(
       },
     },
 
+    // Color customization (hex strings #rrggbb). Counselor defaults = purple palette.
+    colors: {
+      bg: {
+        type: String,
+        default: "#f5f3ff",
+        match: [/^#([0-9a-fA-F]{6})$/, "bg must be a 6-digit hex color"],
+      },
+      primary: {
+        type: String,
+        default: "#7c3aed",
+        match: [/^#([0-9a-fA-F]{6})$/, "primary must be a 6-digit hex color"],
+      },
+      accent: {
+        type: String,
+        default: "#a78bfa",
+        match: [/^#([0-9a-fA-F]{6})$/, "accent must be a 6-digit hex color"],
+      },
+      preset: {
+        type: String,
+        enum: ["default", "purple", "blue", "green", "rose", "custom"],
+        default: "purple",
+      },
+    },
+
     // Notification Settings
     notifications: {
       recordUpdates: {

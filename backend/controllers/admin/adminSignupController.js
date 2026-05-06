@@ -1,17 +1,20 @@
 import Admin from "../../models/Admin.js";
-import Counselor from "../../models/Counselor.js";
-import GoogleUser from "../../models/GoogleUser.js";
 import jwt from "jsonwebtoken";
 import { validatePassword } from "../../utils/passwordValidation.js";
+import {
+  findAdminByEmail,
+  findCounselorByEmail,
+  findGoogleUserByEmail,
+} from "../../utils/userLookup.js";
 
 // ADMIN SIGNUP (no reCAPTCHA)
 export const adminSignup = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    const existingAdmin = await Admin.findOne({ email });
-    const existingUser = await Counselor.findOne({ email });
-    const existingGoogleUser = await GoogleUser.findOne({ email });
+    const existingAdmin = await findAdminByEmail(email);
+    const existingUser = await findCounselorByEmail(email);
+    const existingGoogleUser = await findGoogleUserByEmail(email);
     if (existingAdmin || existingUser || existingGoogleUser) {
       return res.status(400).json({ message: "Email already in use" });
     }

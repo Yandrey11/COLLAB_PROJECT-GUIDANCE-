@@ -3,8 +3,8 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import Admin from "../models/Admin.js";
-import GoogleUser from "../models/GoogleUser.js";
 import { encryptToken } from "../utils/tokenEncryption.js";
+import { findAdminByEmail, findGoogleUserByEmail } from "../utils/userLookup.js";
 
 dotenv.config();
 
@@ -24,12 +24,12 @@ passport.use(
         const email = profile.emails?.[0]?.value;
         if (!email) return done(new Error("Google account has no email"), null);
 
-        let admin = await Admin.findOne({ email });
+        let admin = await findAdminByEmail(email);
 
         if (!admin) {
           // Check if GoogleUser with admin role exists (e.g. promoted from regular user)
-          const googleUser = await GoogleUser.findOne({ email, role: "admin" });
-          if (googleUser) {
+          const googleUser = await findGoogleUserByEmail(email);
+          if (googleUser && googleUser.role === "admin") {
             const tempPassword = crypto.randomBytes(24).toString("hex");
             admin = await Admin.create({
               name: profile.displayName || googleUser.name,

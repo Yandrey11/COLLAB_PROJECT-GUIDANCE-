@@ -71,11 +71,7 @@ export default function AdminDashboard() {
     gender: null,
     course: null,
   });
-  const [recentEvents, setRecentEvents] = useState([]);
-  const [recentEventsPage, setRecentEventsPage] = useState(1);
-  const [recentEventsTotalPages, setRecentEventsTotalPages] = useState(1);
   const [dateRange, setDateRange] = useState("30d");
-  const [eventTypeFilter, setEventTypeFilter] = useState("");
   const [pageNameFilter, setPageNameFilter] = useState("");
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
@@ -354,23 +350,6 @@ export default function AdminDashboard() {
         });
       }
 
-      // Fetch recent events
-      const eventsRes = await axios.get(`${BASE_URL}/api/admin/analytics/events`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: {
-          range: dateRange,
-          eventType: eventTypeFilter || undefined,
-          pageName: pageNameFilter || undefined,
-          page: recentEventsPage,
-          limit: 3,
-        },
-      });
-      if (eventsRes.data.success) {
-        setRecentEvents(eventsRes.data.events);
-        if (eventsRes.data.pagination) {
-          setRecentEventsTotalPages(eventsRes.data.pagination.pages || 1);
-        }
-      }
     } catch (error) {
       console.error("Error fetching analytics:", error);
     } finally {
@@ -494,7 +473,7 @@ export default function AdminDashboard() {
       fetchAnalyticsData(token);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, chartPeriod, eventTypeFilter, pageNameFilter, recentEventsPage]);
+  }, [dateRange, chartPeriod, pageNameFilter]);
 
   const handleLogout = async () => {
     const result = await Swal.fire({
@@ -563,7 +542,7 @@ export default function AdminDashboard() {
                 <div>
                   <h2 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-white">Analytics</h2>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Date range and filters apply to charts and the activity log below.
+                    Date range and filters apply to the dashboard charts.
                   </p>
                 </div>
                 {analyticsLoading && (
@@ -578,10 +557,7 @@ export default function AdminDashboard() {
                   <select
                     id="admin-dash-range"
                     value={dateRange}
-                    onChange={(e) => {
-                      setDateRange(e.target.value);
-                      setRecentEventsPage(1);
-                    }}
+                    onChange={(e) => setDateRange(e.target.value)}
                     className={selectField}
                   >
                     <option value="7d">Last 7 days</option>
@@ -592,28 +568,6 @@ export default function AdminDashboard() {
                     <option value="all">Last 5 years</option>
                   </select>
                 </div>
-                <div>
-                  <label htmlFor="admin-dash-event" className={filterLabel}>
-                    Event type
-                  </label>
-                  <select
-                    id="admin-dash-event"
-                    value={eventTypeFilter}
-                    onChange={(e) => {
-                      setEventTypeFilter(e.target.value);
-                      setRecentEventsPage(1);
-                    }}
-                    className={selectField}
-                  >
-                    <option value="">All events</option>
-                    <option value="record_created">Records created</option>
-                    <option value="record_updated">Records updated</option>
-                    <option value="pdf_generated">PDFs generated</option>
-                    <option value="drive_uploaded">Drive uploads</option>
-                    <option value="page_visit">Page visits</option>
-                    <option value="user_login">User logins</option>
-                  </select>
-                </div>
                 <div className="sm:col-span-2 lg:col-span-1">
                   <label htmlFor="admin-dash-page" className={filterLabel}>
                     Page
@@ -621,10 +575,7 @@ export default function AdminDashboard() {
                   <select
                     id="admin-dash-page"
                     value={pageNameFilter}
-                    onChange={(e) => {
-                      setPageNameFilter(e.target.value);
-                      setRecentEventsPage(1);
-                    }}
+                    onChange={(e) => setPageNameFilter(e.target.value)}
                     className={selectField}
                   >
                     <option value="">All pages</option>
@@ -821,96 +772,6 @@ export default function AdminDashboard() {
               </div>
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.12 }}
-              className={`overflow-hidden ${cardSurface}`}
-            >
-              <div className="flex flex-col gap-1 border-b border-gray-200 px-5 py-4 dark:border-gray-600 sm:flex-row sm:items-end sm:justify-between sm:px-6 sm:py-5">
-                <div>
-                  <h2 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-white">Recent activity</h2>
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Latest events matching your filters.</p>
-                </div>
-              </div>
-              <div className="px-2 pb-2 pt-0 sm:px-4">
-                <div className="-mx-2 overflow-x-auto sm:mx-0">
-                  <table className="w-full min-w-[640px] border-collapse text-left text-sm text-gray-900 dark:text-gray-100">
-                    <thead>
-                      <tr className="border-b border-gray-200 bg-gray-50/80 dark:border-gray-600 dark:bg-gray-900/20">
-                        <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                          Event
-                        </th>
-                        <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                          User
-                        </th>
-                        <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                          Page / module
-                        </th>
-                        <th className="whitespace-nowrap px-4 py-3 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                          Time
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {recentEvents.length === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                            {analyticsLoading ? "Loading events…" : "No events match these filters."}
-                          </td>
-                        </tr>
-                      ) : (
-                        recentEvents.map((event) => (
-                          <tr
-                            key={event.id}
-                            className="border-b border-gray-200 transition-colors last:border-0 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50"
-                          >
-                            <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {formatEventType(event.eventType)}
-                            </td>
-                            <td className="whitespace-nowrap px-4 py-3">
-                              <div className="text-sm text-gray-900 dark:text-gray-100">{event.userName || "System"}</div>
-                              <div className="text-xs text-gray-500 dark:text-gray-400">{event.userRole || "—"}</div>
-                            </td>
-                            <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                              {event.pageName || "—"}
-                            </td>
-                            <td className="whitespace-nowrap px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                              {formatDate(event.timestamp)}
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-              {recentEventsTotalPages > 1 && (
-                <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-600 sm:px-6">
-                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                    Page {recentEventsPage} of {recentEventsTotalPages}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => recentEventsPage > 1 && setRecentEventsPage(recentEventsPage - 1)}
-                      disabled={recentEventsPage === 1}
-                      className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => recentEventsPage < recentEventsTotalPages && setRecentEventsPage(recentEventsPage + 1)}
-                      disabled={recentEventsPage >= recentEventsTotalPages}
-                      className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-800 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
-            </motion.div>
           </section>
         </div>
       </div>
@@ -1586,22 +1447,3 @@ function PieChart({ data }) {
   );
 }
 
-// Helper functions
-function formatEventType(eventType) {
-  return eventType
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-function formatDate(dateString) {
-  if (!dateString) return "N/A";
-  const date = new Date(dateString);
-  return date.toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}

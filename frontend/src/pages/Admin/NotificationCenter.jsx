@@ -402,14 +402,14 @@ export default function NotificationCenter() {
             <div className="flex min-w-0 items-center gap-4">
               <AdminSidebar variant="header" />
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
-                  Admin Center
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
+                  Administration
                 </p>
-                <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                <h1 className="mt-1 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
                   Notification Center
                 </h1>
-                <p className="mt-1.5 text-sm text-gray-600 dark:text-gray-400">
-                  Monitor alerts, review activity, and manage notification flow.
+                <p className="mt-1.5 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+                  Monitor alerts, triage unread items quickly, and control notification delivery.
                 </p>
               </div>
             </div>
@@ -430,27 +430,27 @@ export default function NotificationCenter() {
           </div>
 
           <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <article className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+            <article className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/35">
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                Total on page
+                Total in current view
               </p>
-              <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">
+              <p className="mt-1 text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100">
                 {notifications.length}
               </p>
             </article>
             <article className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 dark:border-indigo-900/50 dark:bg-indigo-950/30">
               <p className="text-xs uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
-                Unread
+                Unread notifications
               </p>
-              <p className="mt-1 text-xl font-semibold text-indigo-700 dark:text-indigo-200">
+              <p className="mt-1 text-xl font-semibold tabular-nums text-indigo-700 dark:text-indigo-200">
                 {unreadCount}
               </p>
             </article>
-            <article className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
+            <article className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/35">
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                Current page
+                Pagination
               </p>
-              <p className="mt-1 text-xl font-semibold text-gray-900 dark:text-gray-100">
+              <p className="mt-1 text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100">
                 {currentPage} / {totalPages}
               </p>
             </article>
@@ -469,149 +469,158 @@ export default function NotificationCenter() {
           </div>
         )}
 
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
-          <button
-            type="button"
-            onClick={() => setShowNotificationSettings((prev) => !prev)}
-            className="flex w-full items-center justify-between gap-3 text-left"
-          >
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                Notification Settings
-              </h2>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Choose what activity should notify administrators.
-              </p>
-            </div>
-            <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
-              {showNotificationSettings ? "Hide" : "Show"}
-            </span>
-          </button>
-
-          {showNotificationSettings && (
-            <div className="mt-5 space-y-4">
-              {[
-                {
-                  key: "newUserCreations",
-                  label: "New User Creations",
-                  description: "Receive notifications when new users are created.",
-                },
-                {
-                  key: "recordUpdates",
-                  label: "Record Updates",
-                  description: "Receive notifications when counseling records are updated.",
-                },
-                {
-                  key: "criticalSystemAlerts",
-                  label: "Critical System Alerts",
-                  description: "Receive notifications for critical system events.",
-                },
-                {
-                  key: "pdfGenerations",
-                  label: "PDF Generations",
-                  description: "Receive notifications when PDFs are generated.",
-                },
-                {
-                  key: "loginAttempts",
-                  label: "Login Attempts",
-                  description: "Receive notifications for admin login attempts.",
-                },
-                {
-                  key: "soundEnabled",
-                  label: "Notification Sound",
-                  description: "Play sound whenever a new notification arrives.",
-                },
-              ].map((item) => (
-                <div
-                  key={item.key}
-                  className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Filters</h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Narrow notifications by keyword, status, and category.
+            </p>
+            <form onSubmit={handleSearch} className="mt-4 flex flex-col gap-3">
+              <input
+                type="text"
+                placeholder="Search notifications"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-11 rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-indigo-400"
+              />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-11 rounded-lg border border-gray-200 bg-white px-3.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {item.label}
-                    </p>
-                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      {item.description}
-                    </p>
-                  </div>
-                  <label className="relative inline-flex cursor-pointer items-center">
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings[item.key]}
-                      onChange={(e) =>
-                        setNotificationSettings((prev) => ({
-                          ...prev,
-                          [item.key]: e.target.checked,
-                        }))
-                      }
-                      className="peer sr-only"
-                    />
-                    <div className="relative h-6 w-11 shrink-0 rounded-full bg-gray-200 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300/80 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-600 dark:peer-focus:ring-indigo-800/60" />
-                  </label>
-                </div>
-              ))}
-              <button
-                onClick={handleSaveNotificationSettings}
-                disabled={savingSettings}
-                className="mt-1 h-10 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {savingSettings ? "Saving..." : "Save Notification Settings"}
-              </button>
-            </div>
-          )}
-        </section>
+                  <option value="all">All Status</option>
+                  <option value="unread">Unread</option>
+                  <option value="read">Read</option>
+                </select>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="h-11 rounded-lg border border-gray-200 bg-white px-3.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                >
+                  <option value="all">All Categories</option>
+                  <option value="System Alert">System Alert</option>
+                  <option value="User Activity">User Activity</option>
+                  <option value="Error">Error</option>
+                  <option value="Security Alert">Security Alert</option>
+                  <option value="Info">Info</option>
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="submit"
+                  className="h-10 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+                >
+                  Search
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter("all");
+                    setCategoryFilter("all");
+                    setSearchQuery("");
+                    const token = localStorage.getItem("adminToken");
+                    fetchNotifications(token, 1, "all", "all", "");
+                  }}
+                  className="h-10 rounded-lg border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                >
+                  Reset
+                </button>
+              </div>
+            </form>
+          </div>
 
-        <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Filters</h2>
-          <form onSubmit={handleSearch} className="mt-4 flex flex-wrap items-stretch gap-3">
-            <input
-              type="text"
-              placeholder="Search notifications"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-11 min-w-[220px] flex-1 rounded-lg border border-gray-200 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500 dark:focus:ring-indigo-400"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-11 rounded-lg border border-gray-200 bg-white px-3.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-            >
-              <option value="all">All Status</option>
-              <option value="unread">Unread</option>
-              <option value="read">Read</option>
-            </select>
-            <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-11 rounded-lg border border-gray-200 bg-white px-3.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-            >
-              <option value="all">All Categories</option>
-              <option value="System Alert">System Alert</option>
-              <option value="User Activity">User Activity</option>
-              <option value="Error">Error</option>
-              <option value="Security Alert">Security Alert</option>
-              <option value="Info">Info</option>
-            </select>
-            <button
-              type="submit"
-              className="h-11 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
-            >
-              Search
-            </button>
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
             <button
               type="button"
-              onClick={() => {
-                setStatusFilter("all");
-                setCategoryFilter("all");
-                setSearchQuery("");
-                const token = localStorage.getItem("adminToken");
-                fetchNotifications(token, 1, "all", "all", "");
-              }}
-              className="h-11 rounded-lg border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+              onClick={() => setShowNotificationSettings((prev) => !prev)}
+              className="flex w-full items-center justify-between gap-3 text-left"
             >
-              Reset
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  Notification Settings
+                </h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Choose what activity should notify administrators.
+                </p>
+              </div>
+              <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+                {showNotificationSettings ? "Hide" : "Show"}
+              </span>
             </button>
-          </form>
+
+            {showNotificationSettings && (
+              <div className="mt-5 space-y-3">
+                {[
+                  {
+                    key: "newUserCreations",
+                    label: "New User Creations",
+                    description: "Receive notifications when new users are created.",
+                  },
+                  {
+                    key: "recordUpdates",
+                    label: "Record Updates",
+                    description: "Receive notifications when counseling records are updated.",
+                  },
+                  {
+                    key: "criticalSystemAlerts",
+                    label: "Critical System Alerts",
+                    description: "Receive notifications for critical system events.",
+                  },
+                  {
+                    key: "pdfGenerations",
+                    label: "PDF Generations",
+                    description: "Receive notifications when PDFs are generated.",
+                  },
+                  {
+                    key: "loginAttempts",
+                    label: "Login Attempts",
+                    description: "Receive notifications for admin login attempts.",
+                  },
+                  {
+                    key: "soundEnabled",
+                    label: "Notification Sound",
+                    description: "Play sound whenever a new notification arrives.",
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.key}
+                    className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                        {item.label}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                        {item.description}
+                      </p>
+                    </div>
+                    <label className="relative inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        checked={notificationSettings[item.key]}
+                        onChange={(e) =>
+                          setNotificationSettings((prev) => ({
+                            ...prev,
+                            [item.key]: e.target.checked,
+                          }))
+                        }
+                        className="peer sr-only"
+                      />
+                      <div className="relative h-6 w-11 shrink-0 rounded-full bg-gray-200 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300/80 peer-checked:bg-indigo-600 peer-checked:after:translate-x-full peer-checked:after:border-white dark:bg-gray-600 dark:peer-focus:ring-indigo-800/60" />
+                    </label>
+                  </div>
+                ))}
+                <button
+                  onClick={handleSaveNotificationSettings}
+                  disabled={savingSettings}
+                  className="mt-1 h-10 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {savingSettings ? "Saving..." : "Save Notification Settings"}
+                </button>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
@@ -645,7 +654,7 @@ export default function NotificationCenter() {
                           : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900/20"
                       } ${isCritical ? "shadow-[0_0_0_1px_rgba(239,68,68,0.18)]" : "shadow-sm"}`}
                     >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="flex flex-wrap items-start gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="text-sm">{category.icon}</span>
@@ -673,34 +682,34 @@ export default function NotificationCenter() {
                           <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
                             {notification.description}
                           </p>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3 dark:border-gray-700">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatTime(notification.createdAt)}
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {isUnread ? (
-                            <button
-                              onClick={() => handleMarkAsRead(notification.id)}
-                              className="h-8 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-300 dark:hover:bg-indigo-950/45"
-                            >
-                              Mark Read
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => handleMarkAsUnread(notification.id)}
-                              className="h-8 rounded-md border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                            >
-                              Mark Unread
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDelete(notification.id)}
-                            className="h-8 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-medium text-red-700 transition hover:bg-red-100 dark:border-red-800/60 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/45"
-                          >
-                            Delete
-                          </button>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3 dark:border-gray-700">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {formatTime(notification.createdAt)}
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {isUnread ? (
+                                <button
+                                  onClick={() => handleMarkAsRead(notification.id)}
+                                  className="h-8 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 dark:border-indigo-900/60 dark:bg-indigo-950/30 dark:text-indigo-300 dark:hover:bg-indigo-950/45"
+                                >
+                                  Mark Read
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleMarkAsUnread(notification.id)}
+                                  className="h-8 rounded-md border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                                >
+                                  Mark Unread
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDelete(notification.id)}
+                                className="h-8 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-medium text-red-700 transition hover:bg-red-100 dark:border-red-800/60 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/45"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </article>

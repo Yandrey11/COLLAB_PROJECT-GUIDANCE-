@@ -1,4 +1,7 @@
 import Notification from "../../models/Notification.js";
+import { cacheInvalidate } from "../../utils/cache.js";
+
+const invalidateAdminNotifs = () => cacheInvalidate("notifications:");
 
 // Get all notifications with filters and pagination
 export const getNotifications = async (req, res) => {
@@ -79,6 +82,7 @@ export const markAsRead = async (req, res) => {
 
     notification.status = "read";
     await notification.save();
+    invalidateAdminNotifs();
 
     res.status(200).json({
       message: "Notification marked as read",
@@ -106,6 +110,7 @@ export const markAsUnread = async (req, res) => {
 
     notification.status = "unread";
     await notification.save();
+    invalidateAdminNotifs();
 
     res.status(200).json({
       message: "Notification marked as unread",
@@ -124,6 +129,7 @@ export const markAsUnread = async (req, res) => {
 export const markAllAsRead = async (req, res) => {
   try {
     await Notification.updateMany({ status: "unread" }, { status: "read" });
+    invalidateAdminNotifs();
 
     res.status(200).json({
       message: "All notifications marked as read",
@@ -145,6 +151,7 @@ export const deleteNotification = async (req, res) => {
       return res.status(404).json({ message: "Notification not found" });
     }
 
+    invalidateAdminNotifs();
     res.status(200).json({
       message: "Notification deleted successfully",
       notificationId: notification._id,
@@ -159,6 +166,7 @@ export const deleteNotification = async (req, res) => {
 export const deleteAllRead = async (req, res) => {
   try {
     const result = await Notification.deleteMany({ status: "read" });
+    invalidateAdminNotifs();
 
     res.status(200).json({
       message: "All read notifications deleted",
@@ -184,6 +192,7 @@ export const createNotification = async (data) => {
       relatedType: data.relatedType,
     });
 
+    invalidateAdminNotifs();
     return notification;
   } catch (error) {
     console.error("❌ Error creating notification:", error);

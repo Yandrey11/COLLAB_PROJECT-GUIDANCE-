@@ -8,6 +8,7 @@ import Notification from "../../models/Notification.js";
 import ActivityLog from "../../models/ActivityLog.js";
 import Session from "../../models/Session.js";
 import { notArchivedFilter } from "../../config/recordArchive.js";
+import { sanitizeRecordsForApi } from "../../utils/recordApiSanitize.js";
 
 /** Shared date window for admin dashboard analytics (includes 2y / all per consultation charts plan). */
 function resolveDashboardRangeStart(range, now = new Date()) {
@@ -35,6 +36,14 @@ function resolveDashboardRangeStart(range, now = new Date()) {
       startDate.setDate(now.getDate() - 30);
   }
   return startDate;
+}
+
+/** Date used for analytics windows (matches prior aggregate `$ifNull` chain). */
+function recordEffectiveDate(doc) {
+  const raw = doc?.auditTrail?.createdAt || doc?.createdAt || doc?.date;
+  if (!raw) return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 /**
@@ -275,10 +284,12 @@ export const getEvents = async (req, res) => {
     };
     if (userId) recordsQuery["auditTrail.createdBy.userId"] = userId;
 
-    const recentRecords = await Record.find(recordsQuery)
-      .sort({ "auditTrail.createdAt": -1 })
-      .limit(limit)
-      .lean();
+    const recentRecords = sanitizeRecordsForApi(
+      await Record.find(recordsQuery)
+        .sort({ "auditTrail.createdAt": -1 })
+        .limit(limit)
+        .lean()
+    );
 
     recentRecords.forEach(record => {
       if (record.auditTrail?.createdBy) {
@@ -806,8 +817,9 @@ export const getProblemsPresentedByPeriod = async (req, res) => {
           recordDate: {
             $ifNull: ["$auditTrail.createdAt", { $ifNull: ["$createdAt", "$date"] }],
           },
+          // problemsPresented (free text) is encrypted at rest, so we group
+          // only on the controlled-vocabulary problemsPresentedCodes.
           problemsPresentedCodes: { $ifNull: ["$problemsPresentedCodes", []] },
-          problemsPresented: { $ifNull: ["$problemsPresented", ""] },
         },
       },
       { $match: { recordDate: { $gte: startDate, $lte: now } } },
@@ -822,13 +834,7 @@ export const getProblemsPresentedByPeriod = async (req, res) => {
                 ],
               },
               "$problemsPresentedCodes",
-              {
-                $cond: [
-                  { $gt: [{ $strLenCP: { $trim: { input: "$problemsPresented" } } }, 0] },
-                  [{ $trim: { input: "$problemsPresented" } }],
-                  ["Unspecified"],
-                ],
-              },
+              ["Unspecified"],
             ],
           },
         },
@@ -870,33 +876,24 @@ export const getGenderDistributionByPeriod = async (req, res) => {
     const startDate = resolveDashboardRangeStart(range, now);
     const chartPeriod = normalizeChartPeriod(period);
 
-    const rows = await Record.aggregate([
-      { $match: notArchivedFilter() },
-      {
-        $project: {
-          recordDate: {
-            $ifNull: ["$auditTrail.createdAt", { $ifNull: ["$createdAt", "$date"] }],
-          },
-          category: {
-            $cond: [
-              { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ["$gender", ""] } } } }, 0] },
-              { $trim: { input: "$gender" } },
-              "Unspecified",
-            ],
-          },
-        },
-      },
-      { $match: { recordDate: { $gte: startDate, $lte: now } } },
-      {
-        $group: {
-          _id: "$category",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
+    // Encrypted fields are not readable inside aggregation — use find + post-hook decrypt.
+    const docs = sanitizeRecordsForApi(
+      await Record.find(notArchivedFilter())
+        .select({ gender: 1, auditTrail: 1, createdAt: 1, date: 1 })
+        .lean()
+    );
 
-    const distribution = rows
-      .map((row) => ({ label: row._id || "Unspecified", count: row.count || 0 }))
+    const counts = new Map();
+    for (const doc of docs) {
+      const recordDate = recordEffectiveDate(doc);
+      if (!recordDate || recordDate < startDate || recordDate > now) continue;
+      const g = doc.gender != null ? String(doc.gender).trim() : "";
+      const category = g.length > 0 ? g : "Unspecified";
+      counts.set(category, (counts.get(category) || 0) + 1);
+    }
+
+    const distribution = [...counts.entries()]
+      .map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count);
 
     res.status(200).json({
@@ -922,33 +919,23 @@ export const getCourseDistributionByPeriod = async (req, res) => {
     const startDate = resolveDashboardRangeStart(range, now);
     const chartPeriod = normalizeChartPeriod(period);
 
-    const rows = await Record.aggregate([
-      { $match: notArchivedFilter() },
-      {
-        $project: {
-          recordDate: {
-            $ifNull: ["$auditTrail.createdAt", { $ifNull: ["$createdAt", "$date"] }],
-          },
-          category: {
-            $cond: [
-              { $gt: [{ $strLenCP: { $trim: { input: { $ifNull: ["$course", ""] } } } }, 0] },
-              { $trim: { input: "$course" } },
-              "Unspecified",
-            ],
-          },
-        },
-      },
-      { $match: { recordDate: { $gte: startDate, $lte: now } } },
-      {
-        $group: {
-          _id: "$category",
-          count: { $sum: 1 },
-        },
-      },
-    ]);
+    const docs = sanitizeRecordsForApi(
+      await Record.find(notArchivedFilter())
+        .select({ course: 1, auditTrail: 1, createdAt: 1, date: 1 })
+        .lean()
+    );
 
-    const distribution = rows
-      .map((row) => ({ label: row._id || "Unspecified", count: row.count || 0 }))
+    const counts = new Map();
+    for (const doc of docs) {
+      const recordDate = recordEffectiveDate(doc);
+      if (!recordDate || recordDate < startDate || recordDate > now) continue;
+      const c = doc.course != null ? String(doc.course).trim() : "";
+      const category = c.length > 0 ? c : "Unspecified";
+      counts.set(category, (counts.get(category) || 0) + 1);
+    }
+
+    const distribution = [...counts.entries()]
+      .map(([label, count]) => ({ label, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
@@ -998,7 +985,7 @@ export const getConsultationVolumeByPeriod = async (req, res) => {
               branches: [
                 { case: { $eq: ["$categoryTrim", "Individual"] }, then: "Individual" },
                 { case: { $eq: ["$categoryTrim", "Group"] }, then: "Group" },
-                { case: { $in: ["$categoryTrim", ["Career", "Face to Face"]] }, then: "Face to Face" },
+                { case: { $in: ["$categoryTrim", ["Face-to-face", "Face to Face", "Career"]] }, then: "Face to Face" },
                 { case: { $in: ["$categoryTrim", ["Academic", "Online"]] }, then: "Online" },
               ],
               default: "Other",

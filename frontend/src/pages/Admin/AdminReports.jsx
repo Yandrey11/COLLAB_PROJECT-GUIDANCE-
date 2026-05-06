@@ -9,6 +9,17 @@ import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+function parseFilenameFromContentDisposition(cd) {
+  if (!cd || typeof cd !== "string") return null;
+  const m = cd.match(/filename\*?=(?:UTF-8'')?["']?([^";\n]+)/i);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1].replace(/"/g, "").trim());
+  } catch {
+    return m[1].replace(/"/g, "").trim();
+  }
+}
+
 const REPORT_TYPES = ["Counseling Records Report", "Counseling Summary Report"];
 
 export default function AdminReports() {
@@ -61,10 +72,8 @@ export default function AdminReports() {
   // Counselors list for filter
   const [counselors, setCounselors] = useState([]);
 
-  // Report generation
+  // Report generation (summary PDF streams immediately; no name modal)
   const [generatingReport, setGeneratingReport] = useState(false);
-  const [reportName, setReportName] = useState("");
-  const [showGenerateModal, setShowGenerateModal] = useState(false);
 
   // View report modal
   const [selectedReport, setSelectedReport] = useState(null);
@@ -213,90 +222,55 @@ export default function AdminReports() {
     }
   };
 
-  const handleGenerateReport = async () => {
-    if (!reportName.trim()) {
-      Swal.fire({
-        icon: "error",
-        title: "Validation Error",
-        text: "Please enter a report name",
-      });
-      return;
-    }
+  const handleDownloadCounselingSummaryPdf = async () => {
+    if (activeTab !== "Counseling Summary Report") return;
 
     setGeneratingReport(true);
     try {
       const token = localStorage.getItem("adminToken");
-      const res = await axios.post(
-        `${BASE_URL}/api/admin/reports/generate`,
-        {
-          reportType: activeTab,
-          reportName: reportName.trim(),
-          ...filters,
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` },
+      const body = { ...filters };
+      Object.keys(body).forEach((key) => {
+        if (body[key] === "" || body[key] === "all" || body[key] == null) {
+          delete body[key];
         }
-      );
+      });
 
-      if (res.data.success) {
-        // Automatically download the PDF
-        if (res.data.report?.downloadPath) {
-          try {
-            const token = localStorage.getItem("adminToken");
-            const downloadRes = await fetch(
-              `${BASE_URL}${res.data.report.downloadPath}`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              }
-            );
+      const res = await axios.post(`${BASE_URL}/api/admin/reports/summary-pdf`, body, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: "blob",
+      });
 
-            // Check if response is a PDF blob
-            const contentType = downloadRes.headers.get("content-type");
-            if (contentType && contentType.includes("application/pdf")) {
-              // It's a PDF file - download it
-              const blob = await downloadRes.blob();
-              const url = window.URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = url;
-              link.download = res.data.report.fileName || "report.pdf";
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              window.URL.revokeObjectURL(url);
-            } else {
-              // It's JSON (Drive link fallback) - parse and open in new tab
-              const data = await downloadRes.json();
-              if (data.downloadLink) {
-                window.open(data.downloadLink, "_blank");
-              }
-            }
-          } catch (downloadError) {
-            console.error("Error downloading PDF:", downloadError);
-            // Still show success even if download fails
-          }
-        }
-
-        await Swal.fire({
-          icon: "success",
-          title: "Success!",
-          text: res.data.message || "Report generated and downloaded successfully",
-          timer: 2000,
-          showConfirmButton: false,
-        });
-
-        setShowGenerateModal(false);
-        setReportName("");
-        fetchReports();
-        fetchOverview();
-      }
+      const blob = res.data;
+      const cd = res.headers["content-disposition"];
+      const fileName =
+        parseFilenameFromContentDisposition(cd) || `counseling_summary_${Date.now()}.pdf`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Error generating report:", error);
+      console.error("Error generating summary PDF:", error);
+      let message = "Failed to generate summary PDF. Please try again.";
+      const data = error.response?.data;
+      if (data instanceof Blob) {
+        try {
+          const text = await data.text();
+          const parsed = JSON.parse(text);
+          if (parsed.message) message = parsed.message;
+        } catch {
+          /* ignore */
+        }
+      } else if (error.response?.data?.message) {
+        message = error.response.data.message;
+      }
       Swal.fire({
         icon: "error",
-        title: "Generation Failed",
-        text: error.response?.data?.message || "Failed to generate report. Please try again.",
+        title: "Generation failed",
+        text: message,
       });
     } finally {
       setGeneratingReport(false);
@@ -371,8 +345,8 @@ export default function AdminReports() {
 
       // Show loading
       Swal.fire({
-        title: "Generating PDF...",
-        text: "Please wait while we generate the PDF for this record.",
+        title: "Generating PDF…",
+        text: "Creating the Individual Counseling Report for this record.",
         allowOutsideClick: false,
         allowEscapeKey: false,
         didOpen: () => {
@@ -435,30 +409,31 @@ export default function AdminReports() {
         throw new Error("Generated PDF is empty. Please try again.");
       }
       
-      // Create a download link
-      const url = window.URL.createObjectURL(blob);
+      const cd =
+        response.headers["content-disposition"] ||
+        response.headers["Content-Disposition"];
+      const serverName = parseFilenameFromContentDisposition(cd);
+      const fileName = serverName || `individual-counseling-report-${recordId}.pdf`;
+
+      const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url;
-      
-      // Generate filename from client name
-      const sanitizedClientName = (clientName || "Record").replace(/[^a-zA-Z0-9]/g, "_");
-      const fileName = `${sanitizedClientName}_${new Date().toISOString().split("T")[0]}.pdf`;
+      link.href = blobUrl;
       link.download = fileName;
-      
+
       // Trigger download
       document.body.appendChild(link);
       link.click();
-      
+
       // Cleanup
       document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      window.URL.revokeObjectURL(blobUrl);
 
       // Close loading and show success message
       Swal.close();
       Swal.fire({
         icon: "success",
-        title: "PDF Generated!",
-        text: "The PDF has been generated and downloaded successfully.",
+        title: "Report ready",
+        text: "The Individual Counseling Report has been downloaded.",
         timer: 2000,
         showConfirmButton: false,
       });
@@ -747,15 +722,14 @@ export default function AdminReports() {
                 >
                   Reset filters
                 </button>
-                {activeTab !== "Counseling Records Report" && (
+                {activeTab === "Counseling Summary Report" && (
                   <button
                     type="button"
-                    onClick={() => setShowGenerateModal(true)}
-                    className="px-3 py-1.5 text-xs rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors"
+                    onClick={handleDownloadCounselingSummaryPdf}
+                    disabled={generatingReport}
+                    className="px-3 py-1.5 text-xs rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {activeTab === "Counseling Summary Report"
-                      ? "Generate summary PDF"
-                      : "Generate PDF"}
+                    {generatingReport ? "Generating…" : "Generate summary PDF"}
                   </button>
                 )}
               </div>
@@ -824,10 +798,12 @@ export default function AdminReports() {
                           </td>
                           <td className="py-2 px-3">
                             <button
+                              type="button"
                               onClick={() => handleGenerateRecordPDF(record._id, record.clientName)}
+                              title="Download Individual Counseling Report (PDF)"
                               className="px-2 py-1 text-xs rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 transition-colors"
                             >
-                              📄 Generate PDF
+                              Individual PDF
                             </button>
                           </td>
                         </tr>
@@ -982,57 +958,6 @@ export default function AdminReports() {
         </main>
       </div>
 
-      {/* Generate Report Modal */}
-      {showGenerateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white dark:bg-gray-800 rounded-xl p-6 max-w-md w-full"
-          >
-            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">
-              Generate Report
-            </h2>
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Report Name
-              </label>
-              <input
-                type="text"
-                value={reportName}
-                onChange={(e) => setReportName(e.target.value)}
-                placeholder="Enter report name..."
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-            <div className="mb-4">
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Report Type: <span className="font-semibold">{activeTab}</span>
-              </div>
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowGenerateModal(false);
-                  setReportName("");
-                }}
-                className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleGenerateReport}
-                disabled={generatingReport}
-                className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {generatingReport ? "Generating..." : "Generate PDF"}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* View Report Modal */}
       {showViewModal && selectedReport && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <motion.div

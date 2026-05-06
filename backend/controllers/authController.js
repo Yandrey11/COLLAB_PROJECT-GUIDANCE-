@@ -7,6 +7,11 @@ import { validatePassword } from "../utils/passwordValidation.js";
 import { createSession } from "./admin/sessionController.js";
 import { createNotification } from "./admin/notificationController.js";
 import { getFileUrl } from "../middleware/uploadMiddleware.js";
+import {
+  findCounselorByEmail,
+  findGoogleUserByEmail,
+  findAdminByEmail,
+} from "../utils/userLookup.js";
 
 // ===========================
 // 🔹 SIGNUP
@@ -16,9 +21,9 @@ export const signupUser = async (req, res) => {
     const { name, email, password } = req.body;
 
     // ✅ Check if user already exists (in any collection)
-    const existingUser = await Counselor.findOne({ email });
-    const existingAdmin = await Admin.findOne({ email });
-    const existingGoogleUser = await GoogleUser.findOne({ email });
+    const existingUser = await findCounselorByEmail(email);
+    const existingAdmin = await findAdminByEmail(email);
+    const existingGoogleUser = await findGoogleUserByEmail(email);
     if (existingUser || existingAdmin || existingGoogleUser)
       return res.status(400).json({ message: "Email already registered" });
 
@@ -76,7 +81,7 @@ export const signupUser = async (req, res) => {
 // Helper function to sync Google Calendar tokens from GoogleUser to User based on email
 const syncCalendarTokensFromGoogleUser = async (userEmail, userModel) => {
   try {
-    const googleUser = await GoogleUser.findOne({ email: userEmail });
+    const googleUser = await findGoogleUserByEmail(userEmail);
     
     if (googleUser && googleUser.googleCalendarAccessToken) {
       // Sync calendar tokens from GoogleUser to User
@@ -105,7 +110,7 @@ export const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     // ✅ Find user by email
-    const user = await Counselor.findOne({ email });
+    const user = await findCounselorByEmail(email);
     if (!user)
       return res.status(400).json({ message: "Invalid email or password" });
 
@@ -225,7 +230,7 @@ export const getCurrentUser = async (req, res) => {
         // Try to find by email as fallback (in case ID format doesn't match)
         if (decoded.email) {
           console.log(`🔍 Trying to find GoogleUser by email: ${decoded.email}`);
-          const googleUserByEmail = await GoogleUser.findOne({ email: decoded.email });
+          const googleUserByEmail = await findGoogleUserByEmail(decoded.email);
           if (googleUserByEmail) {
             console.log(`✅ Found GoogleUser by email: ${googleUserByEmail.email} (ID: ${googleUserByEmail._id})`);
             user = {

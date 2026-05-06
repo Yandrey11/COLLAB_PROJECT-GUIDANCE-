@@ -63,9 +63,13 @@ export default function CounselorTopNav() {
     }
   }, []);
 
+  // Only re-validate user info ONCE per session (or after profile updates).
+  // Using sessionStorage flag prevents re-fetching on every page navigation.
   useEffect(() => {
+    if (sessionStorage.getItem("topnavUserSynced") === "1") return;
+    sessionStorage.setItem("topnavUserSynced", "1");
     fetchUserInfo();
-  }, [fetchUserInfo, location.pathname]);
+  }, [fetchUserInfo]);
 
   useEffect(() => {
     const onClickAway = (event) => {
@@ -103,7 +107,11 @@ export default function CounselorTopNav() {
   const profileSubtitle = `${collegeAbbrev} - Counselor`;
   const baseNavItemClass =
     "relative inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-medium transition-colors";
-  const activeNavItemClass = "bg-indigo-600 text-white shadow-sm dark:bg-indigo-500";
+  // Active link uses the user's chosen primary theme color (CSS variable).
+  const activeNavItemStyle = {
+    backgroundColor: "var(--theme-primary)",
+    color: "var(--theme-primary-contrast, #ffffff)",
+  };
   const idleNavItemClass = "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800";
 
   const handleLogout = useCallback(async () => {
@@ -138,6 +146,7 @@ export default function CounselorTopNav() {
     localStorage.removeItem("authToken");
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    sessionStorage.removeItem("topnavUserSynced");
     navigate("/", { replace: true });
   }, [navigate]);
 
@@ -168,7 +177,8 @@ export default function CounselorTopNav() {
             <Link
               key={item.path}
               to={item.path}
-              className={`${baseNavItemClass} ${isActive(item.path) ? activeNavItemClass : idleNavItemClass}`}
+              className={`${baseNavItemClass} ${isActive(item.path) ? "shadow-sm" : idleNavItemClass}`}
+              style={isActive(item.path) ? activeNavItemStyle : undefined}
             >
               <span className={item.hasBadge || item.hasMessagesBadge ? "pr-6" : ""}>{item.label}</span>
               {item.hasMessagesBadge ? (
@@ -266,9 +276,10 @@ export default function CounselorTopNav() {
                 onClick={() => setMenuOpen(false)}
                 className={`relative rounded-lg px-3 py-2 text-sm font-medium ${
                   isActive(item.path)
-                    ? "bg-indigo-600 text-white dark:bg-indigo-500"
+                    ? ""
                     : "bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
                 }`}
+                style={isActive(item.path) ? activeNavItemStyle : undefined}
               >
                 <span className={item.hasBadge || item.hasMessagesBadge ? "pr-6" : ""}>{item.label}</span>
                 {item.hasMessagesBadge ? (

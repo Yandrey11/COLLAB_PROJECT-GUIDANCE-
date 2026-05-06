@@ -1,5 +1,18 @@
 import CounselorNotification from "../models/CounselorNotification.js";
 import Counselor from "../models/Counselor.js";
+import { cacheInvalidate } from "../utils/cache.js";
+import { hmac } from "../utils/fieldCrypto.js";
+
+const invalidateCounselorNotifs = () => cacheInvalidate("notifications:");
+
+// counselorEmail is encrypted at rest, so equality matches go through the
+// deterministic counselorEmailLookup HMAC column.
+const counselorScopeOr = (counselorId, counselorEmail) => {
+  const or = [];
+  if (counselorId) or.push({ counselorId });
+  if (counselorEmail) or.push({ counselorEmailLookup: hmac(counselorEmail, "email") });
+  return or;
+};
 
 // Get all notifications for a specific counselor with filters and pagination
 export const getCounselorNotifications = async (req, res) => {
@@ -20,7 +33,7 @@ export const getCounselorNotifications = async (req, res) => {
 
     // Build query - only get notifications for this counselor
     const baseQuery = {
-      $or: [{ counselorId: counselorId }, { counselorEmail: counselorEmail }],
+      $or: counselorScopeOr(counselorId, counselorEmail),
     };
 
     const query = { ...baseQuery };
@@ -60,7 +73,7 @@ export const getCounselorNotifications = async (req, res) => {
 
     // Get unread count for this counselor
     const unreadQuery = {
-      $or: [{ counselorId: counselorId }, { counselorEmail: counselorEmail }],
+      $or: counselorScopeOr(counselorId, counselorEmail),
       status: "unread",
     };
     const unreadCount = await CounselorNotification.countDocuments(unreadQuery);
@@ -109,7 +122,7 @@ export const getUnreadCount = async (req, res) => {
     }
 
     const unreadQuery = {
-      $or: [{ counselorId: counselorId }, { counselorEmail: counselorEmail }],
+      $or: counselorScopeOr(counselorId, counselorEmail),
       status: "unread",
     };
 
@@ -138,7 +151,7 @@ export const markAsRead = async (req, res) => {
     // Verify the notification belongs to this counselor
     const notification = await CounselorNotification.findOne({
       _id: notificationId,
-      $or: [{ counselorId: counselorId }, { counselorEmail: counselorEmail }],
+      $or: counselorScopeOr(counselorId, counselorEmail),
     });
 
     if (!notification) {
@@ -147,6 +160,7 @@ export const markAsRead = async (req, res) => {
 
     notification.status = "read";
     await notification.save();
+    invalidateCounselorNotifs();
 
     res.status(200).json({
       message: "Notification marked as read",
@@ -175,7 +189,7 @@ export const markAsUnread = async (req, res) => {
     // Verify the notification belongs to this counselor
     const notification = await CounselorNotification.findOne({
       _id: notificationId,
-      $or: [{ counselorId: counselorId }, { counselorEmail: counselorEmail }],
+      $or: counselorScopeOr(counselorId, counselorEmail),
     });
 
     if (!notification) {
@@ -184,6 +198,7 @@ export const markAsUnread = async (req, res) => {
 
     notification.status = "unread";
     await notification.save();
+    invalidateCounselorNotifs();
 
     res.status(200).json({
       message: "Notification marked as unread",
@@ -209,11 +224,12 @@ export const markAllAsRead = async (req, res) => {
     }
 
     const query = {
-      $or: [{ counselorId: counselorId }, { counselorEmail: counselorEmail }],
+      $or: counselorScopeOr(counselorId, counselorEmail),
       status: "unread",
     };
 
     await CounselorNotification.updateMany(query, { status: "read" });
+    invalidateCounselorNotifs();
 
     res.status(200).json({
       message: "All notifications marked as read",
@@ -238,13 +254,14 @@ export const deleteNotification = async (req, res) => {
     // Verify the notification belongs to this counselor
     const notification = await CounselorNotification.findOneAndDelete({
       _id: notificationId,
-      $or: [{ counselorId: counselorId }, { counselorEmail: counselorEmail }],
+      $or: counselorScopeOr(counselorId, counselorEmail),
     });
 
     if (!notification) {
       return res.status(404).json({ message: "Notification not found or access denied" });
     }
 
+    invalidateCounselorNotifs();
     res.status(200).json({
       message: "Notification deleted successfully",
       notificationId: notification._id,
@@ -266,11 +283,12 @@ export const deleteAllRead = async (req, res) => {
     }
 
     const query = {
-      $or: [{ counselorId: counselorId }, { counselorEmail: counselorEmail }],
+      $or: counselorScopeOr(counselorId, counselorEmail),
       status: "read",
     };
 
     const result = await CounselorNotification.deleteMany(query);
+    invalidateCounselorNotifs();
 
     res.status(200).json({
       message: "All read notifications deleted",
@@ -306,6 +324,7 @@ export const createCounselorNotification = async (data) => {
       announcementId: announcementId || null,
     });
 
+    invalidateCounselorNotifs();
     return notification;
   } catch (error) {
     console.error("❌ Error creating counselor notification:", error);
@@ -318,10 +337,28 @@ export const createNotificationForAllCounselors = async (data) => {
   try {
     const { title, description, category, priority, metadata, relatedId, relatedType, isAnnouncement, announcementId } = data;
 
-    // Get all counselors
-    const counselors = await Counselor.find({ role: "counselor" }).select("_id email").lean();
+    // Get all counselors from BOTH Counselor and GoogleUser collections.
+    const GoogleUser = (await import("../models/GoogleUser.js")).default;
+    const [counselorDocs, googleUserDocs] = await Promise.all([
+      Counselor.find({ role: "counselor" }).select("_id email").lean(),
+      GoogleUser.find({
+        $or: [{ role: "counselor" }, { role: { $exists: false } }, { role: null }],
+      })
+        .select("_id email")
+        .lean(),
+    ]);
 
-    if (!counselors || counselors.length === 0) {
+    const seenEmails = new Set();
+    const counselors = [];
+    for (const doc of [...(counselorDocs || []), ...(googleUserDocs || [])]) {
+      if (!doc?._id || !doc?.email) continue;
+      const key = String(doc.email).toLowerCase();
+      if (seenEmails.has(key)) continue;
+      seenEmails.add(key);
+      counselors.push(doc);
+    }
+
+    if (counselors.length === 0) {
       console.log("⚠️ No counselors found to send notification to");
       return [];
     }
@@ -350,10 +387,106 @@ export const createNotificationForAllCounselors = async (data) => {
       }
     }
 
+    if (notifications.length > 0) invalidateCounselorNotifs();
     return notifications;
   } catch (error) {
     console.error("❌ Error creating notifications for all counselors:", error);
     throw error;
+  }
+};
+
+// Backfill: ensure every active "all" announcement has a notification per
+// counselor (Counselor + GoogleUser). Past broadcasts skipped GoogleUsers.
+export const backfillAnnouncementNotifications = async () => {
+  try {
+    const Announcement = (await import("../models/Announcement.js")).default;
+    const GoogleUser = (await import("../models/GoogleUser.js")).default;
+
+    // Only consider announcements that have never been backfilled. Once an
+    // announcement is backfilled we never re-create notifications for it,
+    // otherwise users can never permanently delete those notifications.
+    const announcements = await Announcement.find({
+      isActive: true,
+      targetAudience: "all",
+      $or: [{ notificationsBackfilled: { $exists: false } }, { notificationsBackfilled: false }],
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+    if (!announcements.length) return { announcements: 0, created: 0 };
+
+    const [counselorDocs, googleUserDocs] = await Promise.all([
+      Counselor.find({ role: "counselor" }).select("_id email").lean(),
+      GoogleUser.find({
+        $or: [{ role: "counselor" }, { role: { $exists: false } }, { role: null }],
+      })
+        .select("_id email")
+        .lean(),
+    ]);
+
+    const seen = new Set();
+    const counselors = [];
+    for (const doc of [...counselorDocs, ...googleUserDocs]) {
+      if (!doc?._id || !doc?.email) continue;
+      const k = String(doc.email).toLowerCase();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      counselors.push(doc);
+    }
+
+    let created = 0;
+    for (const ann of announcements) {
+      const existing = await CounselorNotification.find({ announcementId: ann._id })
+        .select("counselorEmail")
+        .lean();
+      const haveEmails = new Set(
+        existing.map((e) => String(e.counselorEmail || "").toLowerCase()).filter(Boolean)
+      );
+      const missing = counselors.filter(
+        (c) => !haveEmails.has(String(c.email).toLowerCase())
+      );
+      if (!missing.length) continue;
+
+      const docs = missing.map((c) => ({
+        counselorId: c._id,
+        counselorEmail: c.email,
+        title: ann.title,
+        description: ann.message,
+        category: "Announcement",
+        priority: ann.priority || "medium",
+        status: "unread",
+        metadata: { announcementId: ann._id.toString(), createdBy: ann.createdByName },
+        relatedId: ann._id,
+        relatedType: "announcement",
+        isAnnouncement: true,
+        announcementId: ann._id,
+        createdAt: ann.createdAt,
+        updatedAt: ann.updatedAt,
+      }));
+      const inserted = await CounselorNotification.insertMany(docs, { ordered: false });
+      created += inserted.length;
+      await Announcement.updateOne(
+        { _id: ann._id },
+        { $set: { notificationsBackfilled: true } }
+      );
+    }
+
+    if (created > 0) invalidateCounselorNotifs();
+
+    // Mark every processed announcement as backfilled (even ones that had no
+    // missing notifications) so we never reprocess them — otherwise deletions
+    // by the counselor would silently come back on the next server restart.
+    await Announcement.updateMany(
+      { _id: { $in: announcements.map((a) => a._id) } },
+      { $set: { notificationsBackfilled: true } }
+    );
+
+    console.log(
+      `📣 Announcement backfill: ${announcements.length} announcement(s), created ${created} missing notification(s)`
+    );
+    return { announcements: announcements.length, created };
+  } catch (error) {
+    console.error("❌ Announcement backfill failed:", error);
+    return { announcements: 0, created: 0, error: error.message };
   }
 };
 

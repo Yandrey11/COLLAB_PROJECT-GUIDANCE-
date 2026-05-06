@@ -5,6 +5,11 @@ import Counselor from "../models/Counselor.js";
 import GoogleUser from "../models/GoogleUser.js";
 import Admin from "../models/Admin.js";
 import { encryptToken } from "../utils/tokenEncryption.js";
+import {
+  findAdminByEmail,
+  findCounselorByEmail,
+  findGoogleUserByEmail,
+} from "../utils/userLookup.js";
 
 dotenv.config();
 
@@ -63,14 +68,14 @@ export const googleDriveCallback = async (req, res) => {
     }
 
     if (!account && decoded.email) {
-      account = await Counselor.findOne({ email: decoded.email });
+      account = await findCounselorByEmail(decoded.email);
       accountType = "counselor";
       if (!account) {
-        account = await GoogleUser.findOne({ email: decoded.email });
+        account = await findGoogleUserByEmail(decoded.email);
         accountType = "google";
       }
       if (!account) {
-        account = await Admin.findOne({ email: decoded.email });
+        account = await findAdminByEmail(decoded.email);
         accountType = "admin";
       }
     }

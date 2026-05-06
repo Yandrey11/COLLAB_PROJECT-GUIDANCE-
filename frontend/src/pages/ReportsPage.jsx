@@ -398,7 +398,7 @@ const ReportsPage = () => {
     return `DOC-${timestamp}-${random}`;
   };
 
-  // ✅ Generate and download PDF (server-side PDFKit)
+  // ✅ Generate and download PDF (individual session vs. multi-record summary table)
   const handleDownloadPDF = async () => {
     const recordsToExport = selectedRecord ? [selectedRecord] : filteredRecords;
     if (recordsToExport.length === 0) return;
@@ -412,7 +412,37 @@ const ReportsPage = () => {
     const trackingNumber = generateTrackingNumber();
 
     try {
-      // Reports page always exports the counseling summary table (single or multiple rows).
+      if (recordsToExport.length === 1) {
+        const record = recordsToExport[0];
+        const recordId = record._id ?? record.id;
+        const res = await fetch(`${RECORDS_API_URL}/${recordId}/generate-pdf`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          await Swal.fire({
+            icon: "error",
+            title: "Could not generate individual report",
+            text: err.error || res.statusText || "Request failed.",
+          });
+          return;
+        }
+        const blob = await res.blob();
+        const serverName = parseFilenameFromContentDisposition(res.headers.get("Content-Disposition"));
+        const fileName = serverName || `individual-counseling-report-${recordId}.pdf`;
+        downloadPdfBlob(blob, fileName);
+        saveGeneratedReportMetadata({
+          id: `${trackingNumber}-${Date.now()}`,
+          fileName,
+          generatedAt: new Date().toISOString(),
+          reportType: "Individual Counseling Report",
+          recordCount: 1,
+          clientName: record.clientName || "—",
+          trackingNumber,
+        });
+        return;
+      }
+
       const res = await fetch(`${RECORDS_API_URL}/summary-pdf`, {
         method: "POST",
         headers: {
@@ -583,7 +613,7 @@ const ReportsPage = () => {
                   Counseling reports
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
-                  Filter sessions, review details, and export PDFs when allowed.
+                  Filter sessions, review details, and export individual counseling reports or multi-session summary PDFs when allowed.
                 </p>
               </div>
             </div>
@@ -636,9 +666,14 @@ const ReportsPage = () => {
                 type="button"
                 onClick={handleDownloadPDF}
                 disabled={filteredRecords.length === 0}
+                title={
+                  filteredRecords.length === 1
+                    ? "Download an Individual Counseling Report PDF for the one matching session."
+                    : "Download a Counseling Summary Report PDF (table) for all matching sessions."
+                }
                 className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80 sm:w-auto"
               >
-                Download summary PDF
+                {filteredRecords.length === 1 ? "Download Individual PDF" : "Download summary PDF"}
               </button>
             )}
           </div>
@@ -770,7 +805,7 @@ const ReportsPage = () => {
         </motion.main>
       </div>
 
-      {/* Counselor: view record details (read-only) */}
+      {/* Counselor: view individual counseling record (read-only) */}
       <AnimatePresence>
         {selectedRecord && (
           <motion.div
@@ -792,7 +827,7 @@ const ReportsPage = () => {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Record details
+                      Individual counseling record
                     </p>
                     <h2 className="mt-1 text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
                       {selectedRecord.clientName}
@@ -870,9 +905,10 @@ const ReportsPage = () => {
                   <button
                     type="button"
                     onClick={handleDownloadPDF}
+                    title="Download an Individual Counseling Report PDF for this session."
                     className="h-10 rounded-xl bg-gray-900 px-4 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
                   >
-                    Download summary PDF
+                    Download Individual PDF
                   </button>
                 )}
               </div>

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
-    "migrate:problems": "node scripts/migrateProblemsPresentedFields.mjs"
+    "migrate:problems": "node scripts/migrateProblemsPresentedFields.mjs",
+    "migrate:encrypt": "node scripts/encryptExistingData.js"
   },
   "dependencies": {
     "axios": "^1.12.2",

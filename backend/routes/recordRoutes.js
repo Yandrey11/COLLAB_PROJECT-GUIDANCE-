@@ -10,6 +10,7 @@ import {
   generateSummaryRecordsPDF,
   syncAllRecordsToGoogleCalendar,
   syncRecordsToDrive,
+  getRecordCatalogOptions,
   archiveRecord,
   unarchiveRecord,
 } from "../controllers/recordController.js";
@@ -29,6 +30,7 @@ const router = express.Router();
 
 // View records - requires can_view_records permission
 router.get("/", protect, authorize("can_view_records"), getRecords);
+router.get("/catalog-options", protect, authorize("can_view_records"), getRecordCatalogOptions);
 
 // Sync all records to Google Calendar (for existing records)
 router.post("/sync-google-calendar", protect, authorize("can_edit_records"), syncAllRecordsToGoogleCalendar);

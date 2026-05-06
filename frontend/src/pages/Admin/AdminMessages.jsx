@@ -134,7 +134,7 @@ export default function AdminMessages() {
   };
 
   return (
-    <div className="page-bg admin-typography min-h-screen w-full text-gray-900 dark:text-gray-100">
+    <div className="page-bg admin-typography min-h-screen w-full font-sans text-gray-900 dark:text-gray-100">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10">
         <div className="flex flex-col gap-8">
           <header className="flex flex-col gap-6 border-b border-gray-200/80 pb-8 dark:border-gray-700/80 sm:flex-row sm:items-start sm:justify-between sm:pb-10">

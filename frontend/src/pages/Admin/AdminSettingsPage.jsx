@@ -4,7 +4,14 @@ import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import Swal from "sweetalert2";
 import AdminSidebar from "../../components/AdminSidebar";
-import { applyTheme, initializeTheme } from "../../utils/themeUtils";
+import ColorThemeSection from "../../components/ColorThemeSection";
+import {
+  applyTheme,
+  initializeTheme,
+  applyColorTheme,
+  persistColorTheme,
+  COLOR_DEFAULTS,
+} from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 import { validatePassword } from "../../utils/passwordValidation";
 import PasswordStrengthMeter from "../../components/PasswordStrengthMeter.jsx";
@@ -55,6 +62,7 @@ export default function AdminSettingsPage() {
       hideProfilePhoto: false,
       maskNameInNotifications: false,
     },
+    colors: { ...COLOR_DEFAULTS.admin },
   });
 
   // Check admin authentication
@@ -204,6 +212,12 @@ export default function AdminSettingsPage() {
           applyTheme(response.data.settings.display.theme);
           localStorage.setItem("theme", response.data.settings.display.theme);
         }
+
+        // Apply persisted color theme if available
+        if (response.data.settings.colors) {
+          applyColorTheme(response.data.settings.colors);
+          persistColorTheme(response.data.settings.colors);
+        }
       }
     } catch (error) {
       console.error("Error fetching settings:", error);
@@ -293,6 +307,69 @@ export default function AdminSettingsPage() {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Save admin color theme
+  const saveColors = async (colors) => {
+    try {
+      setSaving(true);
+      const token = localStorage.getItem("adminToken");
+      if (!token) {
+        navigate("/adminlogin");
+        return;
+      }
+      const response = await axios.put(
+        `${SETTINGS_API_URL}/colors`,
+        colors,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      if (response.data.success) {
+        const next = response.data.settings || colors;
+        setSettings((prev) => ({ ...prev, colors: next }));
+        applyColorTheme(next);
+        persistColorTheme(next);
+        await Swal.fire({
+          icon: "success",
+          title: "Theme saved",
+          text: "Your color preferences have been updated.",
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      console.error("Error saving theme colors:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Save failed",
+        text: error.response?.data?.message || "Failed to save theme colors.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Reset admin color theme to defaults (server + local)
+  const resetColorsOnly = async () => {
+    const def = { ...COLOR_DEFAULTS.admin };
+    setSettings((prev) => ({ ...prev, colors: def }));
+    applyColorTheme(def);
+    persistColorTheme(def);
+    try {
+      const token = localStorage.getItem("adminToken");
+      if (!token) return;
+      await axios.post(
+        `${SETTINGS_API_URL}/colors/reset`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (e) {
+      console.warn("Failed to persist color reset:", e);
     }
   };
 
@@ -506,7 +583,7 @@ export default function AdminSettingsPage() {
                       <button
                         type="submit"
                         disabled={saving}
-                        className="h-10 w-full max-w-md rounded-lg bg-indigo-600 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-6"
+                        className="btn-theme-primary h-10 w-full max-w-md rounded-lg text-sm font-medium sm:w-auto sm:px-6"
                       >
                         {saving ? "Updating…" : "Update password"}
                       </button>
@@ -679,10 +756,20 @@ export default function AdminSettingsPage() {
                     type="button"
                     onClick={() => saveSettings("display")}
                     disabled={saving}
-                    className="h-10 max-w-xs rounded-lg bg-indigo-600 px-6 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="btn-theme-primary h-10 max-w-xs rounded-lg px-6 text-sm font-medium"
                   >
                     {saving ? "Saving…" : "Save display settings"}
                   </button>
+
+                  <div className="pt-2">
+                    <ColorThemeSection
+                      role="admin"
+                      initialColors={settings.colors}
+                      saving={saving}
+                      onSave={saveColors}
+                      onReset={resetColorsOnly}
+                    />
+                  </div>
                 </motion.div>
               )}
 
@@ -750,7 +837,7 @@ export default function AdminSettingsPage() {
                     type="button"
                     onClick={() => saveSettings("privacy")}
                     disabled={saving}
-                    className="h-10 max-w-xs rounded-lg bg-indigo-600 px-6 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="btn-theme-primary h-10 max-w-xs rounded-lg px-6 text-sm font-medium"
                   >
                     {saving ? "Saving…" : "Save privacy settings"}
                   </button>

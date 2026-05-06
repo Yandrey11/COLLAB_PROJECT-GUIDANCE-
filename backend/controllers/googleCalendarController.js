@@ -223,7 +223,8 @@ export const getDashboardCalendarEvents = async (req, res) => {
         
         // If not found by ID, try by email (in case IDs don't match)
         if (!googleUser && req.user.email) {
-          googleUser = await GoogleUser.findOne({ email: req.user.email });
+          const { findGoogleUserByEmail } = await import("../utils/userLookup.js");
+          googleUser = await findGoogleUserByEmail(req.user.email);
         }
         
         // Also try by googleId if user has one
@@ -238,7 +239,8 @@ export const getDashboardCalendarEvents = async (req, res) => {
           
           // Also check User collection by email if we found a GoogleUser
           if (!user && googleUser.email) {
-            user = await Counselor.findOne({ email: googleUser.email });
+            const { findCounselorByEmail } = await import("../utils/userLookup.js");
+            user = await findCounselorByEmail(googleUser.email);
             if (user && !user.googleCalendarAccessToken) {
               // Sync tokens to User model if it exists (store encrypted)
               user.googleCalendarAccessToken = encryptToken(calendarAccessToken);

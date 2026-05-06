@@ -44,6 +44,12 @@ const announcementSchema = new mongoose.Schema(
       type: Date,
       // Optional expiration date for announcements
     },
+    notificationsBackfilled: {
+      type: Boolean,
+      default: false,
+      // Set to true after the one-time fan-out so a counselor's manual
+      // delete cannot be undone by the startup backfill job.
+    },
   },
   { timestamps: true }
 );

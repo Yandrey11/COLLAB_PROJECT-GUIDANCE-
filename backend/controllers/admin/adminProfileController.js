@@ -6,6 +6,7 @@ import { validatePassword } from "../../utils/passwordValidation.js";
 import { getFileUrl, deleteProfilePictureFile } from "../../middleware/uploadMiddleware.js";
 import path from "path";
 import fs from "fs";
+import { emailLookupHash } from "../../utils/userLookup.js";
 
 // Helper function to get client IP and user agent
 const getClientInfo = (req) => ({
@@ -167,8 +168,9 @@ export const updateProfile = async (req, res) => {
 
       // Check if email is already taken by another account (Admin or Counselor)
       const emailTrim = email.trim();
-      const existingAdmin = await Admin.findOne({ email: emailTrim, _id: { $ne: admin._id } });
-      const existingCounselor = await Counselor.findOne({ email: emailTrim, _id: { $ne: admin._id } });
+      const lookup = emailLookupHash(emailTrim);
+      const existingAdmin = await Admin.findOne({ emailLookup: lookup, _id: { $ne: admin._id } });
+      const existingCounselor = await Counselor.findOne({ emailLookup: lookup, _id: { $ne: admin._id } });
       if (existingAdmin || existingCounselor) {
         return res.status(400).json({
           success: false,

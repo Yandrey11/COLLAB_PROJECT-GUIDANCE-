@@ -5,7 +5,15 @@ import { motion, AnimatePresence } from "framer-motion";
 import Swal from "sweetalert2";
 import { NotificationBadgeBadge } from "../components/NotificationBadge";
 import CounselorSidebar from "../components/CounselorSidebar";
-import { applyTheme, initializeTheme } from "../utils/themeUtils";
+import ColorThemeSection from "../components/ColorThemeSection";
+import {
+  applyTheme,
+  initializeTheme,
+  applyColorTheme,
+  persistColorTheme,
+  resetColorThemeToDefault,
+  COLOR_DEFAULTS,
+} from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { validatePassword } from "../utils/passwordValidation";
 import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
@@ -78,6 +86,7 @@ export default function SettingsPage() {
       hideProfilePhoto: false,
       maskNameInPDFs: false,
     },
+    colors: { ...COLOR_DEFAULTS.counselor },
   });
 
   // Load user from localStorage
@@ -210,6 +219,12 @@ export default function SettingsPage() {
           localStorage.setItem("theme", response.data.settings.display.theme);
         }
 
+        // Apply persisted color theme if available
+        if (response.data.settings.colors) {
+          applyColorTheme(response.data.settings.colors);
+          persistColorTheme(response.data.settings.colors);
+        }
+
         // Save to localStorage for frontend-only settings
         saveFrontendSettingsToLocalStorage(response.data.settings);
       }
@@ -335,6 +350,69 @@ export default function SettingsPage() {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Save color theme to backend
+  const saveColors = async (colors) => {
+    try {
+      setSaving(true);
+      const token = localStorage.getItem("token");
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+      const response = await axios.put(
+        SETTINGS_API_URL,
+        { colors },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      if (response.data.success) {
+        const next = response.data.settings?.colors || colors;
+        setSettings((prev) => ({ ...prev, colors: next }));
+        applyColorTheme(next);
+        persistColorTheme(next);
+        await Swal.fire({
+          icon: "success",
+          title: "Theme saved",
+          text: "Your color preferences have been updated.",
+          timer: 1800,
+          showConfirmButton: false,
+        });
+      }
+    } catch (error) {
+      console.error("Error saving theme colors:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Save failed",
+        text: error.response?.data?.message || "Failed to save theme colors.",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Reset just the color theme (without resetting other settings)
+  const resetColorsOnly = async () => {
+    const def = { ...COLOR_DEFAULTS.counselor };
+    setSettings((prev) => ({ ...prev, colors: def }));
+    applyColorTheme(def);
+    persistColorTheme(def);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) return;
+      await axios.put(
+        SETTINGS_API_URL,
+        { colors: def },
+        { headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" } }
+      );
+    } catch (e) {
+      console.warn("Failed to persist color reset:", e);
     }
   };
 
@@ -465,9 +543,11 @@ export default function SettingsPage() {
               hideProfilePhoto: false,
               maskNameInPDFs: false,
             },
+            colors: { ...COLOR_DEFAULTS.counselor },
           });
 
           applyTheme("light");
+          resetColorThemeToDefault("counselor");
           localStorage.removeItem("counselorSettings");
 
           await Swal.fire({
@@ -591,7 +671,7 @@ export default function SettingsPage() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
                     activeTab === tab.id
-                      ? "bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900"
+                      ? "btn-theme-primary"
                       : "border border-transparent text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-900/40"
                   }`}
                 >
@@ -685,7 +765,7 @@ export default function SettingsPage() {
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
                               disabled={saving}
-                              className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                              className="btn-theme-primary rounded-xl px-5 py-2.5 text-sm font-medium"
                             >
                               {saving ? "Updating…" : "Change password"}
                             </motion.button>
@@ -706,7 +786,7 @@ export default function SettingsPage() {
                         <button
                           type="button"
                           onClick={() => navigate("/profile")}
-                          className="shrink-0 rounded-xl bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                          className="btn-theme-primary shrink-0 rounded-xl px-4 py-2.5 text-sm font-medium"
                         >
                           Open profile
                         </button>
@@ -902,10 +982,20 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => saveSettings("display")}
                       disabled={saving}
-                      className="w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                      className="btn-theme-primary w-full rounded-xl px-4 py-3 text-sm font-medium"
                     >
                       {saving ? "Saving…" : "Save display settings"}
                     </button>
+
+                    <div className="mt-6">
+                      <ColorThemeSection
+                        role="counselor"
+                        initialColors={settings.colors}
+                        saving={saving}
+                        onSave={saveColors}
+                        onReset={resetColorsOnly}
+                      />
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -973,7 +1063,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => saveSettings("notifications")}
                       disabled={saving}
-                      className="mt-6 w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                      className="btn-theme-primary mt-6 w-full rounded-xl px-4 py-3 text-sm font-medium"
                     >
                       {saving ? "Saving…" : "Save notification settings"}
                     </button>
@@ -1047,7 +1137,7 @@ export default function SettingsPage() {
                       type="button"
                       onClick={() => saveSettings("privacy")}
                       disabled={saving}
-                      className="mt-6 w-full rounded-xl bg-gray-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                      className="btn-theme-primary mt-6 w-full rounded-xl px-4 py-3 text-sm font-medium"
                     >
                       {saving ? "Saving…" : "Save privacy settings"}
                     </button>

@@ -7,6 +7,7 @@ import { isValidCollege } from "../utils/counselorColleges.js";
 import { getFileUrl, deleteProfilePictureFile } from "../middleware/uploadMiddleware.js";
 import path from "path";
 import fs from "fs";
+import { emailLookupHash } from "../utils/userLookup.js";
 
 // Helper function to get client IP and user agent
 const getClientInfo = (req) => ({
@@ -168,8 +169,9 @@ export const updateProfile = async (req, res) => {
       // Only check other accounts when the email is actually changing (avoids false
       // positives when the same address exists on the other collection with a different _id).
       if (!sameEmailAsSelf) {
-        const existingUser = await Counselor.findOne({ email, _id: { $ne: user._id } });
-        const existingGoogleUser = await GoogleUser.findOne({ email, _id: { $ne: user._id } });
+        const lookup = emailLookupHash(email);
+        const existingUser = await Counselor.findOne({ emailLookup: lookup, _id: { $ne: user._id } });
+        const existingGoogleUser = await GoogleUser.findOne({ emailLookup: lookup, _id: { $ne: user._id } });
 
         if (existingUser || existingGoogleUser) {
           return res.status(400).json({

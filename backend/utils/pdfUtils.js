@@ -4,357 +4,563 @@ import fs from "fs";
 import { formatProblemsPresentedDisplay } from "./problemsPresented.js";
 import { resolveRecommendationAuthorName } from "./recommendationAuthor.js";
 
-const getUniversityLogoPath = () => {
-  const candidates = [
-    path.join(process.cwd(), "assets", "buksu-logo.png"),
-    path.join(process.cwd(), "assets", "buksu-logo.jpg"),
-    path.join(process.cwd(), "assets", "buksu-logo.jpeg"),
-    path.join(process.cwd(), "public", "buksu-logo.png"),
-  ];
+const mmToPt = (mm) => (mm / 25.4) * 72;
 
-  return candidates.find((candidate) => fs.existsSync(candidate));
-};
-
-/** Total letterhead height (pt) including top margin band — body starts below this + gap in record PDFs */
-export const RECORD_PDF_HEADER_HEIGHT_PT = 168;
+/** Max logo width (pt) on summary letterhead — height scales with aspect ratio. */
+const BS_SUMMARY_LOGO_MAX_W_PT = 50;
+const BS_SUMMARY_MARGIN_X_PT = 36;
+const BS_SUMMARY_MARGIN_TOP_PT = 22;
 
 /**
- * Counseling summary report: logo top-left (drawn last so it sits above text), university block
- * centered on full page width, then report title and month / school-year row.
- * Absolute Y where the white header band ends — keep close to actual artwork (no tall empty band).
- * Table `contentStartY` in counselingSummaryPdf = this + a small gap (~7–10 mm).
+ * Compact BSU letterhead for Counseling Summary Report (no colored banner).
+ * @returns Y position (pt) where body content should begin.
  */
-export const SUMMARY_REPORT_HEADER_HEIGHT_PT = 158;
+export function drawBsCounselingSummaryLetterhead(doc, opts) {
+  const pageWidth = doc.page.width;
+  const {
+    monthLabel = "—",
+    schoolYear = "—",
+    firstPage = true,
+  } = opts;
 
-// Helper to add header/footer (BUKSU letterhead + SWEU / GCS; used by counselor & admin PDFs)
-/** @param {{ omitSystemFooter?: boolean; individualGcsReport?: boolean; individualSchoolYear?: string|null; counselingSummaryReport?: boolean; summaryMonthLabel?: string; summarySchoolYear?: string }} [options] — individual report: pass individualSchoolYear for centered header line; summary: pass summaryMonthLabel & summarySchoolYear */
-export const addRecordHeaderFooter = (doc, pageNum, totalPages, trackingNumber, reportDate, options = {}) => {
-  const mmToPt = (mm) => (mm / 25.4) * 72;
+  const monthUpper = String(monthLabel).trim().toUpperCase();
+  const schoolUpper = String(schoolYear).trim().toUpperCase();
+  const monthText = `FOR THE MONTH OF ${monthUpper}`;
+  const schoolText = `SCHOOL YEAR: ${schoolUpper}`;
+  const innerW = pageWidth - 2 * BS_SUMMARY_MARGIN_X_PT;
+  const half = innerW / 2;
+  const lineTight = 1.5;
+
+  const drawMetaRow = (yStart) => {
+    let y = yStart;
+    doc.fillColor("#000000");
+    doc.font("Times-Roman").fontSize(9);
+    doc.text(monthText, BS_SUMMARY_MARGIN_X_PT, y, { width: half - 8, align: "left" });
+    doc.text(schoolText, BS_SUMMARY_MARGIN_X_PT + half + 8, y, { width: half - 8, align: "right" });
+    const metaH = Math.max(
+      doc.heightOfString(monthText, { width: half - 8 }),
+      doc.heightOfString(schoolText, { width: half - 8 })
+    );
+    // Space below month / school year row (no divider line — keep a single compact gap before the table)
+    y += metaH + mmToPt(2);
+    doc.fillColor("#000000");
+    return y;
+  };
+
+  if (!firstPage) {
+    let y = BS_SUMMARY_MARGIN_TOP_PT;
+    doc.fillColor("#000000");
+    doc.font("Times-Bold").fontSize(11);
+    doc.text("COUNSELING SUMMARY REPORT", 0, y, { width: pageWidth, align: "center" });
+    y += doc.currentLineHeight() + mmToPt(1.5);
+    return drawMetaRow(y);
+  }
+
+  let y = BS_SUMMARY_MARGIN_TOP_PT;
+  const logoPath = path.join(process.cwd(), "assets", "buksu-logo.png");
+  let logoBottom = y;
+  if (fs.existsSync(logoPath)) {
+    try {
+      const img = doc.openImage(logoPath);
+      const scale = BS_SUMMARY_LOGO_MAX_W_PT / img.width;
+      const imgH = img.height * scale;
+      doc.image(logoPath, BS_SUMMARY_MARGIN_X_PT, y, { width: BS_SUMMARY_LOGO_MAX_W_PT });
+      logoBottom = y + imgH;
+    } catch {
+      logoBottom = y;
+    }
+  }
+
+  let yText = y + 1;
+  doc.fillColor("#000000");
+  doc.font("Times-Bold").fontSize(10.5);
+  doc.text("BUKIDNON STATE UNIVERSITY", 0, yText, { width: pageWidth, align: "center" });
+  yText += doc.currentLineHeight() + lineTight;
+
+  doc.font("Times-Roman").fontSize(8.5);
+  const addr = "Fortich Street, Malaybalay City, Bukidnon 8700";
+  doc.text(addr, 0, yText, { width: pageWidth, align: "center" });
+  yText += doc.heightOfString(addr, { width: pageWidth, align: "center" }) + lineTight;
+
+  const tel = "Tel (088) 813-5661 to 5663; Telefax (088) 813-2717";
+  doc.text(tel, 0, yText, { width: pageWidth, align: "center" });
+  yText += doc.heightOfString(tel, { width: pageWidth, align: "center" }) + lineTight;
+
+  doc.fillColor("#0000EE");
+  doc.fontSize(8.5);
+  const web = "www.buksu.edu.ph";
+  doc.text(web, 0, yText, {
+    width: pageWidth,
+    align: "center",
+    link: "https://www.buksu.edu.ph/",
+    underline: true,
+  });
+  yText +=
+    doc.heightOfString(web, {
+      width: pageWidth,
+      align: "center",
+      underline: true,
+    }) +
+    lineTight +
+    mmToPt(2);
+
+  const afterUni = Math.max(yText, logoBottom + mmToPt(2)) + mmToPt(2);
+
+  y = afterUni;
+  doc.fillColor("#000000");
+  doc.font("Times-Bold").fontSize(11);
+  doc.text("COUNSELING SUMMARY REPORT", 0, y, { width: pageWidth, align: "center" });
+  y += doc.currentLineHeight() + mmToPt(1.5);
+  return drawMetaRow(y);
+}
+
+/** Accurate body top (pt) for a given page type — uses PDFKit layout matching `drawBsCounselingSummaryLetterhead`. */
+export function measureBsCounselingSummaryContentStart(opts) {
+  const doc = new PDFDocument({ size: "A4", margin: 0 });
+  return drawBsCounselingSummaryLetterhead(doc, opts);
+}
+
+/** Default banner title for per-record (counselor) PDF downloads. */
+export const INDIVIDUAL_COUNSELING_REPORT_TITLE = "INDIVIDUAL COUNSELING REPORT";
+
+/** Form footer strip — Individual Counseling Report (GCS-F-004). */
+export const INDIVIDUAL_REPORT_FORM = {
+  DOC_CODE: "GCS-F-004",
+  REVISION: "04",
+  ISSUE_DATE: "February 18, 2025",
+};
+
+/**
+ * BSU letterhead for Individual Counseling Report: logo + university block, title, school year.
+ * @returns Y (pt) where body content should begin.
+ */
+export function drawBsIndividualCounselingLetterhead(doc, opts = {}) {
+  const pageWidth = doc.page.width;
+  const {
+    schoolYear = "—",
+    reportTitle = INDIVIDUAL_COUNSELING_REPORT_TITLE,
+    firstPage = true,
+  } = opts;
+
+  const rawSchool = String(schoolYear ?? "").trim();
+  const schoolUpper = rawSchool ? rawSchool.toUpperCase() : "—";
+  const lineTight = 1.5;
+
+  const finishTitleBlock = (yStart) => {
+    let y = yStart;
+    doc.fillColor("#000000");
+    doc.font("Times-Bold").fontSize(11);
+    doc.text(reportTitle, 0, y, { width: pageWidth, align: "center" });
+    y += doc.currentLineHeight() + mmToPt(1);
+    doc.font("Times-Bold").fontSize(10);
+    doc.text(`SCHOOL YEAR: ${schoolUpper}`, 0, y, { width: pageWidth, align: "center" });
+    y += doc.currentLineHeight() + mmToPt(2);
+    doc.fillColor("#000000");
+    return y;
+  };
+
+  if (!firstPage) {
+    return finishTitleBlock(BS_SUMMARY_MARGIN_TOP_PT);
+  }
+
+  let y = BS_SUMMARY_MARGIN_TOP_PT;
+  const logoPath = path.join(process.cwd(), "assets", "buksu-logo.png");
+  let logoBottom = y;
+  if (fs.existsSync(logoPath)) {
+    try {
+      const img = doc.openImage(logoPath);
+      const scale = BS_SUMMARY_LOGO_MAX_W_PT / img.width;
+      const imgH = img.height * scale;
+      doc.image(logoPath, BS_SUMMARY_MARGIN_X_PT, y, { width: BS_SUMMARY_LOGO_MAX_W_PT });
+      logoBottom = y + imgH;
+    } catch {
+      logoBottom = y;
+    }
+  }
+
+  let yText = y + 1;
+  doc.fillColor("#000000");
+  doc.font("Times-Bold").fontSize(10.5);
+  doc.text("BUKIDNON STATE UNIVERSITY", 0, yText, { width: pageWidth, align: "center" });
+  yText += doc.currentLineHeight() + lineTight;
+
+  doc.font("Times-Roman").fontSize(8.5);
+  const addr = "Fortich Street, Malaybalay City, Bukidnon 8700";
+  doc.text(addr, 0, yText, { width: pageWidth, align: "center" });
+  yText += doc.heightOfString(addr, { width: pageWidth, align: "center" }) + lineTight;
+
+  const tel = "Tel (088) 813-5661 to 5663; Telefax (088) 813-2717";
+  doc.text(tel, 0, yText, { width: pageWidth, align: "center" });
+  yText += doc.heightOfString(tel, { width: pageWidth, align: "center" }) + lineTight;
+
+  doc.fillColor("#0000EE");
+  doc.fontSize(8.5);
+  const web = "www.buksu.edu.ph";
+  doc.text(web, 0, yText, {
+    width: pageWidth,
+    align: "center",
+    link: "https://www.buksu.edu.ph/",
+    underline: true,
+  });
+  yText +=
+    doc.heightOfString(web, {
+      width: pageWidth,
+      align: "center",
+      underline: true,
+    }) +
+    lineTight +
+    mmToPt(2);
+
+  const afterUni = Math.max(yText, logoBottom + mmToPt(2)) + mmToPt(2);
+  return finishTitleBlock(afterUni);
+}
+
+function drawIndividualFormFooterStrip(doc, pageNum, totalPages) {
   const pageWidth = doc.page.width;
   const pageHeight = doc.page.height;
+  const sidePadding = BS_SUMMARY_MARGIN_X_PT;
+  const innerW = pageWidth - 2 * sidePadding;
+  const cells = [
+    `Document Code: ${INDIVIDUAL_REPORT_FORM.DOC_CODE}`,
+    `Revision No: ${INDIVIDUAL_REPORT_FORM.REVISION}`,
+    `Issue Date: ${INDIVIDUAL_REPORT_FORM.ISSUE_DATE}`,
+    `Page ${pageNum} of ${totalPages}`,
+  ];
+  const slotW = innerW / cells.length;
+  const y = pageHeight - mmToPt(10);
+  doc.font("Times-Roman").fontSize(7).fillColor("#000000");
+  let x = sidePadding;
+  for (const c of cells) {
+    doc.text(c, x, y, { width: slotW, align: "center" });
+    x += slotW;
+  }
+}
+
+function buildCourseYearSectionLine(recordData) {
+  const parts = [
+    recordData.course != null && String(recordData.course).trim() ? String(recordData.course).trim() : "",
+    recordData.yearLevel != null && String(recordData.yearLevel).trim() ? String(recordData.yearLevel).trim() : "",
+    recordData.section != null && String(recordData.section).trim() ? String(recordData.section).trim() : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" / ") : "—";
+}
+
+function problemsNarrativeForIndividual(recordData) {
+  let problemsText = formatProblemsPresentedDisplay(recordData);
+  const extraNotes =
+    recordData.notes != null && String(recordData.notes).trim() ? String(recordData.notes).trim() : "";
+  if (extraNotes) {
+    if (!problemsText || problemsText === "—") problemsText = extraNotes;
+    else problemsText = `${problemsText}\n\n${extraNotes}`;
+  }
+  if (!problemsText || problemsText === "—") return "—";
+  return problemsText;
+}
+
+const SIG_BLOCK_W = 200;
+const SIG_LINE_PAD = 14;
+const SIG_NAME_TO_RULE = mmToPt(2);
+const SIG_RULE_TO_LABELS = mmToPt(2.5);
+
+function counselorSignatureBlockMeasuredHeight(doc, counselorName) {
+  const blockW = SIG_BLOCK_W;
+  const name = String(counselorName || "").trim() || "—";
+  doc.font("Times-Italic").fontSize(10);
+  let h = doc.heightOfString(name, { width: blockW, lineGap: 1 }) + SIG_NAME_TO_RULE;
+  h += SIG_RULE_TO_LABELS;
+  doc.font("Times-Roman").fontSize(9);
+  h += doc.currentLineHeight() + 2 + doc.currentLineHeight();
+  return h + mmToPt(3);
+}
+
+function directorSignatureBlockMeasuredHeight(doc, directorName) {
+  const blockW = SIG_BLOCK_W;
+  const name = String(directorName || "").trim();
+  let h = 0;
+  if (name) {
+    doc.font("Times-Italic").fontSize(10);
+    h += doc.heightOfString(name, { width: blockW, lineGap: 1 }) + SIG_NAME_TO_RULE;
+  } else {
+    h += SIG_NAME_TO_RULE;
+  }
+  h += SIG_RULE_TO_LABELS;
+  doc.font("Times-Roman").fontSize(9);
+  h += doc.currentLineHeight() + 2 + doc.currentLineHeight();
+  return h + mmToPt(3);
+}
+
+function drawIndividualCounselorSignatureBlock(doc, counselorName, margin, pageWidth, startY) {
+  const blockW = SIG_BLOCK_W;
+  const x = pageWidth - margin - blockW;
+  let cy = startY;
+  const name = String(counselorName || "").trim() || "—";
+
+  doc.fillColor("#000000");
+  doc.font("Times-Italic").fontSize(10);
+  doc.text(name, x, cy, { width: blockW, align: "center" });
+  cy += doc.heightOfString(name, { width: blockW, lineGap: 1 }) + SIG_NAME_TO_RULE;
+
+  doc.strokeColor("#000000").lineWidth(0.75);
+  doc.moveTo(x + SIG_LINE_PAD, cy).lineTo(x + blockW - SIG_LINE_PAD, cy).stroke();
+  cy += SIG_RULE_TO_LABELS;
+
+  doc.font("Times-Roman").fontSize(9);
+  doc.text("Name and Signature", x, cy, { width: blockW, align: "center" });
+  cy += doc.currentLineHeight() + 2;
+  doc.text("Guidance Designate/Counselor", x, cy, { width: blockW, align: "center" });
+  return cy + mmToPt(3);
+}
+
+function drawIndividualDirectorSignatureBlock(doc, directorName, margin, pageWidth, startY) {
+  const blockW = SIG_BLOCK_W;
+  const x = pageWidth - margin - blockW;
+  let cy = startY;
+  const name = String(directorName || "").trim();
+
+  doc.fillColor("#000000");
+  if (name) {
+    doc.font("Times-Italic").fontSize(10);
+    doc.text(name, x, cy, { width: blockW, align: "center" });
+    cy += doc.heightOfString(name, { width: blockW, lineGap: 1 }) + SIG_NAME_TO_RULE;
+  } else {
+    cy += SIG_NAME_TO_RULE;
+  }
+
+  doc.strokeColor("#000000").lineWidth(0.75);
+  doc.moveTo(x + SIG_LINE_PAD, cy).lineTo(x + blockW - SIG_LINE_PAD, cy).stroke();
+  cy += SIG_RULE_TO_LABELS;
+
+  doc.font("Times-Roman").fontSize(9);
+  doc.text("Name and Signature", x, cy, { width: blockW, align: "center" });
+  cy += doc.currentLineHeight() + 2;
+  doc.text("Director, SWEU", x, cy, { width: blockW, align: "center" });
+  return cy + mmToPt(3);
+}
+
+// Helper to add header/footer (admin / legacy synthesized PDF — blue banner)
+export const addRecordHeaderFooter = (doc, pageNum, totalPages, trackingNumber, reportDate, opts = {}) => {
+  const pageWidth = doc.page.width;
+  const pageHeight = doc.page.height;
+  const headerHeight = 68;
   const footerHeight = 92;
-  const sidePadding = 36;
-  /** Whitespace strip above the letterhead (page background shows through). */
-  const headerTopMargin = 14;
-  /** Full usable width — text is centered on the page (not in the column beside the logo). */
-  const fullTextWidth = pageWidth - 2 * sidePadding;
-  const fullTextX = sidePadding;
-  void reportDate;
+  const sidePadding = 14;
 
-  if (options.counselingSummaryReport) {
-    const innerHeaderHeight = SUMMARY_REPORT_HEADER_HEIGHT_PT - headerTopMargin;
-    doc.fillColor("#ffffff");
-    doc.rect(0, headerTopMargin, pageWidth, innerHeaderHeight).fill();
+  const headline =
+    opts.title != null && String(opts.title).trim() !== ""
+      ? String(opts.title)
+      : INDIVIDUAL_COUNSELING_REPORT_TITLE;
 
-    const logoSize = 70;
-    const logoX = sidePadding;
-    const logoY = headerTopMargin + 10;
+  // Header - Blue background
+  doc.fillColor('#667eea');
+  doc.rect(0, 0, pageWidth, headerHeight).fill();
+  doc.fillColor('#ffffff');
+  doc.fontSize(14)
+     .font('Helvetica-Bold')
+     .text(headline, 0, 10, { width: pageWidth, align: 'center' });
+  doc.fontSize(9)
+     .font('Helvetica')
+     .fillColor('#ffffff');
+  const trackingText = `Document Tracking: ${trackingNumber}`;
+  const dateText = `Date: ${reportDate}`;
+  const columnY = 47;
+  const leftColumnX = sidePadding;
+  const leftColumnWidth = Math.floor(pageWidth / 2) - sidePadding;
+  const rightColumnX = Math.floor(pageWidth / 2);
+  const rightColumnWidth = Math.floor(pageWidth / 2) - sidePadding;
+  doc.text(trackingText, leftColumnX, columnY, { width: leftColumnWidth, align: 'left', lineBreak: false });
+  doc.text(dateText, rightColumnX, columnY, { width: rightColumnWidth, align: 'right', lineBreak: false });
 
-    /** University copy centered on the page (same box as standard letterhead), not offset by the logo. */
-    let colY = logoY;
-    doc.font("Times-Bold").fontSize(15).fillColor("#000000");
-    const uniTitle = "BUKIDNON STATE UNIVERSITY";
-    doc.text(uniTitle, fullTextX, colY, { width: fullTextWidth, align: "center" });
-    colY += doc.heightOfString(uniTitle, { width: fullTextWidth }) + mmToPt(2.5);
-
-    doc.font("Times-Roman").fontSize(10).fillColor("#000000");
-    const addr = "Fortich Street, Malaybalay City, Bukidnon 8700";
-    doc.text(addr, fullTextX, colY, { width: fullTextWidth, align: "center" });
-    colY += doc.heightOfString(addr, { width: fullTextWidth }) + mmToPt(1.5);
-    const tel = "Tel (088) 813-5661 to 5663; Telefax (088) 813-2717";
-    doc.text(tel, fullTextX, colY, { width: fullTextWidth, align: "center" });
-    colY += doc.heightOfString(tel, { width: fullTextWidth }) + mmToPt(1.5);
-
-    doc.font("Times-Roman").fontSize(10).fillColor("#1e40af");
-    doc.text("www.buksu.edu.ph", fullTextX, colY, {
-      width: fullTextWidth,
-      align: "center",
-      link: "http://www.buksu.edu.ph/",
-      underline: true,
-    });
-    colY += doc.heightOfString("www.buksu.edu.ph", { width: fullTextWidth }) + mmToPt(1);
-
-    const logoPath = getUniversityLogoPath();
-    if (logoPath) {
-      doc.image(logoPath, logoX, logoY, { width: logoSize, height: logoSize });
-    } else {
-      doc
-        .lineWidth(1)
-        .strokeColor("#667085")
-        .circle(logoX + logoSize / 2, logoY + logoSize / 2, 32)
-        .stroke();
-      doc
-        .font("Times-Bold")
-        .fontSize(7)
-        .fillColor("#111827")
-        .text("BUKSU", logoX, logoY + logoSize * 0.38, { width: logoSize, align: "center" });
-    }
-
-    const uniBlockBottom = Math.max(logoY + logoSize, colY);
-    let textY = uniBlockBottom + mmToPt(4);
-
-    doc.font("Times-Bold").fontSize(15).fillColor("#000000");
-    const reportTitle = "COUNSELING SUMMARY REPORT";
-    doc.text(reportTitle, fullTextX, textY, { width: fullTextWidth, align: "center" });
-    textY += doc.heightOfString(reportTitle, { width: fullTextWidth }) + mmToPt(4);
-
-    const monthLabel =
-      options.summaryMonthLabel != null && String(options.summaryMonthLabel).trim() !== ""
-        ? String(options.summaryMonthLabel).trim()
-        : "—";
-    const schoolYear =
-      options.summarySchoolYear != null && String(options.summarySchoolYear).trim() !== ""
-        ? String(options.summarySchoolYear).trim()
-        : "—";
-
-    const rowBaseline = textY;
-    const schoolText = `SCHOOL YEAR: ${schoolYear}`;
-    doc.font("Times-Bold").fontSize(10).fillColor("#000000");
-    const schoolW = doc.widthOfString(schoolText);
-    const schoolLeft = pageWidth - sidePadding - schoolW;
-
-    const monthTitle = "FOR THE MONTH OF";
-    doc.text(monthTitle, sidePadding, rowBaseline, { lineBreak: false });
-    const afterTitleX = sidePadding + doc.widthOfString(monthTitle);
-    doc.text(" ", afterTitleX, rowBaseline, { lineBreak: false });
-    const fieldStartX = afterTitleX + doc.widthOfString(" ");
-
-    doc.text(monthLabel, fieldStartX, rowBaseline, { lineBreak: false });
-    const monthValueW = doc.widthOfString(monthLabel);
-    /** Underline only under the month value, width ≈ text (slightly inset), 2–3 mm below baseline. */
-    const valueLineInsetPt = 0.75;
-    const valueLineStartX = fieldStartX + valueLineInsetPt * 0.5;
-    const valueLineEndX = fieldStartX + Math.max(2, monthValueW - valueLineInsetPt);
-    const lineY = rowBaseline + mmToPt(2.5);
-    doc.strokeColor("#000000").lineWidth(0.55);
-    if (valueLineEndX > valueLineStartX + 1) {
-      doc.moveTo(valueLineStartX, lineY).lineTo(valueLineEndX, lineY).stroke();
-    }
-
-    doc.text(schoolText, schoolLeft, rowBaseline, { lineBreak: false });
-
-    if (!options.omitSystemFooter) {
-      const footerY = pageHeight - footerHeight;
-      doc.fillColor("#667eea");
-      doc.rect(0, footerY, pageWidth, footerHeight).fill();
-      doc.fillColor("#ffffff");
-
-      doc
-        .fontSize(8)
-        .font("Times-Roman")
-        .text("CONFIDENTIAL - Sensitive information protected by confidentiality policy.", sidePadding, footerY + 10, {
-          align: "center",
-          width: pageWidth - sidePadding * 2,
-          lineBreak: true,
-        });
-
-      doc.fontSize(7).fillColor("#ffffff");
-      doc.text("Counseling Services Management System", sidePadding, footerY + 34, {
-        width: pageWidth - sidePadding * 2,
-        align: "center",
-        lineBreak: true,
-      });
-
-      doc.fontSize(6.5).fillColor("#ffffff");
-      doc.text(`Page ${pageNum} of ${totalPages} | Tracking: ${trackingNumber}`, sidePadding, footerY + 48, {
-        width: pageWidth - sidePadding * 2,
-        align: "center",
-        lineBreak: true,
-      });
-
-      doc.fontSize(6).fillColor("#ffffff");
-      doc.text(
-        "For inquiries, contact your system administrator. This report is generated electronically.",
-        sidePadding,
-        footerY + 63,
-        {
-          align: "center",
-          width: pageWidth - sidePadding * 2,
-          lineBreak: true,
-        }
-      );
-    }
-
+  if (opts.omitSystemFooter) {
     doc.fillColor(0, 0, 0);
     return;
   }
 
-  const headerHeight = RECORD_PDF_HEADER_HEIGHT_PT;
-  const innerHeaderHeight = headerHeight - headerTopMargin;
-  const y0 = headerTopMargin;
-  const logoSize = 70;
-  const logoX = sidePadding;
-  const logoY = y0 + 12;
-
-  // University letterhead header
+  // Footer - Blue background
+  const footerY = pageHeight - footerHeight;
+  doc.fillColor('#667eea');
+  doc.rect(0, footerY, pageWidth, footerHeight).fill();
   doc.fillColor('#ffffff');
-  doc.rect(0, headerTopMargin, pageWidth, innerHeaderHeight).fill();
 
-  let textY = y0 + 16;
-  doc.font('Times-Bold').fontSize(15).fillColor('#000000');
-  doc.text('BUKIDNON STATE UNIVERSITY', fullTextX, textY, {
-    width: fullTextWidth,
-    align: 'center',
-  });
-  textY += 20;
+  // Footer rows use centered lines with safe lengths to avoid clipping.
+  // Line 1: Confidential notice
+  doc.fontSize(8)
+     .font('Helvetica')
+     .text("CONFIDENTIAL - Sensitive information protected by confidentiality policy.", sidePadding, footerY + 10, { align: 'center', width: pageWidth - sidePadding * 2 });
 
-  doc.font('Times-Roman').fontSize(11).fillColor('#000000');
-  doc.text('Fortich Street, Malaybalay City, Bukidnon 8700', fullTextX, textY, {
-    width: fullTextWidth,
-    align: 'center',
-  });
-  textY += 16;
-  doc.text('Tel (088) 813-5661 to 5663; Telefax (088) 813-2717', fullTextX, textY, {
-    width: fullTextWidth,
-    align: 'center',
-  });
-  textY += 16;
+  // Line 3: System name
+  doc.fontSize(7)
+     .fillColor('#ffffff');
+  doc.text("Counseling Services Management System", sidePadding, footerY + 34, { width: pageWidth - sidePadding * 2, align: 'center' });
 
-  doc.font('Times-Roman').fontSize(11).fillColor('#1e40af');
-  doc.text('www.buksu.edu.ph', fullTextX, textY, {
-    width: fullTextWidth,
-    align: 'center',
-    link: 'http://www.buksu.edu.ph/',
-    underline: true,
-  });
-  textY += 18;
+  // Line 4: Page and tracking
+  doc.fontSize(7)
+     .fillColor('#ffffff');
+  doc.text(`Page ${pageNum} of ${totalPages} | Tracking: ${trackingNumber}`, sidePadding, footerY + 48, { width: pageWidth - sidePadding * 2, align: 'center' });
 
-  if (!options.individualGcsReport) {
-    doc.strokeColor('#000000').lineWidth(0.75);
-    doc.moveTo(sidePadding, textY).lineTo(pageWidth - sidePadding, textY).stroke();
-    textY += 10;
-  } else {
-    textY += mmToPt(9);
-  }
-
-  if (options.individualGcsReport) {
-    doc.fillColor('#000000').font('Times-Bold').fontSize(14);
-    doc.text('INDIVIDUAL COUNSELING REPORT', fullTextX, textY, {
-      width: fullTextWidth,
-      align: 'center',
-    });
-    const titleH = doc.heightOfString('INDIVIDUAL COUNSELING REPORT', { width: fullTextWidth });
-    textY += titleH + mmToPt(7);
-    const syRaw = options.individualSchoolYear;
-    const sy =
-      syRaw != null && String(syRaw).trim() !== '' ? String(syRaw).trim() : '—';
-    const schoolLine = `SCHOOL YEAR: ${sy}`;
-    doc.font('Times-Bold').fontSize(11);
-    doc.text(schoolLine, fullTextX, textY, {
-      width: fullTextWidth,
-      align: 'center',
-    });
-    textY += doc.heightOfString(schoolLine, { width: fullTextWidth });
-  } else {
-    doc.fillColor('#000000').font('Times-Bold').fontSize(11);
-    doc.text('STUDENT WELFARE AND ENGAGEMENT UNIT', fullTextX, textY, {
-      width: fullTextWidth,
-      align: 'center',
-    });
-    textY += 14;
-    doc.font('Times-Italic').fontSize(10);
-    doc.text('GUIDANCE AND COUNSELING SERVICES', fullTextX, textY, {
-      width: fullTextWidth,
-      align: 'center',
-    });
-    textY += 14;
-  }
-
-  // Logo drawn last so it stays fixed on the left while text is visually page-centered
-  const logoPath = getUniversityLogoPath();
-  if (logoPath) {
-    doc.image(logoPath, logoX, logoY, { width: logoSize, height: logoSize });
-  } else {
-    doc
-      .lineWidth(1)
-      .strokeColor('#667085')
-      .circle(logoX + logoSize / 2, logoY + logoSize / 2, 32)
-      .stroke();
-    doc
-      .font('Times-Bold')
-      .fontSize(7)
-      .fillColor('#111827')
-      .text('BUKSU', logoX, logoY + logoSize * 0.38, { width: logoSize, align: 'center' });
-  }
-
-  if (!options.omitSystemFooter) {
-    // Footer - Blue background (bulk / system reports only)
-    const footerY = pageHeight - footerHeight;
-    doc.fillColor("#667eea");
-    doc.rect(0, footerY, pageWidth, footerHeight).fill();
-    doc.fillColor("#ffffff");
-
-    doc
-      .fontSize(8)
-      .font("Times-Roman")
-      .text("CONFIDENTIAL - Sensitive information protected by confidentiality policy.", sidePadding, footerY + 10, {
-        align: "center",
-        width: pageWidth - sidePadding * 2,
-        lineBreak: true,
-      });
-
-    doc.fontSize(7).fillColor("#ffffff");
-    doc.text("Counseling Services Management System", sidePadding, footerY + 34, {
-      width: pageWidth - sidePadding * 2,
-      align: "center",
-      lineBreak: true,
-    });
-
-    doc.fontSize(6.5).fillColor("#ffffff");
-    doc.text(`Page ${pageNum} of ${totalPages} | Tracking: ${trackingNumber}`, sidePadding, footerY + 48, {
-      width: pageWidth - sidePadding * 2,
-      align: "center",
-      lineBreak: true,
-    });
-
-    doc.fontSize(6).fillColor("#ffffff");
-    doc.text(
-      "For inquiries, contact your system administrator. This report is generated electronically.",
-      sidePadding,
-      footerY + 63,
-      {
-        align: "center",
-        width: pageWidth - sidePadding * 2,
-        lineBreak: true,
-      }
-    );
-  }
+  // Line 5: footer note
+  doc.fontSize(6)
+     .fillColor('#ffffff');
+  doc.text("For inquiries, contact your system administrator. This report is generated electronically.", sidePadding, footerY + 63, { align: 'center', width: pageWidth - sidePadding * 2 });
 
   doc.fillColor(0, 0, 0);
 };
 
-/** GCS-F-004 form strip at bottom of page (when system blue footer is omitted) */
-const drawIndividualFormGcsStrip = (doc, pageNum, totalPages) => {
-  const pageWidth = doc.page.width;
-  const pageHeight = doc.page.height;
-  const sidePadding = 36;
-  const y = pageHeight - 28;
-  doc.font("Times-Roman").fontSize(7.5).fillColor("#000000");
-  doc.text(`Document Code: GCS-F-004`, sidePadding, y);
-  doc.text(`Revision No: 04`, sidePadding + 148, y);
-  doc.text(`Issue Date: February 18, 2025`, sidePadding + 248, y);
-  doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth - sidePadding - 80, y, {
-    width: 80,
-    align: "right",
-  });
-};
-
-const combineCourseYearSection = (recordData) => {
-  const parts = [recordData.course, recordData.yearLevel, recordData.section].filter(
-    (p) => p != null && String(p).trim() !== ""
-  );
-  return parts.length ? parts.map((p) => String(p).trim()).join(" / ") : "—";
-};
-
-// Function to generate a counseling record PDF (GCS-F-004 Individual Counseling Report layout)
-export const generateCounselingRecordPDF = async (recordData, sanitizedCounselorName) => {
+async function generateLegacyAdminCounselingPdf(recordData, sanitizedCounselorName, options = {}) {
   const trackingNumber = generateTrackingNumber();
+  const headerTitle =
+    options.headerTitle != null && String(options.headerTitle).trim() !== ""
+      ? String(options.headerTitle).trim()
+      : INDIVIDUAL_COUNSELING_REPORT_TITLE;
 
   const tempDir = path.join(process.cwd(), "temp");
   fs.mkdirSync(tempDir, { recursive: true });
   const pdfPath = path.join(
     tempDir,
     `${sanitizedCounselorName}_${recordData.clientName.replace(/\s+/g, "_")}_${trackingNumber}.pdf`
+  );
+
+  const doc = new PDFDocument({
+    margin: 0,
+    size: "A4",
+  });
+  const writeStream = fs.createWriteStream(pdfPath);
+  doc.pipe(writeStream);
+
+  const pageWidth = doc.page.width;
+  const pageHeight = doc.page.height;
+  const marginBottom = 72;
+  const marginLeft = 54;
+  const marginRight = 54;
+  const footerHeight = 92;
+  const contentStartX = marginLeft;
+  const contentWidth = pageWidth - marginLeft - marginRight;
+  const contentStartY = 92;
+
+  const reportDate = recordData.date
+    ? new Date(recordData.date).toLocaleDateString()
+    : new Date().toLocaleDateString();
+  const sessionHeaderOpts = { title: headerTitle };
+  addRecordHeaderFooter(doc, 1, 1, trackingNumber, reportDate, sessionHeaderOpts);
+
+  doc.fillColor(0, 0, 0);
+
+  let finalY = contentStartY;
+
+  doc.strokeColor(200, 200, 200).lineWidth(1).moveTo(contentStartX, finalY + 4).lineTo(contentStartX + contentWidth, finalY + 4).stroke();
+  finalY += 24;
+
+  const labelWidth = 130;
+  const valueStartX = contentStartX + labelWidth;
+
+  doc.fontSize(11).font("Helvetica-Bold").fillColor(0, 0, 0);
+  doc.text("Client Name:", contentStartX, finalY);
+  doc.font("Helvetica").text(String(recordData.clientName || "N/A"), valueStartX, finalY);
+  finalY += 22;
+
+  doc.font("Helvetica-Bold").text("Date:", contentStartX, finalY);
+  doc
+    .font("Helvetica")
+    .text(
+      recordData.date
+        ? new Date(recordData.date).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })
+        : "N/A",
+      valueStartX,
+      finalY
+    );
+  finalY += 22;
+
+  if (recordData.sessionNumber) {
+    doc.font("Helvetica-Bold").text("Session Number:", contentStartX, finalY);
+    doc.font("Helvetica").text(String(recordData.sessionNumber), valueStartX, finalY);
+    finalY += 22;
+  }
+
+  doc.font("Helvetica-Bold").text("Session Type:", contentStartX, finalY);
+  doc.font("Helvetica").text(String(recordData.sessionType || "N/A"), valueStartX, finalY);
+  finalY += 22;
+
+  doc.font("Helvetica-Bold").text("Status:", contentStartX, finalY);
+  doc.font("Helvetica").text(String(recordData.status || "N/A"), valueStartX, finalY);
+  finalY += 22;
+
+  doc.font("Helvetica-Bold").text("Counselor:", contentStartX, finalY);
+  doc.font("Helvetica").text(String(recordData.counselor || sanitizedCounselorName), valueStartX, finalY);
+  finalY += 30;
+
+  doc.fillColor(0, 0, 0);
+  doc.fontSize(14).font("Helvetica-Bold").text("Session Notes:", contentStartX, finalY);
+  finalY += 25;
+
+  const notesText = recordData.notes || "No notes available.";
+  const estimatedNotesHeight = doc.heightOfString(notesText, {
+    width: contentWidth,
+    lineGap: 5,
+  });
+  const maxContentY = pageHeight - marginBottom - footerHeight - 80;
+  if (finalY + estimatedNotesHeight + 100 > maxContentY) {
+    doc.addPage();
+    addRecordHeaderFooter(doc, 2, 2, trackingNumber, reportDate, sessionHeaderOpts);
+    doc.fillColor(0, 0, 0);
+    finalY = contentStartY;
+  }
+  doc.fontSize(11).font("Helvetica").text(notesText, contentStartX, finalY, {
+    width: contentWidth,
+    align: "left",
+    lineGap: 5,
+  });
+  const notesHeight = doc.heightOfString(notesText, {
+    width: contentWidth,
+    lineGap: 5,
+  });
+  finalY += notesHeight + 30;
+
+  doc.fillColor(0, 0, 0);
+  doc.fontSize(14).font("Helvetica-Bold").text("Outcomes:", contentStartX, finalY);
+  finalY += 25;
+
+  const outcomeText = recordData.outcomes || recordData.outcome || "No outcome recorded.";
+  const estimatedOutcomeHeight = doc.heightOfString(outcomeText, {
+    width: contentWidth,
+    lineGap: 5,
+  });
+  if (finalY + estimatedOutcomeHeight + 100 > maxContentY) {
+    doc.addPage();
+    addRecordHeaderFooter(doc, 2, 2, trackingNumber, reportDate, sessionHeaderOpts);
+    doc.fillColor(0, 0, 0);
+    finalY = contentStartY;
+  }
+  doc.fontSize(11).font("Helvetica").text(outcomeText, contentStartX, finalY, {
+    width: contentWidth,
+    align: "left",
+    lineGap: 5,
+  });
+
+  doc.end();
+
+  await new Promise((resolve, reject) => {
+    writeStream.on("finish", resolve);
+    writeStream.on("error", reject);
+  });
+
+  return pdfPath;
+}
+
+async function generateIndividualBsCounselingPdf(recordData, sanitizedCounselorName, options = {}) {
+  const reportTitle =
+    options.headerTitle != null && String(options.headerTitle).trim() !== ""
+      ? String(options.headerTitle).trim()
+      : INDIVIDUAL_COUNSELING_REPORT_TITLE;
+
+  const tempDir = path.join(process.cwd(), "temp");
+  fs.mkdirSync(tempDir, { recursive: true });
+  const trackingNumber = generateTrackingNumber();
+  const pdfPath = path.join(
+    tempDir,
+    `${sanitizedCounselorName}_${String(recordData.clientName || "record").replace(/\s+/g, "_")}_${trackingNumber}.pdf`
   );
 
   const doc = new PDFDocument({
@@ -367,172 +573,112 @@ export const generateCounselingRecordPDF = async (recordData, sanitizedCounselor
 
   const pageWidth = doc.page.width;
   const pageHeight = doc.page.height;
-  const marginBottom = 72;
-  const marginLeft = 72;
-  const marginRight = 72;
-  const headerHeight = RECORD_PDF_HEADER_HEIGHT_PT;
-  /** Bottom margin for GCS strip only (no blue system footer on this form) */
-  const bottomReservePt = 40;
-  const contentStartX = marginLeft;
-  const contentWidth = pageWidth - marginLeft - marginRight;
-  /** Body starts under letterhead; title is drawn in-header (individualGcsReport), not here */
-  const contentStartY = headerHeight + 18;
-  const maxContentY = pageHeight - marginBottom - bottomReservePt;
-  const reportDate = recordData.date
-    ? new Date(recordData.date).toLocaleDateString()
-    : new Date().toLocaleDateString();
+  const margin = BS_SUMMARY_MARGIN_X_PT;
+  const contentW = pageWidth - 2 * margin;
+  const FOOTER_RESERVE = 48;
+  const maxY = pageHeight - FOOTER_RESERVE;
 
-  doc.fillColor(0, 0, 0);
-  let finalY = contentStartY + 8;
+  const schoolYearVal =
+    recordData.schoolYear != null && String(recordData.schoolYear).trim()
+      ? String(recordData.schoolYear).trim()
+      : "—";
 
-  const STUDENT_LABEL_W = 148;
-  const STUDENT_ROW_H = 20;
-  const SECTION_GAP = 16;
-  const BLOCK_AFTER_BODY = 18;
+  const letterheadOptsBase = { schoolYear: schoolYearVal, reportTitle };
 
-  const ensureSpace = (neededPt) => {
-    if (finalY + neededPt > maxContentY) {
-      doc.addPage();
-      finalY = contentStartY;
-    }
+  let y = drawBsIndividualCounselingLetterhead(doc, { ...letterheadOptsBase, firstPage: true });
+
+  const LABEL_COL = 148;
+  const ROW_MIN = 16;
+  const SECTION_GAP = mmToPt(2);
+  const bodyLineGap = 2;
+
+  const ensurePage = (neededBelowY) => {
+    if (y + neededBelowY <= maxY) return;
+    doc.addPage();
+    y = drawBsIndividualCounselingLetterhead(doc, { ...letterheadOptsBase, firstPage: false });
   };
 
-  const fieldRow = (label, value) => {
-    ensureSpace(STUDENT_ROW_H + 4);
-    const v = value != null && String(value).trim() !== "" ? String(value) : "—";
-    doc.fontSize(11).font("Times-Bold").text(label, contentStartX, finalY);
-    doc.font("Times-Roman").fontSize(11).text(v, contentStartX + STUDENT_LABEL_W, finalY, {
-      width: contentWidth - STUDENT_LABEL_W,
-      lineGap: 2,
+  const drawInfoRow = (label, value) => {
+    const val = value != null && String(value).trim() ? String(value).trim() : "—";
+    const hVal = doc.heightOfString(val, { width: contentW - LABEL_COL, lineGap: bodyLineGap });
+    const hLbl = doc.heightOfString(`${label}:`, { width: LABEL_COL, lineGap: bodyLineGap });
+    const rowH = Math.max(hVal, hLbl, ROW_MIN - 4) + 4;
+    ensurePage(rowH);
+    doc.fillColor("#000000");
+    doc.font("Times-Bold").fontSize(10).text(`${label}:`, margin, y, { width: LABEL_COL });
+    doc.font("Times-Roman").fontSize(10).text(val, margin + LABEL_COL, y, {
+      width: contentW - LABEL_COL,
+      lineGap: bodyLineGap,
     });
-    finalY += STUDENT_ROW_H;
+    y += rowH;
   };
 
-  fieldRow("Name of Student:", recordData.clientName);
-  fieldRow("Course/Year/Section:", combineCourseYearSection(recordData));
-  fieldRow(
-    "Date:",
-    recordData.date
-      ? new Date(recordData.date).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })
-      : "—"
-  );
-  fieldRow(
-    "Session No.:",
-    recordData.sessionNumber != null && recordData.sessionNumber !== ""
-      ? String(recordData.sessionNumber)
-      : "—"
-  );
+  const sessionDateStr = recordData.date
+    ? new Date(recordData.date).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "—";
 
-  finalY += SECTION_GAP;
+  drawInfoRow("Name of Student", recordData.clientName || "—");
+  drawInfoRow("Gender", recordData.gender);
+  drawInfoRow("Course/Year/Section", buildCourseYearSectionLine(recordData));
+  drawInfoRow("Date", sessionDateStr);
+  drawInfoRow("Session No.", recordData.sessionNumber != null ? String(recordData.sessionNumber) : "—");
 
-  const problemsCore = formatProblemsPresentedDisplay(recordData);
-  const notesRaw = recordData.notes && String(recordData.notes).trim();
-  const problemsBody =
-    problemsCore && problemsCore !== "—"
-      ? problemsCore + (notesRaw ? `\n\n${notesRaw}` : "")
-      : notesRaw || "—";
+  y += mmToPt(1);
 
-  const bodyBlock = (heading, text, emptyFallback) => {
-    const body = text && String(text).trim() ? String(text).trim() : emptyFallback;
-    ensureSpace(32);
-    doc.font("Times-Bold").fontSize(12).fillColor(0, 0, 0).text(heading, contentStartX, finalY);
-    finalY += 14;
-    const h = doc.heightOfString(body, { width: contentWidth, lineGap: 5 });
-    ensureSpace(h + 12);
-    doc.font("Times-Roman").fontSize(11).text(body, contentStartX, finalY, {
-      width: contentWidth,
-      lineGap: 5,
+  const drawNarrativeSection = (heading, bodyText, opts = {}) => {
+    const trail = opts.trailingPad != null ? opts.trailingPad : SECTION_GAP;
+    const text = bodyText != null && String(bodyText).trim() ? String(bodyText).trim() : "—";
+    const headH = doc.heightOfString(heading, { width: contentW }) + 3;
+    const bodyH = doc.heightOfString(text, { width: contentW, lineGap: bodyLineGap });
+    ensurePage(headH + bodyH + trail);
+    doc.fillColor("#000000").font("Times-Bold").fontSize(10).text(heading, margin, y, { width: contentW });
+    y += headH;
+    doc.font("Times-Roman").fontSize(10).text(text, margin, y, {
+      width: contentW,
+      lineGap: bodyLineGap,
     });
-    finalY += h + BLOCK_AFTER_BODY;
+    y += bodyH + trail;
   };
 
-  bodyBlock("Problem/s presented:", problemsBody, "—");
-  bodyBlock(
-    "Outcome of Counseling Session:",
-    recordData.outcomes || recordData.outcome,
-    "—"
-  );
-  bodyBlock("Remarks:", recordData.remarks, "—");
+  const problemsText = problemsNarrativeForIndividual(recordData);
+  const outcomeText =
+    recordData.outcomes != null && String(recordData.outcomes).trim()
+      ? String(recordData.outcomes).trim()
+      : recordData.outcome != null && String(recordData.outcome).trim()
+        ? String(recordData.outcome).trim()
+        : "—";
+  const remarksText =
+    recordData.remarks != null && String(recordData.remarks).trim() ? String(recordData.remarks).trim() : "—";
+  const recommendationText = recordData.recommendation?.trim()
+    ? String(recordData.recommendation).trim()
+    : "(To be accomplished by the Director, SWEU.)";
 
-  /** Underline ~35–40% of page width, right-aligned; tight name→rule and label stack (points). */
-  const SIG_LINE_PAGE_RATIO = 0.375;
-  const mmToPt = (mm) => (mm / 25.4) * 72;
-  /** ~2.5mm gaps between name, rule, and first label (within 2–3mm). */
-  const sigNameToRulePt = mmToPt(2.5);
-  const sigLineToLabelPt = mmToPt(2.5);
-  const sigLabelGapPt = mmToPt(2);
-  const sigBlockTailPt = mmToPt(5);
+  const counselorDisplay = String(recordData.counselor || sanitizedCounselorName || "").trim() || "—";
 
-  const drawRightMarginSignatureBlock = (displayName, roleLine2) => {
-    const lineW = pageWidth * SIG_LINE_PAGE_RATIO;
-    const lineRight = pageWidth - marginRight;
-    const lineLeft = lineRight - lineW;
+  drawNarrativeSection("Problem/s presented", problemsText);
+  drawNarrativeSection("Outcome of Counseling Session", outcomeText);
+  drawNarrativeSection("Remarks", remarksText, { trailingPad: mmToPt(1.5) });
 
-    ensureSpace(48);
-    finalY += mmToPt(2);
+  const counselorSigH = counselorSignatureBlockMeasuredHeight(doc, counselorDisplay);
+  ensurePage(counselorSigH);
+  y = drawIndividualCounselorSignatureBlock(doc, counselorDisplay, margin, pageWidth, y);
 
-    const nameDisplay =
-      displayName != null && String(displayName).trim() ? String(displayName).trim() : "";
-    doc.fillColor(0, 0, 0);
-    if (nameDisplay) {
-      doc.font("Times-Italic").fontSize(10);
-      const nh = doc.heightOfString(nameDisplay, { width: lineW, lineGap: 2 });
-      ensureSpace(nh + 32);
-      doc.text(nameDisplay, lineLeft, finalY, { width: lineW, align: "center", lineGap: 2 });
-      finalY += nh;
-    } else {
-      ensureSpace(26);
-    }
+  drawNarrativeSection("Recommendation", recommendationText, { trailingPad: mmToPt(1.5) });
 
-    finalY += sigNameToRulePt;
-
-    doc.strokeColor("#000000").lineWidth(0.5);
-    doc.moveTo(lineLeft, finalY).lineTo(lineRight, finalY).stroke();
-    finalY += sigLineToLabelPt;
-
-    const label1 = "Name and Signature";
-    doc.font("Times-Roman").fontSize(9).text(label1, lineLeft, finalY, {
-      width: lineW,
-      align: "center",
-    });
-    const hLabel1 = doc.heightOfString(label1, { width: lineW });
-    finalY += hLabel1 + sigLabelGapPt;
-    doc.text(roleLine2, lineLeft, finalY, {
-      width: lineW,
-      align: "center",
-    });
-    const hLabel2 = doc.heightOfString(roleLine2, { width: lineW });
-    finalY += hLabel2 + sigBlockTailPt;
-  };
-
-  drawRightMarginSignatureBlock(
-    recordData.counselor || sanitizedCounselorName || "—",
-    "Guidance Designate/Counselor"
-  );
-
-  const recText =
-    recordData.recommendation && String(recordData.recommendation).trim()
-      ? String(recordData.recommendation).trim()
-      : "(To be accomplished by the Director, SWEU.)";
-  bodyBlock("Recommendation:", recText, "(To be accomplished by the Director, SWEU.)");
-
-  const recommendationSignerName = resolveRecommendationAuthorName(recordData);
-  drawRightMarginSignatureBlock(recommendationSignerName, "Director, SWEU");
+  const directorSignatoryName = resolveRecommendationAuthorName(recordData);
+  const directorSigH = directorSignatureBlockMeasuredHeight(doc, directorSignatoryName);
+  ensurePage(directorSigH);
+  y = drawIndividualDirectorSignatureBlock(doc, directorSignatoryName, margin, pageWidth, y);
 
   const range = doc.bufferedPageRange();
   const total = range.count;
   for (let i = 0; i < total; i++) {
     doc.switchToPage(range.start + i);
-    addRecordHeaderFooter(doc, i + 1, total, trackingNumber, reportDate, {
-      omitSystemFooter: true,
-      individualGcsReport: true,
-      individualSchoolYear: recordData.schoolYear,
-    });
-    drawIndividualFormGcsStrip(doc, i + 1, total);
+    drawIndividualFormFooterStrip(doc, i + 1, total);
   }
 
   doc.end();
@@ -543,6 +689,14 @@ export const generateCounselingRecordPDF = async (recordData, sanitizedCounselor
   });
 
   return pdfPath;
+}
+
+// Function to generate a counseling record PDF (BSU individual form, or legacy admin banner layout)
+export const generateCounselingRecordPDF = async (recordData, sanitizedCounselorName, options = {}) => {
+  if (options.adminSynthesizedPdf) {
+    return generateLegacyAdminCounselingPdf(recordData, sanitizedCounselorName, options);
+  }
+  return generateIndividualBsCounselingPdf(recordData, sanitizedCounselorName, options);
 };
 
 // Generate a unique tracking number

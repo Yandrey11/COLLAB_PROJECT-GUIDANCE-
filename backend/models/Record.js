@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import encryptedFieldsPlugin from "../utils/encryptedFieldsPlugin.js";
 
 const recordSchema = new mongoose.Schema(
   {
@@ -16,6 +17,7 @@ const recordSchema = new mongoose.Schema(
     /** Demographics & case details (optional; clientName/date/sessionNumber/sessionType still core) */
     schoolYear: { type: String },
     gender: { type: String },
+    college: { type: String },
     course: { type: String },
     yearLevel: { type: String },
     section: { type: String },
@@ -96,9 +98,50 @@ const recordSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// PII at rest: clientName, counselor, narratives, audit user names. Determ-
+// inistic HMAC "lookup" columns preserve scope/equality matching.
+export const RECORD_ENCRYPTED_FIELD_PATHS = [
+    "clientName",
+    "counselor",
+    "notes",
+    "outcomes",
+    /** Demographics / academics — encrypted at rest (see analytics: use find+lean, not aggregate on these paths). */
+    "schoolYear",
+    "gender",
+    "college",
+    "course",
+    "yearLevel",
+    "section",
+    "problemsPresentedNotes",
+    "problemsPresented",
+    "remarks",
+    "recommendation",
+    "recommendationAuthorName",
+    "driveLink",
+    "googleCalendarEventId",
+    "archivedBy.userName",
+    "attachments.fileName",
+    "attachments.fileUrl",
+    "attachments.uploadedBy",
+    "auditTrail.createdBy.userName",
+    "auditTrail.lastModifiedBy.userName",
+    "auditTrail.deletedBy.userName",
+    "auditTrail.modificationHistory.changedBy.userName",
+  ];
+
+recordSchema.plugin(encryptedFieldsPlugin, {
+  fields: RECORD_ENCRYPTED_FIELD_PATHS,
+  lookups: {
+    clientNameLookup: { from: "clientName", normalize: "name" },
+    counselorLookup: { from: "counselor", normalize: "name" },
+    auditCreatedByLookup: {
+      from: "auditTrail.createdBy.userName",
+      normalize: "name",
+    },
+  },
+});
+
 // Indexes for better query performance
-recordSchema.index({ clientName: 1 });
-recordSchema.index({ counselor: 1 });
 recordSchema.index({ status: 1 });
 recordSchema.index({ sessionType: 1 });
 recordSchema.index({ date: -1 });

@@ -10,6 +10,18 @@
   --text-primary: #111827;
   --text-secondary: #4b5563;
   --muted-surface: #e5e7eb;
+
+  /* User-customizable theme colors (overridden at runtime by themeUtils.applyColorTheme).
+     Defaults below match the counselor (purple) palette and act as a graceful fallback. */
+  --theme-bg: #f5f3ff;
+  --theme-bg-soft: #faf5ff;
+  --theme-primary: #7c3aed;
+  --theme-primary-hover: #6d28d9;
+  --theme-primary-soft: #ede9fe;
+  --theme-primary-contrast: #ffffff;
+  --theme-accent: #a78bfa;
+  --theme-accent-soft: #ede9fe;
+
   color-scheme: light;
 
   font-synthesis: none;
@@ -22,25 +34,93 @@ html.dark {
   color-scheme: dark;
 }
 
+html,
 body {
+  font-family: inherit;
   margin: 0;
   padding: 0;
   width: 100%;
   min-width: 320px;
   min-height: 100vh;
-  background-color: #f8fafc;
+  /* Use the user-customizable theme background; falls back to a neutral surface */
+  background-color: var(--theme-bg, #f8fafc);
   color: #0f172a;
 }
 
-/* System-wide page background gradient + readable default text (light/dark) */
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+/* System-wide page background — solid theme color so the user's pick is
+   immediately visible behind every page (no gradient washing out the choice). */
 .page-bg {
-  background: linear-gradient(135deg, #e0e7ff 0%, #ede9fe 50%, #ddd6fe 100%);
+  background-color: var(--theme-bg, #ede9fe);
   color: #111827;
 }
 
+.dark body {
+  background-color: #0f172a;
+  color: #e5e7eb;
+}
+
 .dark .page-bg {
+  /* Keep dark mode visually consistent (low-glare); theme color drives accents only. */
   background: linear-gradient(135deg, #111827 0%, #1f2937 60%, #1e1b4b 100%);
   color: #e5e7eb;
+}
+
+/* Theme color utility classes — opt-in helpers used by theme-aware UI. */
+.bg-theme-primary {
+  background-color: var(--theme-primary);
+  color: var(--theme-primary-contrast);
+}
+.bg-theme-primary:hover {
+  background-color: var(--theme-primary-hover);
+}
+
+/* Reusable themed primary button — drop-in replacement for bg-gray-900 / bg-indigo-600 CTAs.
+   Adapts to user-selected primary color in BOTH light and dark mode. */
+.btn-theme-primary {
+  background-color: var(--theme-primary);
+  color: var(--theme-primary-contrast, #ffffff);
+  transition: background-color 0.15s ease, transform 0.15s ease, opacity 0.15s ease;
+}
+.btn-theme-primary:hover:not(:disabled) {
+  background-color: var(--theme-primary-hover);
+}
+.btn-theme-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.dark .btn-theme-primary {
+  /* In dark mode keep the same accent so brand color stays consistent. */
+  background-color: var(--theme-primary);
+  color: var(--theme-primary-contrast, #ffffff);
+}
+.bg-theme-primary-soft {
+  background-color: var(--theme-primary-soft);
+  color: var(--theme-primary);
+}
+.bg-theme-accent {
+  background-color: var(--theme-accent);
+}
+.bg-theme-bg {
+  background-color: var(--theme-bg);
+}
+.text-theme-primary {
+  color: var(--theme-primary);
+}
+.text-theme-accent {
+  color: var(--theme-accent);
+}
+.border-theme-primary {
+  border-color: var(--theme-primary);
+}
+.ring-theme-primary {
+  --tw-ring-color: var(--theme-primary);
 }
 
 /* Admin pages typography scale */
@@ -73,11 +153,6 @@ body {
 .counselor-typography .text-xs {
   font-size: 0.75rem;
   line-height: 1rem;
-}
-
-.dark body {
-  background-color: #0f172a;
-  color: #e5e7eb;
 }
 
 .dark {

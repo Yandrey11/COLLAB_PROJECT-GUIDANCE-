@@ -6,13 +6,18 @@ import {
   markCounselorMessagesRead,
   getCounselorUnreadMessageCount,
 } from "../controllers/counselorMessageController.js";
+import { cacheJSON } from "../utils/cache.js";
 
 const router = express.Router();
 router.use(protect);
 
-router.get("/unread-count", getCounselorUnreadMessageCount);
+// Unread badge polls frequently; cache 15s per counselor.
+// Invalidated on post/mark-read/admin reply via cacheInvalidate("messages:").
+const messagesCache = cacheJSON({ ttlMs: 15_000, prefix: "messages:" });
+
+router.get("/unread-count", messagesCache, getCounselorUnreadMessageCount);
 router.post("/mark-read", markCounselorMessagesRead);
-router.get("/", getCounselorMessages);
+router.get("/", messagesCache, getCounselorMessages);
 router.post("/", postCounselorMessage);
 
 export default router;

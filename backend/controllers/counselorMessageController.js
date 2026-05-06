@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import AdminCounselorMessage from "../models/AdminCounselorMessage.js";
 import { createNotification } from "./admin/notificationController.js";
+import { cacheInvalidate } from "../utils/cache.js";
 
 const MAX_BODY_LEN = 4000;
 
@@ -109,6 +110,8 @@ export const postCounselorMessage = async (req, res) => {
       console.error("Admin notification (counselor message) failed:", notifyErr);
     }
 
+    cacheInvalidate("messages:");
+
     res.status(201).json({
       success: true,
       message: {
@@ -147,6 +150,7 @@ export const markCounselorMessagesRead = async (req, res) => {
       { $set: { readAt: now } }
     );
 
+    cacheInvalidate("messages:");
     res.json({ success: true, modifiedCount: result.modifiedCount });
   } catch (err) {
     console.error("markCounselorMessagesRead:", err);

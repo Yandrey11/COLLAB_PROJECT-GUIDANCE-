@@ -3,6 +3,7 @@ import AdminCounselorMessage from "../../models/AdminCounselorMessage.js";
 import Counselor from "../../models/Counselor.js";
 import GoogleUser from "../../models/GoogleUser.js";
 import { createCounselorNotification } from "../counselorNotificationController.js";
+import { cacheInvalidate } from "../../utils/cache.js";
 
 const MAX_BODY_LEN = 4000;
 
@@ -239,6 +240,8 @@ export const postAdminMessageToCounselor = async (req, res) => {
       console.error("Counselor notification (admin message) failed:", notifyErr);
     }
 
+    cacheInvalidate("messages:");
+
     res.status(201).json({
       success: true,
       message: {
@@ -283,6 +286,7 @@ export const markAdminThreadRead = async (req, res) => {
       { $set: { readAt: now } }
     );
 
+    cacheInvalidate("messages:");
     res.json({ success: true, modifiedCount: result.modifiedCount });
   } catch (err) {
     console.error("markAdminThreadRead:", err);

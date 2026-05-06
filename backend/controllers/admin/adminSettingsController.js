@@ -1,5 +1,6 @@
 import Admin from "../../models/Admin.js";
 import ActivityLog from "../../models/ActivityLog.js";
+import { cacheInvalidate } from "../../utils/cache.js";
 
 // Helper function to get client IP and user agent
 const getClientInfo = (req) => ({
@@ -30,6 +31,9 @@ const createActivityLog = async (req, activityType, description, metadata = {}) 
   }
 };
 
+const HEX_COLOR_REGEX = /^#([0-9a-fA-F]{6})$/;
+const COLOR_PRESETS = ["default", "purple", "blue", "green", "rose", "custom"];
+
 // Helper to initialize default settings
 const getDefaultSettings = () => ({
   display: {
@@ -48,6 +52,13 @@ const getDefaultSettings = () => ({
   privacy: {
     hideProfilePhoto: false,
     maskNameInNotifications: false,
+  },
+  // Admin defaults = blue palette
+  colors: {
+    bg: "#eff6ff",
+    primary: "#2563eb",
+    accent: "#60a5fa",
+    preset: "blue",
   },
 });
 
@@ -123,6 +134,7 @@ export const updateDisplaySettings = async (req, res) => {
     // Mark settings as modified
     admin.markModified("settings");
     await admin.save();
+    cacheInvalidate("settings:");
 
     // Create activity log if any changes were made
     if (Object.keys(metadata).length > 0) {
@@ -207,6 +219,7 @@ export const updateNotificationSettings = async (req, res) => {
     // Mark settings as modified
     admin.markModified("settings");
     await admin.save();
+    cacheInvalidate("settings:");
 
     // Create activity log if any changes were made
     if (Object.keys(metadata).length > 0) {
@@ -286,6 +299,7 @@ export const updatePrivacySettings = async (req, res) => {
     // Mark settings as modified
     admin.markModified("settings");
     await admin.save();
+    cacheInvalidate("settings:");
 
     // Create activity log if any changes were made
     if (Object.keys(metadata).length > 0) {
@@ -302,6 +316,117 @@ export const updatePrivacySettings = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to update privacy settings",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * PUT /api/admin/settings/colors
+ * Update color customization (background / primary / accent + preset)
+ */
+export const updateColorSettings = async (req, res) => {
+  try {
+    const { bg, primary, accent, preset } = req.body || {};
+    const admin = await Admin.findById(req.admin._id);
+
+    if (!admin) {
+      return res.status(404).json({ success: false, message: "Admin not found" });
+    }
+
+    if (!admin.settings) admin.settings = getDefaultSettings();
+    if (!admin.settings.colors) admin.settings.colors = getDefaultSettings().colors;
+
+    const errors = [];
+    [
+      ["bg", bg],
+      ["primary", primary],
+      ["accent", accent],
+    ].forEach(([key, val]) => {
+      if (val !== undefined) {
+        if (typeof val !== "string" || !HEX_COLOR_REGEX.test(val)) {
+          errors.push(`Invalid ${key} color. Must be a 6-digit hex color (e.g., #2563eb).`);
+        }
+      }
+    });
+    if (preset !== undefined && !COLOR_PRESETS.includes(preset)) {
+      errors.push(`Invalid preset. Must be one of: ${COLOR_PRESETS.join(", ")}.`);
+    }
+    if (errors.length > 0) {
+      return res.status(400).json({ success: false, message: "Validation errors", errors });
+    }
+
+    const oldColors = { ...admin.settings.colors };
+    const metadata = {};
+
+    if (bg !== undefined && admin.settings.colors.bg !== bg) {
+      admin.settings.colors.bg = bg;
+      metadata.bg = { old: oldColors.bg, new: bg };
+    }
+    if (primary !== undefined && admin.settings.colors.primary !== primary) {
+      admin.settings.colors.primary = primary;
+      metadata.primary = { old: oldColors.primary, new: primary };
+    }
+    if (accent !== undefined && admin.settings.colors.accent !== accent) {
+      admin.settings.colors.accent = accent;
+      metadata.accent = { old: oldColors.accent, new: accent };
+    }
+    if (preset !== undefined && admin.settings.colors.preset !== preset) {
+      admin.settings.colors.preset = preset;
+      metadata.preset = { old: oldColors.preset, new: preset };
+    }
+
+    admin.markModified("settings");
+    await admin.save();
+    cacheInvalidate("settings:");
+
+    if (Object.keys(metadata).length > 0) {
+      await createActivityLog(req, "color_settings_updated", "Updated theme color customization", metadata);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Color settings updated successfully",
+      settings: admin.settings.colors,
+    });
+  } catch (error) {
+    console.error("❌ Error updating admin color settings:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update color settings",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
+/**
+ * POST /api/admin/settings/colors/reset
+ * Reset colors to admin defaults (blue palette).
+ */
+export const resetColorSettings = async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.admin._id);
+    if (!admin) {
+      return res.status(404).json({ success: false, message: "Admin not found" });
+    }
+    if (!admin.settings) admin.settings = getDefaultSettings();
+    admin.settings.colors = getDefaultSettings().colors;
+    admin.markModified("settings");
+    await admin.save();
+    cacheInvalidate("settings:");
+
+    await createActivityLog(req, "color_settings_reset", "Reset theme color customization to defaults");
+
+    res.status(200).json({
+      success: true,
+      message: "Color settings reset to defaults",
+      settings: admin.settings.colors,
+    });
+  } catch (error) {
+    console.error("❌ Error resetting admin color settings:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to reset color settings",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
@@ -331,6 +456,7 @@ export const getSettings = async (req, res) => {
         display: settings.display || getDefaultSettings().display,
         notifications: settings.notifications || getDefaultSettings().notifications,
         privacy: settings.privacy || getDefaultSettings().privacy,
+        colors: settings.colors || getDefaultSettings().colors,
       },
     });
   } catch (error) {

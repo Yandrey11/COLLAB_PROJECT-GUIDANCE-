@@ -8,14 +8,17 @@ import {
   deleteAllRead,
 } from "../../controllers/admin/notificationController.js";
 import { protectAdmin } from "../../middleware/admin/adminMiddleware.js";
+import { cacheJSON } from "../../utils/cache.js";
 
 const router = express.Router();
 
 // All routes require admin authentication
 router.use(protectAdmin);
 
+const notifCache = cacheJSON({ ttlMs: 15_000, prefix: "notifications:" });
+
 // Get all notifications with filters and pagination
-router.get("/notifications", getNotifications);
+router.get("/notifications", notifCache, getNotifications);
 
 // Mark notification as read
 router.put("/notifications/:notificationId/read", markAsRead);

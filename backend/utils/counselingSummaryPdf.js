@@ -6,7 +6,10 @@
 import PDFDocument from "pdfkit";
 import fs from "fs";
 import path from "path";
-import { addRecordHeaderFooter, SUMMARY_REPORT_HEADER_HEIGHT_PT } from "./pdfUtils.js";
+import {
+  drawBsCounselingSummaryLetterhead,
+  measureBsCounselingSummaryContentStart,
+} from "./pdfUtils.js";
 import {
   PROBLEMS_PRESENTED_OPTIONS,
   composeProblemsPresentedString,
@@ -124,24 +127,52 @@ function drawSummaryFooterStrip(doc, pageNum, totalPages) {
   });
 }
 
-/** Signature rule: ~37.5% of page width (within 35–40%), right-aligned to margin. */
+/** Signature block width: proportional, capped for a shorter rule (print-ready). */
 function signatureLineWidthPt(pageWidth) {
-  return pageWidth * 0.375;
+  return Math.min(pageWidth * 0.375, 200);
 }
 
-function drawSignatureBlock(doc, pageWidth, marginRight, y) {
+const SUMMARY_SIG_NAME_TO_RULE = mmToPt(2);
+const SUMMARY_SIG_RULE_TO_LABEL = mmToPt(2.5);
+
+function measureSummaryGeneratorSignatureHeight(doc, generatorName, lineW) {
+  const name = String(generatorName || "").trim();
+  let h = 0;
+  if (name) {
+    doc.font("Times-Italic").fontSize(9);
+    h += doc.heightOfString(name, { width: lineW, lineGap: 1 }) + SUMMARY_SIG_NAME_TO_RULE;
+  } else {
+    h += SUMMARY_SIG_NAME_TO_RULE;
+  }
+  h += SUMMARY_SIG_RULE_TO_LABEL;
+  doc.font("Times-Roman").fontSize(8.5);
+  h += doc.heightOfString("Name and Signature", { width: lineW, align: "center" });
+  return h + mmToPt(2);
+}
+
+/** Right-aligned: generator name (italic) above rule, then "Name and Signature" only. */
+function drawSignatureBlock(doc, pageWidth, marginRight, y, generatorName) {
   const lineW = signatureLineWidthPt(pageWidth);
   const lineRight = pageWidth - marginRight;
   const lineLeft = lineRight - lineW;
-  const lineY = y;
+  const name = String(generatorName || "").trim();
+
+  let yy = y;
+  doc.fillColor("#000000");
+  if (name) {
+    doc.font("Times-Italic").fontSize(9);
+    doc.text(name, lineLeft, yy, { width: lineW, align: "center" });
+    yy += doc.heightOfString(name, { width: lineW, lineGap: 1 }) + SUMMARY_SIG_NAME_TO_RULE;
+  } else {
+    yy += SUMMARY_SIG_NAME_TO_RULE;
+  }
+
   doc.strokeColor("#000000").lineWidth(0.55);
-  doc.moveTo(lineLeft, lineY).lineTo(lineRight, lineY).stroke();
-  let yy = lineY + mmToPt(2.5);
-  doc.font("Times-Roman").fontSize(8.5).fillColor("#000000");
+  doc.moveTo(lineLeft, yy).lineTo(lineRight, yy).stroke();
+  yy += SUMMARY_SIG_RULE_TO_LABEL;
+
+  doc.font("Times-Roman").fontSize(8.5);
   doc.text("Name and Signature", lineLeft, yy, { width: lineW, align: "center" });
-  yy += doc.heightOfString("Name and Signature", { width: lineW }) + mmToPt(1);
-  doc.fontSize(8);
-  doc.text("COT and CON Guidance Designate", lineLeft, yy, { width: lineW, align: "center" });
 }
 
 const LEGEND_BODY_FONT_PT = 11;
@@ -165,11 +196,11 @@ function drawLegendRowSingle(doc, opt, marginLeft, contentWidth, y, abbrColW, da
 
 /**
  * @param {object[]} records — lean Mongoose docs
- * @param {{ monthLabel: string; schoolYear: string; trackingNumber: string; reportDate?: string }} meta
+ * @param {{ monthLabel: string; schoolYear: string; trackingNumber: string; reportDate?: string; generatedByName?: string }} meta
  * @returns {Promise<string>} temp file path
  */
 export async function generateCounselingSummaryPdf(records, meta) {
-  const { monthLabel, schoolYear, trackingNumber, reportDate } = meta;
+  const { monthLabel, schoolYear, trackingNumber, reportDate, generatedByName } = meta;
   const tempDir = path.join(process.cwd(), "temp");
   fs.mkdirSync(tempDir, { recursive: true });
   const safeName = `summary_${Date.now()}_${Math.floor(Math.random() * 10000)}.pdf`;
@@ -185,13 +216,27 @@ export async function generateCounselingSummaryPdf(records, meta) {
   const marginRight = 36;
   const marginBottom = mmToPt(38);
   const contentWidth = pageWidth - marginLeft - marginRight;
-  /** ~7 mm below header band — with tightened header height, total ≈8–12 mm from month row to table. */
-  const contentStartY = SUMMARY_REPORT_HEADER_HEIGHT_PT + mmToPt(7);
   const maxContentY = pageHeight - marginBottom - mmToPt(6);
   const rd = reportDate || new Date().toLocaleDateString();
 
-  /** Title and month/school row are drawn in `addRecordHeaderFooter` (summary variant). */
-  let finalY = contentStartY;
+  const letterOptsBase = {
+    monthLabel: monthLabel || "—",
+    schoolYear: schoolYear || "—",
+    trackingNumber,
+    reportDate: rd,
+  };
+  const contentTopFirst = measureBsCounselingSummaryContentStart({
+    ...letterOptsBase,
+    firstPage: true,
+  });
+  const contentTopNext = measureBsCounselingSummaryContentStart({
+    ...letterOptsBase,
+    firstPage: false,
+  });
+  let activeContentTop = contentTopFirst;
+
+  /** Title and letterhead are drawn after buffered pages complete. */
+  let finalY = activeContentTop;
   doc.fillColor(0, 0, 0);
 
   const NUM_COLS = 7;
@@ -264,7 +309,7 @@ export async function generateCounselingSummaryPdf(records, meta) {
     remarksCell(record),
   ]);
 
-  const maxRowFitsBody = maxContentY - contentStartY - HEADER_ROW_H - 1;
+  const maxRowFitsBody = maxContentY - contentTopFirst - HEADER_ROW_H - 1;
   const maxNatural =
     dataRows.length === 0 ? DATA_ROW_MIN_H : Math.max(...dataRows.map(measureDataRowHeight), DATA_ROW_MIN_H);
   let uniformRowH = maxNatural;
@@ -276,7 +321,8 @@ export async function generateCounselingSummaryPdf(records, meta) {
     doc.font("Times-Roman").fontSize(DATA_FONT_SIZE);
     if (finalY + rowH > maxContentY) {
       doc.addPage();
-      finalY = contentStartY;
+      activeContentTop = contentTopNext;
+      finalY = activeContentTop;
       drawTableHeader();
     }
     let x = marginLeft;
@@ -308,7 +354,8 @@ export async function generateCounselingSummaryPdf(records, meta) {
   finalY += mmToPt(8);
   if (finalY + mmToPt(50) > maxContentY) {
     doc.addPage();
-    finalY = contentStartY;
+    activeContentTop = contentTopNext;
+    finalY = activeContentTop;
   }
 
   const totalBaseY = finalY;
@@ -354,7 +401,8 @@ export async function generateCounselingSummaryPdf(records, meta) {
   for (let i = 0; i < PROBLEMS_PRESENTED_OPTIONS.length; i++) {
     if (legY + LEGEND_LINE_SP > maxContentY - mmToPt(30)) {
       doc.addPage();
-      legY = contentStartY;
+      activeContentTop = contentTopNext;
+      legY = activeContentTop;
     }
     drawLegendRowSingle(doc, PROBLEMS_PRESENTED_OPTIONS[i], marginLeft, contentWidth, legY, abbrColW, dashStr, dashW);
     legY += LEGEND_LINE_SP;
@@ -362,21 +410,26 @@ export async function generateCounselingSummaryPdf(records, meta) {
   finalY = legY;
 
   finalY += mmToPt(4);
-  if (finalY + mmToPt(20) > maxContentY) {
+  const sigLineW = signatureLineWidthPt(pageWidth);
+  const sigBlockH = measureSummaryGeneratorSignatureHeight(
+    doc,
+    generatedByName || "",
+    sigLineW
+  );
+  if (finalY + sigBlockH > maxContentY) {
     doc.addPage();
-    finalY = contentStartY;
+    activeContentTop = contentTopNext;
+    finalY = activeContentTop;
   }
-  drawSignatureBlock(doc, pageWidth, marginRight, finalY);
+  drawSignatureBlock(doc, pageWidth, marginRight, finalY, generatedByName || "");
 
   const range = doc.bufferedPageRange();
   const total = range.count;
   for (let i = 0; i < total; i++) {
     doc.switchToPage(range.start + i);
-    addRecordHeaderFooter(doc, i + 1, total, trackingNumber, rd, {
-      omitSystemFooter: true,
-      counselingSummaryReport: true,
-      summaryMonthLabel: monthLabel || "—",
-      summarySchoolYear: schoolYear || "—",
+    drawBsCounselingSummaryLetterhead(doc, {
+      ...letterOptsBase,
+      firstPage: i === 0,
     });
     drawSummaryFooterStrip(doc, i + 1, total);
   }

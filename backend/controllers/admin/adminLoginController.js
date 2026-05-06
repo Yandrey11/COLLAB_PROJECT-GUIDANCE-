@@ -1,8 +1,10 @@
 import jwt from "jsonwebtoken";
-import Admin from "../../models/Admin.js";
-import Counselor from "../../models/Counselor.js";
-import GoogleUser from "../../models/GoogleUser.js";
 import axios from "axios";
+import {
+  findAdminByEmail,
+  findCounselorByEmail,
+  findGoogleUserByEmail,
+} from "../../utils/userLookup.js";
 
 // ✅ Verify Google reCAPTCHA helper
 const verifyRecaptcha = async (token) => {
@@ -30,12 +32,12 @@ export const adminLogin = async (req, res) => {
     }
 
     // Check in Admin collection first
-    let admin = await Admin.findOne({ email });
+    let admin = await findAdminByEmail(email);
     let accountType = "admin";
 
     // If not found in Admin collection, check User collection for admin role
     if (!admin) {
-      const user = await Counselor.findOne({ email });
+      const user = await findCounselorByEmail(email);
       
       if (user && user.role === "admin") {
         // User has admin role, treat as admin
@@ -52,10 +54,11 @@ export const adminLogin = async (req, res) => {
 
     if (!admin) {
       // Check if GoogleUser with admin role exists (Google-only admin)
-      const googleAdmin = await GoogleUser.findOne({ email, role: "admin" });
-      if (googleAdmin) {
+      const googleAdmin = await findGoogleUserByEmail(email);
+      if (googleAdmin && googleAdmin.role === "admin") {
         return res.status(400).json({
-          message: "This account uses Google sign-in. Sign in with Google above, or use Forgot Password to set a password for manual login.",
+          message:
+            "This account uses Google sign-in. Sign in with Google above, or use Forgot Password to set a password for manual login.",
         });
       }
       return res.status(404).json({ message: "Admin not found" });

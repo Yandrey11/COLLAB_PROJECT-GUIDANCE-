@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import encryptedFieldsPlugin from "../utils/encryptedFieldsPlugin.js";
 
 const counselorNotificationSchema = new mongoose.Schema(
   {
@@ -11,7 +12,6 @@ const counselorNotificationSchema = new mongoose.Schema(
     counselorEmail: {
       type: String,
       required: true,
-      index: true,
     },
     title: {
       type: String,
@@ -76,9 +76,16 @@ const counselorNotificationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+counselorNotificationSchema.plugin(encryptedFieldsPlugin, {
+  fields: ["counselorEmail"],
+  lookups: {
+    counselorEmailLookup: { from: "counselorEmail", normalize: "email" },
+  },
+});
+
 // Indexes for faster queries
 counselorNotificationSchema.index({ counselorId: 1, status: 1, createdAt: -1 });
-counselorNotificationSchema.index({ counselorEmail: 1, status: 1 });
+counselorNotificationSchema.index({ counselorEmailLookup: 1, status: 1 });
 counselorNotificationSchema.index({ category: 1, createdAt: -1 });
 counselorNotificationSchema.index({ priority: 1, createdAt: -1 });
 counselorNotificationSchema.index({ createdAt: -1 });

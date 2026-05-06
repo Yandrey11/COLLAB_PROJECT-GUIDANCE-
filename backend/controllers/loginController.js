@@ -1,9 +1,8 @@
-import Counselor from "../models/Counselor.js";
-import GoogleUser from "../models/GoogleUser.js";
 import jwt from "jsonwebtoken";
 import { createSession } from "./admin/sessionController.js";
 import axios from "axios";
 import { getFileUrl } from "../middleware/uploadMiddleware.js";
+import { findCounselorByEmail, findGoogleUserByEmail } from "../utils/userLookup.js";
 
 const verifyRecaptcha = async (token) => {
   if (!token) return false;
@@ -39,11 +38,11 @@ export const login = async (req, res) => {
     }
 
     // ✅ Check if user exists in User collection (for email/password login)
-    let user = await Counselor.findOne({ email });
+    let user = await findCounselorByEmail(email);
 
     // ✅ If not found in User collection, check if they're a Google-only user
     if (!user) {
-      const googleUser = await GoogleUser.findOne({ email });
+      const googleUser = await findGoogleUserByEmail(email);
       if (googleUser) {
         // User exists but only in GoogleUser (no password set)
         return res.status(400).json({ 

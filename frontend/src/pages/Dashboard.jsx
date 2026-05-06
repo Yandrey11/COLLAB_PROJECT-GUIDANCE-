@@ -10,6 +10,7 @@ import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useInactivity } from "../hooks/useInactivity";
 
 const GENERATED_REPORTS_STORAGE_KEY = "counselorGeneratedReports";
+const DASHBOARD_CARD_PAGE_SIZE = 3;
 
 const formatDisplayDate = (dateValue) => {
   if (!dateValue) return "No date";
@@ -34,7 +35,7 @@ const readGeneratedReports = () => {
     const storedReports = JSON.parse(
       localStorage.getItem(GENERATED_REPORTS_STORAGE_KEY) || "[]"
     );
-    return Array.isArray(storedReports) ? storedReports.slice(0, 5) : [];
+    return Array.isArray(storedReports) ? storedReports : [];
   } catch {
     return [];
   }
@@ -68,8 +69,10 @@ export default function Dashboard() {
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [recordsLoading, setRecordsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [latestAnnouncement, setLatestAnnouncement] = useState(null);
+  const [announcements, setAnnouncements] = useState([]);
   const [announcementLoading, setAnnouncementLoading] = useState(false);
+  const [announcementPage, setAnnouncementPage] = useState(0);
+  const [reportsPage, setReportsPage] = useState(0);
   const [generatedReports, setGeneratedReports] = useState([]);
   const hasAutoSyncedCalendarRef = useRef(false);
 
@@ -262,84 +265,88 @@ export default function Dashboard() {
   }, []);
 
 
-  // Fetch records from database
+  // Fetch records from database — runs on mount and when token is present.
   useEffect(() => {
+    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
     const fetchRecords = async () => {
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      if (!token) {
+        setRecords([]);
+        setRecordsLoading(false);
+        return;
+      }
       try {
         setRecordsLoading(true);
-        const token = localStorage.getItem("token") || localStorage.getItem("authToken");
-        if (!token) {
-          setRecords([]);
-          setRecordsLoading(false);
-          return;
-        }
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-        const res = await axios.get(`${baseUrl}/api/records`, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+        const headers = { Authorization: `Bearer ${token}` };
+
+        const toArray = (payload) =>
+          Array.isArray(payload) ? payload : payload?.records || payload?.data || [];
+
+        const [activeRes, archivedRes] = await Promise.allSettled([
+          axios.get(`${baseUrl}/api/records`, { headers }),
+          axios.get(`${baseUrl}/api/records`, { headers, params: { archived: "true" } }),
+        ]);
+
+        const activeRecords =
+          activeRes.status === "fulfilled" ? toArray(activeRes.value.data) : [];
+        const archivedRecords =
+          archivedRes.status === "fulfilled" ? toArray(archivedRes.value.data) : [];
+
+        const seen = new Set();
+        const merged = [...activeRecords, ...archivedRecords].filter((record) => {
+          const id = record?._id || record?.id;
+          if (!id) return true;
+          const key = String(id);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
         });
-        const data = res.data;
-        setRecords(Array.isArray(data) ? data : data?.records || data?.data || []);
+
+        setRecords(merged);
       } catch (error) {
-        console.error("Error fetching records:", error);
+        console.error("[Dashboard] Error fetching records:", error);
         setRecords([]);
       } finally {
         setRecordsLoading(false);
       }
     };
 
-    if (user) {
-      fetchRecords();
-      // Auto-refresh records every 2 minutes (reduced from 30s)
-      const interval = setInterval(fetchRecords, 2 * 60 * 1000);
-      return () => clearInterval(interval);
-    } else {
-      setRecordsLoading(false);
-    }
+    fetchRecords();
+    const interval = setInterval(fetchRecords, 2 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [user]);
 
   useEffect(() => {
-    const fetchLatestAnnouncement = async () => {
+    const fetchAnnouncements = async () => {
       const token = localStorage.getItem("token") || localStorage.getItem("authToken");
       if (!token) {
-        setLatestAnnouncement(null);
+        setAnnouncements([]);
         return;
       }
 
       try {
         setAnnouncementLoading(true);
         const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-        const res = await axios.get(`${baseUrl}/api/counselor/notifications`, {
+        const res = await axios.get(`${baseUrl}/api/counselor/notifications/announcements`, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          params: {
-            page: 1,
-            limit: 5,
-            category: "Announcement",
-          },
         });
 
-        const announcements = res.data?.notifications || [];
-        setLatestAnnouncement(
-          announcements.find((item) => item.isAnnouncement || item.category === "Announcement") ||
-            announcements[0] ||
-            null
-        );
+        setAnnouncements(Array.isArray(res.data?.announcements) ? res.data.announcements : []);
       } catch (error) {
-        console.error("Error fetching latest announcement:", error);
-        setLatestAnnouncement(null);
+        console.error("Error fetching announcements:", error);
+        setAnnouncements([]);
       } finally {
         setAnnouncementLoading(false);
       }
     };
 
-    if (user) {
-      fetchLatestAnnouncement();
-    }
+    fetchAnnouncements();
+    const interval = setInterval(fetchAnnouncements, 60_000);
+    return () => clearInterval(interval);
   }, [user]);
 
   const recordSummary = useMemo(() => {
@@ -365,6 +372,32 @@ export default function Dashboard() {
         .slice(0, 3),
     [records]
   );
+
+  const announcementTotalPages = Math.max(
+    1,
+    Math.ceil(announcements.length / DASHBOARD_CARD_PAGE_SIZE)
+  );
+  const paginatedAnnouncements = useMemo(() => {
+    const start = announcementPage * DASHBOARD_CARD_PAGE_SIZE;
+    return announcements.slice(start, start + DASHBOARD_CARD_PAGE_SIZE);
+  }, [announcements, announcementPage]);
+
+  const reportsTotalPages = Math.max(
+    1,
+    Math.ceil(generatedReports.length / DASHBOARD_CARD_PAGE_SIZE)
+  );
+  const paginatedReports = useMemo(() => {
+    const start = reportsPage * DASHBOARD_CARD_PAGE_SIZE;
+    return generatedReports.slice(start, start + DASHBOARD_CARD_PAGE_SIZE);
+  }, [generatedReports, reportsPage]);
+
+  useEffect(() => {
+    setAnnouncementPage((p) => Math.min(p, Math.max(0, announcementTotalPages - 1)));
+  }, [announcementTotalPages]);
+
+  useEffect(() => {
+    setReportsPage((p) => Math.min(p, Math.max(0, reportsTotalPages - 1)));
+  }, [reportsTotalPages]);
 
 
   const statTiles = [
@@ -531,18 +564,58 @@ export default function Dashboard() {
                       <p className="m-0 flex flex-1 items-center justify-center py-8 text-sm text-gray-500 dark:text-gray-400">
                         Loading…
                       </p>
-                    ) : latestAnnouncement ? (
-                      <div className="flex flex-1 flex-col rounded-xl border border-gray-100 bg-gray-50/80 px-4 py-4 dark:border-gray-700 dark:bg-gray-900/25">
-                        <h3 className="m-0 text-sm font-semibold text-gray-900 dark:text-gray-100">
-                          {latestAnnouncement.title}
-                        </h3>
-                        <p className="mt-2 m-0 flex-1 text-sm leading-relaxed text-gray-600 dark:text-gray-300 line-clamp-3">
-                          {latestAnnouncement.description}
-                        </p>
-                        <p className="mt-4 m-0 text-xs text-gray-400 dark:text-gray-500">
-                          {formatDisplayDate(latestAnnouncement.createdAt)}
-                        </p>
-                      </div>
+                    ) : paginatedAnnouncements.length > 0 ? (
+                      <>
+                        <ul className="m-0 flex flex-1 list-none flex-col gap-2 p-0">
+                          {paginatedAnnouncements.map((item) => (
+                            <li
+                              key={item.id || `${item.title}-${item.createdAt}`}
+                              className="rounded-xl border border-gray-100 bg-gray-50/80 px-4 py-4 dark:border-gray-700 dark:bg-gray-900/25"
+                            >
+                              <h3 className="m-0 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                {item.title}
+                              </h3>
+                              <p className="mt-2 m-0 text-sm leading-relaxed text-gray-600 dark:text-gray-300 line-clamp-3">
+                                {item.description}
+                              </p>
+                              <p className="mt-3 m-0 text-xs text-gray-400 dark:text-gray-500">
+                                {formatDisplayDate(item.createdAt)}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                        {announcementTotalPages > 1 && (
+                          <div
+                            className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-700/80"
+                            role="navigation"
+                            aria-label="Announcements pagination"
+                          >
+                            <button
+                              type="button"
+                              className="rounded-lg text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-500 disabled:pointer-events-none disabled:opacity-35 dark:text-indigo-400 dark:hover:text-indigo-300"
+                              disabled={announcementPage <= 0}
+                              onClick={() => setAnnouncementPage((p) => Math.max(0, p - 1))}
+                            >
+                              Previous
+                            </button>
+                            <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                              Page {announcementPage + 1} of {announcementTotalPages}
+                            </span>
+                            <button
+                              type="button"
+                              className="rounded-lg text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-500 disabled:pointer-events-none disabled:opacity-35 dark:text-indigo-400 dark:hover:text-indigo-300"
+                              disabled={announcementPage >= announcementTotalPages - 1}
+                              onClick={() =>
+                                setAnnouncementPage((p) =>
+                                  Math.min(announcementTotalPages - 1, p + 1)
+                                )
+                              }
+                            >
+                              Next
+                            </button>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <p className="m-0 flex flex-1 items-center justify-center py-10 text-center text-sm text-gray-500 dark:text-gray-400">
                         No announcements right now.
@@ -570,22 +643,54 @@ export default function Dashboard() {
                   </div>
                   <div className="flex flex-1 flex-col p-5 sm:p-6">
                     {generatedReports.length > 0 ? (
-                      <ul className="m-0 list-none space-y-2 p-0">
-                        {generatedReports.map((report) => (
-                          <li
-                            key={report.id || report.fileName}
-                            className="rounded-xl border border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/25"
+                      <>
+                        <ul className="m-0 flex flex-1 list-none flex-col gap-2 p-0">
+                          {paginatedReports.map((report) => (
+                            <li
+                              key={report.id || report.fileName}
+                              className="rounded-xl border border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/25"
+                            >
+                              <p className="m-0 truncate text-sm font-medium text-gray-900 dark:text-gray-100">
+                                {report.fileName || "Generated report"}
+                              </p>
+                              <p className="mt-1.5 m-0 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                                {report.reportType || "Report"} · {report.recordCount || 0} record
+                                {report.recordCount === 1 ? "" : "s"} ·{" "}
+                                {formatDisplayDate(report.generatedAt)}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                        {reportsTotalPages > 1 && (
+                          <div
+                            className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-700/80"
+                            role="navigation"
+                            aria-label="Generated reports pagination"
                           >
-                            <p className="m-0 truncate text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {report.fileName || "Generated report"}
-                            </p>
-                            <p className="mt-1.5 m-0 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                              {report.reportType || "Report"} · {report.recordCount || 0} record
-                              {report.recordCount === 1 ? "" : "s"} · {formatDisplayDate(report.generatedAt)}
-                            </p>
-                          </li>
-                        ))}
-                      </ul>
+                            <button
+                              type="button"
+                              className="rounded-lg text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-500 disabled:pointer-events-none disabled:opacity-35 dark:text-indigo-400 dark:hover:text-indigo-300"
+                              disabled={reportsPage <= 0}
+                              onClick={() => setReportsPage((p) => Math.max(0, p - 1))}
+                            >
+                              Previous
+                            </button>
+                            <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                              Page {reportsPage + 1} of {reportsTotalPages}
+                            </span>
+                            <button
+                              type="button"
+                              className="rounded-lg text-sm font-medium text-indigo-600 transition-colors hover:text-indigo-500 disabled:pointer-events-none disabled:opacity-35 dark:text-indigo-400 dark:hover:text-indigo-300"
+                              disabled={reportsPage >= reportsTotalPages - 1}
+                              onClick={() =>
+                                setReportsPage((p) => Math.min(reportsTotalPages - 1, p + 1))
+                              }
+                            >
+                              Next
+                            </button>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <p className="m-0 flex flex-1 items-center justify-center py-10 text-center text-sm text-gray-500 dark:text-gray-400">
                         No exports yet. Generate a PDF from Reports.
@@ -616,31 +721,27 @@ export default function Dashboard() {
                     const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
                     if (!token) return;
                     setRefreshing(true);
+                    const headers = { Authorization: `Bearer ${token}` };
                     try {
                       if (calendarConnected) {
-                        await axios.post(`${baseUrl}/api/records/sync-google-calendar`, {}, {
-                          headers: { Authorization: `Bearer ${token}` },
-                        });
+                        try {
+                          await axios.post(`${baseUrl}/api/records/sync-google-calendar`, {}, { headers });
+                        } catch (syncError) {
+                          console.warn("[Dashboard] calendar sync failed (non-blocking):", syncError?.response?.data || syncError.message);
+                        }
                       }
-                      const [evRes, recRes] = await Promise.all([
-                        axios.get(`${baseUrl}/auth/dashboard/calendar-events`, {
-                          headers: { Authorization: `Bearer ${token}` },
-                        }),
-                        axios.get(`${baseUrl}/api/records`, {
-                          headers: { Authorization: `Bearer ${token}` },
-                        }),
-                      ]);
-                      if (evRes.data.connected) {
-                        setCalendarEvents(evRes.data.events || []);
-                        setCalendarConnected(true);
-                      } else {
-                        setCalendarEvents([]);
-                        setCalendarConnected(false);
+                      try {
+                        const evRes = await axios.get(`${baseUrl}/auth/dashboard/calendar-events`, { headers });
+                        if (evRes.data?.connected) {
+                          setCalendarEvents(evRes.data.events || []);
+                          setCalendarConnected(true);
+                        } else {
+                          setCalendarEvents([]);
+                          setCalendarConnected(false);
+                        }
+                      } catch (eventsError) {
+                        console.error("[Dashboard] calendar events refresh failed:", eventsError?.response?.data || eventsError.message);
                       }
-                      const data = recRes.data;
-                      setRecords(Array.isArray(data) ? data : data?.records || data?.data || []);
-                    } catch (error) {
-                      console.error("Error refreshing:", error);
                     } finally {
                       setRefreshing(false);
                     }

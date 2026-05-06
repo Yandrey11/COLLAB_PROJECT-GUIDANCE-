@@ -1,9 +1,12 @@
 import Counselor from "../models/Counselor.js";
-import Admin from "../models/Admin.js";
-import GoogleUser from "../models/GoogleUser.js";
 import jwt from "jsonwebtoken";
 import { validatePassword } from "../utils/passwordValidation.js";
 import { isValidCollege } from "../utils/counselorColleges.js";
+import {
+  findAdminByEmail,
+  findCounselorByEmail,
+  findGoogleUserByEmail,
+} from "../utils/userLookup.js";
 
 export const signup = async (req, res) => {
   try {
@@ -28,9 +31,9 @@ export const signup = async (req, res) => {
     }
 
     // Check if email already exists
-    const existingUser = await Counselor.findOne({ email });
-    const existingAdmin = await Admin.findOne({ email });
-    const existingGoogleUser = await GoogleUser.findOne({ email });
+    const existingUser = await findCounselorByEmail(email);
+    const existingAdmin = await findAdminByEmail(email);
+    const existingGoogleUser = await findGoogleUserByEmail(email);
     if (existingUser || existingAdmin || existingGoogleUser) {
       return res.status(400).json({ message: "Email already registered" });
     }

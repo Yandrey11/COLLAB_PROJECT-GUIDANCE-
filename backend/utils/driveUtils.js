@@ -5,6 +5,7 @@ import Counselor from "../models/Counselor.js";
 import GoogleUser from "../models/GoogleUser.js";
 import Admin from "../models/Admin.js";
 import { decryptToken, encryptToken } from "./tokenEncryption.js";
+import { emailLookupHash } from "./userLookup.js";
 
 const getOAuth2Client = () =>
   new google.auth.OAuth2(
@@ -72,9 +73,10 @@ async function loadGoogleTokensFromDb(uid, email) {
         : null;
 
   if (!source && email) {
-    const byAdmin = await Admin.findOne({ email }).select(googleTokenSelect);
-    const byCounselor = await Counselor.findOne({ email }).select(googleTokenSelect);
-    const byGoogle = await GoogleUser.findOne({ email }).select(googleTokenSelect);
+    const lookup = emailLookupHash(email);
+    const byAdmin = await Admin.findOne({ emailLookup: lookup }).select(googleTokenSelect);
+    const byCounselor = await Counselor.findOne({ emailLookup: lookup }).select(googleTokenSelect);
+    const byGoogle = await GoogleUser.findOne({ emailLookup: lookup }).select(googleTokenSelect);
     source = byAdmin?.googleCalendarAccessToken
       ? byAdmin
       : byCounselor?.googleCalendarAccessToken
@@ -149,7 +151,9 @@ export const getDriveClientFromRequest = async (req) => {
         (await Counselor.findById(uid)) ||
         (await GoogleUser.findById(uid)) ||
         (email
-          ? (await Admin.findOne({ email })) || (await Counselor.findOne({ email })) || (await GoogleUser.findOne({ email }))
+          ? (await Admin.findOne({ emailLookup: emailLookupHash(email) })) ||
+            (await Counselor.findOne({ emailLookup: emailLookupHash(email) })) ||
+            (await GoogleUser.findOne({ emailLookup: emailLookupHash(email) }))
           : null);
       if (toUpdate) {
         toUpdate.googleCalendarAccessToken = encryptToken(credentials.access_token);

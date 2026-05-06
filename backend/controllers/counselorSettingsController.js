@@ -1,4 +1,29 @@
 import CounselorSettings from "../models/CounselorSettings.js";
+import { cacheInvalidate } from "../utils/cache.js";
+
+const HEX_COLOR_REGEX = /^#([0-9a-fA-F]{6})$/;
+const COLOR_PRESETS = ["default", "purple", "blue", "green", "rose", "custom"];
+
+const COUNSELOR_DEFAULT_COLORS = {
+  bg: "#f5f3ff",
+  primary: "#7c3aed",
+  accent: "#a78bfa",
+  preset: "purple",
+};
+
+function validateColorsPayload(colors, errors) {
+  if (!colors || typeof colors !== "object") return;
+  ["bg", "primary", "accent"].forEach((key) => {
+    if (colors[key] !== undefined) {
+      if (typeof colors[key] !== "string" || !HEX_COLOR_REGEX.test(colors[key])) {
+        errors.push(`Invalid ${key} color. Must be a 6-digit hex color (e.g., #7c3aed).`);
+      }
+    }
+  });
+  if (colors.preset !== undefined && !COLOR_PRESETS.includes(colors.preset)) {
+    errors.push(`Invalid preset. Must be one of: ${COLOR_PRESETS.join(", ")}.`);
+  }
+}
 
 /**
  * @desc    Get counselor settings
@@ -33,6 +58,7 @@ export const getSettings = async (req, res) => {
         notifications: settings.notifications,
         googleCalendar: settings.googleCalendar,
         privacy: settings.privacy,
+        colors: settings.colors || COUNSELOR_DEFAULT_COLORS,
       },
     });
   } catch (error) {
@@ -64,10 +90,13 @@ export const updateSettings = async (req, res) => {
     const userModel = user.googleId ? "GoogleUser" : "Counselor";
     const userId = user._id;
 
-    const { display, notifications, googleCalendar, privacy } = req.body;
+    const { display, notifications, googleCalendar, privacy, colors } = req.body;
 
     // Validation
     const errors = [];
+
+    // Validate colors
+    validateColorsPayload(colors, errors);
 
     // Validate display settings
     if (display) {
@@ -153,8 +182,19 @@ export const updateSettings = async (req, res) => {
     if (privacy) {
       settings.privacy = { ...settings.privacy, ...privacy };
     }
+    if (colors) {
+      const currentColors = settings.colors || COUNSELOR_DEFAULT_COLORS;
+      settings.colors = {
+        bg: colors.bg ?? currentColors.bg,
+        primary: colors.primary ?? currentColors.primary,
+        accent: colors.accent ?? currentColors.accent,
+        preset: colors.preset ?? currentColors.preset,
+      };
+      settings.markModified("colors");
+    }
 
     await settings.save();
+    cacheInvalidate("settings:");
 
     res.status(200).json({
       success: true,
@@ -164,6 +204,7 @@ export const updateSettings = async (req, res) => {
         notifications: settings.notifications,
         googleCalendar: settings.googleCalendar,
         privacy: settings.privacy,
+        colors: settings.colors || COUNSELOR_DEFAULT_COLORS,
       },
     });
   } catch (error) {
@@ -224,8 +265,11 @@ export const resetSettings = async (req, res) => {
       hideProfilePhoto: false,
       maskNameInPDFs: false,
     };
+    settings.colors = { ...COUNSELOR_DEFAULT_COLORS };
+    settings.markModified("colors");
 
     await settings.save();
+    cacheInvalidate("settings:");
 
     res.status(200).json({
       success: true,
@@ -235,6 +279,7 @@ export const resetSettings = async (req, res) => {
         notifications: settings.notifications,
         googleCalendar: settings.googleCalendar,
         privacy: settings.privacy,
+        colors: settings.colors,
       },
     });
   } catch (error) {

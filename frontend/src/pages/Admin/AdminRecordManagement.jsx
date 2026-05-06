@@ -970,37 +970,6 @@ export default function AdminRecordManagement() {
                     </dd>
                   </div>
                 )}
-                {selectedRecord.auditTrail && (
-                  <div className="grid gap-2 border-t border-gray-200 pt-4 dark:border-gray-600">
-                    <dt className={labelClass}>Audit</dt>
-                    <dd className="space-y-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
-                      <div>Created · {selectedRecord.auditTrail.createdBy?.userName || "—"}</div>
-                      <div>{formatDate(selectedRecord.auditTrail.createdAt)}</div>
-                      <div className="pt-2">
-                        Modified · {selectedRecord.auditTrail.lastModifiedBy?.userName || "—"}
-                      </div>
-                      <div>{formatDate(selectedRecord.auditTrail.lastModifiedAt)}</div>
-                      {selectedRecord.auditTrail.modificationHistory &&
-                        selectedRecord.auditTrail.modificationHistory.length > 0 && (
-                          <ul className="mt-2 space-y-1 border-t border-gray-200 pt-2 dark:border-gray-600">
-                            {selectedRecord.auditTrail.modificationHistory.map((change, idx) => (
-                              <li key={idx} className="pl-1 text-[11px]">
-                                <span className="font-medium text-gray-700 dark:text-gray-300">{change.field}</span>
-                                {": "}
-                                <span className="text-gray-500">{String(change.oldValue)}</span>
-                                {" → "}
-                                <span className="text-gray-500">{String(change.newValue)}</span>
-                                <span className="text-gray-400">
-                                  {" · "}
-                                  {change.changedBy?.userName || "—"}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
-                    </dd>
-                  </div>
-                )}
               </dl>
 
               <div className="flex flex-wrap justify-end gap-2 border-t border-gray-200 bg-gray-50/80 px-5 py-4 dark:border-gray-600 dark:bg-gray-900/30 sm:px-6">

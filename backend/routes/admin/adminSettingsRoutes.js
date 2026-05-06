@@ -4,20 +4,26 @@ import {
   updateDisplaySettings,
   updateNotificationSettings,
   updatePrivacySettings,
+  updateColorSettings,
+  resetColorSettings,
 } from "../../controllers/admin/adminSettingsController.js";
 import { protectAdmin } from "../../middleware/admin/adminMiddleware.js";
+import { cacheJSON } from "../../utils/cache.js";
 
 const router = express.Router();
 
 // All routes require admin authentication
 router.use(protectAdmin);
 
+// Settings rarely change; cache 5 min per admin. Invalidated on writes.
+const settingsCache = cacheJSON({ ttlMs: 5 * 60_000, prefix: "settings:" });
+
 /**
  * @route   GET /api/admin/settings
  * @desc    Get all admin settings
  * @access  Private (Admin only)
  */
-router.get("/", getSettings);
+router.get("/", settingsCache, getSettings);
 
 /**
  * @route   PUT /api/admin/settings/display
@@ -39,6 +45,20 @@ router.put("/notifications", updateNotificationSettings);
  * @access  Private (Admin only)
  */
 router.put("/privacy", updatePrivacySettings);
+
+/**
+ * @route   PUT /api/admin/settings/colors
+ * @desc    Update theme color customization
+ * @access  Private (Admin only)
+ */
+router.put("/colors", updateColorSettings);
+
+/**
+ * @route   POST /api/admin/settings/colors/reset
+ * @desc    Reset theme color customization to defaults
+ * @access  Private (Admin only)
+ */
+router.post("/colors/reset", resetColorSettings);
 
 export default router;
 

@@ -10,6 +10,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
 import { purgeExpiredArchivedRecords } from "./controllers/recordController.js";
+import { backfillAnnouncementNotifications } from "./controllers/counselorNotificationController.js";
 
 // ES6 module dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -34,6 +35,14 @@ setTimeout(() => {
 setInterval(() => {
   purgeExpiredArchivedRecords().catch((e) => console.error("[archive-purge] scheduled run:", e));
 }, ARCHIVE_PURGE_INTERVAL_MS);
+
+// One-time backfill so previously broadcast announcements reach Google-signed-in
+// counselors (the original fan-out only included the Counselor collection).
+setTimeout(() => {
+  backfillAnnouncementNotifications().catch((e) =>
+    console.error("[announcement-backfill] failed:", e)
+  );
+}, 5_000);
 
 // ✅ Initialize Express
 const app = express();
@@ -110,6 +119,7 @@ import backupRoutes from "./routes/admin/backupRoutes.js";
 import analyticsRoutes from "./routes/admin/analyticsRoutes.js";
 import publicAnalyticsRoutes from "./routes/analyticsRoutes.js";
 import reportsRoutes from "./routes/admin/reportsRoutes.js";
+import masterDataRoutes from "./routes/admin/masterDataRoutes.js";
 import counselorNotificationRoutes from "./routes/counselorNotificationRoutes.js";
 import counselorMessageRoutes from "./routes/counselorMessageRoutes.js";
 import adminMessageRoutes from "./routes/admin/adminMessageRoutes.js";
@@ -130,6 +140,7 @@ app.use("/api/admin", announcementRoutes);
 app.use("/api/admin/backups", backupRoutes);
 app.use("/api/admin/analytics", analyticsRoutes);
 app.use("/api/admin/reports", reportsRoutes);
+app.use("/api/admin", masterDataRoutes);
 app.use("/api/analytics", publicAnalyticsRoutes);
 app.use("/api/counselor/notifications", counselorNotificationRoutes);
 app.use("/api/counselor/messages", counselorMessageRoutes);

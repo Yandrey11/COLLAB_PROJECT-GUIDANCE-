@@ -4,6 +4,7 @@ import Counselor from "../models/Counselor.js";
 import Admin from "../models/Admin.js";
 import GoogleUser from "../models/GoogleUser.js";
 import { validatePassword } from "../utils/passwordValidation.js";
+import { emailLookupHash } from "../utils/userLookup.js";
 
 // ✅ Forgot Password — send code to user's email
 export const forgotPassword = async (req, res) => {
@@ -16,14 +17,14 @@ export const forgotPassword = async (req, res) => {
 
     console.log("📩 Forgot password request for:", email);
 
-    const emailRegex = new RegExp(`^${email.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
-    let user = await Counselor.findOne({ email: emailRegex });
+    const lookup = emailLookupHash(email);
+    let user = await Counselor.findOne({ emailLookup: lookup });
     if (!user) {
-      user = await Admin.findOne({ email: emailRegex });
+      user = await Admin.findOne({ emailLookup: lookup });
     }
     if (!user) {
       // Google-only user: create User or Admin so they can set a password for manual login
-      const googleUser = await GoogleUser.findOne({ email: emailRegex });
+      const googleUser = await GoogleUser.findOne({ emailLookup: lookup });
       if (googleUser) {
         const tempPassword = crypto.randomBytes(24).toString("hex");
         if (googleUser.role === "admin") {
@@ -51,9 +52,9 @@ export const forgotPassword = async (req, res) => {
     }
     if (!user) {
       // Debug: check if email exists in any collection (for troubleshooting)
-      const inUser = await Counselor.exists({ email: emailRegex });
-      const inAdmin = await Admin.exists({ email: emailRegex });
-      const inGoogle = await GoogleUser.exists({ email: emailRegex });
+      const inUser = await Counselor.exists({ emailLookup: lookup });
+      const inAdmin = await Admin.exists({ emailLookup: lookup });
+      const inGoogle = await GoogleUser.exists({ emailLookup: lookup });
       console.log("❌ No user found in DB");
       console.log(`   Counselor: ${!!inUser}, Admin: ${!!inAdmin}, GoogleUser: ${!!inGoogle}`);
       return res.status(404).json({ message: "No user found with this email" });
@@ -105,14 +106,15 @@ export const resetPassword = async (req, res) => {
     // Support both code-based (6-digit) and token-based (hex) reset
     if (token) {
       // Token-based reset (from admin-initiated reset or new user setup)
+      const lookup = emailLookupHash(email);
       user = await Counselor.findOne({
-        email,
+        emailLookup: lookup,
         resetPasswordCode: token,
       });
 
       if (!user) {
         user = await Admin.findOne({
-          email,
+          emailLookup: lookup,
           resetPasswordCode: token,
         });
         userType = "admin";
@@ -130,14 +132,15 @@ export const resetPassword = async (req, res) => {
       }
     } else if (code) {
       // Code-based reset (from forgot password) - check Counselor and Admin
+      const lookup = emailLookupHash(email);
       user = await Counselor.findOne({
-        email,
+        emailLookup: lookup,
         resetPasswordCode: code,
         resetPasswordExpires: { $gt: Date.now() },
       });
       if (!user) {
         user = await Admin.findOne({
-          email,
+          emailLookup: lookup,
           resetPasswordCode: code,
           resetPasswordExpires: { $gt: Date.now() },
         });
@@ -188,8 +191,9 @@ export const setPasswordWithToken = async (req, res) => {
     }
 
     // Check Counselor collection first
+    const lookup = emailLookupHash(email);
     let user = await Counselor.findOne({
-      email,
+      emailLookup: lookup,
       resetPasswordCode: token,
     });
 
@@ -198,7 +202,7 @@ export const setPasswordWithToken = async (req, res) => {
     // If not found in Counselor collection, check Admin collection
     if (!user) {
       user = await Admin.findOne({
-        email,
+        emailLookup: lookup,
         resetPasswordCode: token,
       });
       userType = "admin";

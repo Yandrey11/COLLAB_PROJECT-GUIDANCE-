@@ -1,10 +1,11 @@
 import mongoose from "mongoose";
+import encryptedFieldsPlugin from "../utils/encryptedFieldsPlugin.js";
 
 const googleUserSchema = new mongoose.Schema(
   {
     googleId: { type: String, required: true, unique: true },
     name: String,
-    email: { type: String, unique: true },
+    email: { type: String },
     role: {
       type: String,
       enum: ["counselor", "admin"],
@@ -38,6 +39,14 @@ googleUserSchema.methods.hasPermission = function (permission) {
   }
   return this.permissions?.[permission] === true;
 };
+
+googleUserSchema.plugin(encryptedFieldsPlugin, {
+  fields: ["name", "email", "phoneNumber", "bio", "profilePicture"],
+  lookups: {
+    emailLookup: { from: "email", normalize: "email", unique: true },
+    nameLookup: { from: "name", normalize: "name" },
+  },
+});
 
 // ✅ Set is_admin based on role for backwards compatibility
 googleUserSchema.pre("save", async function (next) {

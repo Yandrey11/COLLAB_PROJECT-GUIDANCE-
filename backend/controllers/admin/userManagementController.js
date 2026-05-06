@@ -2,11 +2,25 @@ import Counselor from "../../models/Counselor.js";
 import GoogleUser from "../../models/GoogleUser.js";
 import Admin from "../../models/Admin.js";
 import Session from "../../models/Session.js";
+import College from "../../models/College.js";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { createNotification } from "./notificationController.js";
-import { isValidCollege } from "../../utils/counselorColleges.js";
+import {
+  findAdminByEmail,
+  findCounselorByEmail,
+  findGoogleUserByEmail,
+  emailLookupHash,
+} from "../../utils/userLookup.js";
+
+const isValidCollege = async (value) => {
+  if (!value || typeof value !== "string") return false;
+  const collegeCount = await College.countDocuments({ isActive: true });
+  if (collegeCount === 0) return true; // Backward-compatible until master data is configured.
+  const exists = await College.exists({ isActive: true, name: value.trim() });
+  return Boolean(exists);
+};
 
 // Get all users with filters and pagination
 export const getAllUsers = async (req, res) => {
@@ -15,64 +29,46 @@ export const getAllUsers = async (req, res) => {
     const { page = 1, limit = 10, search = "", role = "all", status = "all" } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Build query
+    // Build query (only role filter goes to Mongo; name/email are encrypted
+    // ciphertext in the DB, so we decrypt-then-filter in memory below).
     const query = {};
-    
-    // Handle search
-    if (search) {
-      query.$or = [
-        { email: { $regex: search, $options: "i" } },
-        { name: { $regex: search, $options: "i" } },
-      ];
-    }
-
-    // Handle role filter
-    if (role !== "all") {
-      query.role = role;
-    }
-
-    // Note: We don't filter by accountStatus in the query anymore
-    // Status filter will be applied after checking online status
-
+    if (role !== "all") query.role = role;
     console.log("🔍 MongoDB query:", JSON.stringify(query, null, 2));
 
-    // Get regular users
     const regularUsers = await Counselor.find(query)
       .select("-password")
       .sort({ createdAt: -1 })
       .lean();
 
-    // Get Google users (apply same filters where applicable)
     const googleUsersQuery = {};
-    if (search) {
-      googleUsersQuery.$or = [
-        { email: { $regex: search, $options: "i" } },
-        { name: { $regex: search, $options: "i" } },
-      ];
-    }
-    // Apply role filter to Google users (they now have a role field)
-    if (role !== "all") {
-      googleUsersQuery.role = role;
-    }
+    if (role !== "all") googleUsersQuery.role = role;
     const googleUsers = await GoogleUser.find(googleUsersQuery)
       .sort({ createdAt: -1 })
       .lean();
 
-    // Get admins (apply same filters where applicable)
-    const adminQuery = {};
-    if (search) {
-      adminQuery.$or = [
-        { email: { $regex: search, $options: "i" } },
-        { name: { $regex: search, $options: "i" } },
-      ];
-    }
-    // Admins have role "admin", so include them when role is "all" or "admin"
     const admins = role === "all" || role === "admin"
-      ? await Admin.find(adminQuery)
+      ? await Admin.find({})
           .select("-password")
           .sort({ createdAt: -1 })
           .lean()
       : [];
+
+    // Decrypt-then-filter for substring search.
+    if (search && typeof search === "string" && search.trim()) {
+      const needle = search.trim().toLowerCase();
+      const matches = (u) =>
+        (u.email || "").toLowerCase().includes(needle) ||
+        (u.name || "").toLowerCase().includes(needle);
+      const filterRegular = regularUsers.filter(matches);
+      regularUsers.length = 0;
+      regularUsers.push(...filterRegular);
+      const filterGoogle = googleUsers.filter(matches);
+      googleUsers.length = 0;
+      googleUsers.push(...filterGoogle);
+      const filterAdmins = admins.filter(matches);
+      admins.length = 0;
+      admins.push(...filterAdmins);
+    }
 
     // Combine all user types
     const allUsers = [
@@ -230,9 +226,9 @@ export const createUser = async (req, res) => {
     }
 
     // Check for duplicate email across User, Admin, and GoogleUser collections
-    const existingUser = await Counselor.findOne({ email });
-    const existingAdmin = await Admin.findOne({ email });
-    const existingGoogleUser = await GoogleUser.findOne({ email });
+    const existingUser = await findCounselorByEmail(email);
+    const existingAdmin = await findAdminByEmail(email);
+    const existingGoogleUser = await findGoogleUserByEmail(email);
     if (existingUser || existingAdmin || existingGoogleUser) {
       return res.status(400).json({ message: "Email already exists" });
     }
@@ -358,9 +354,10 @@ export const updateUser = async (req, res) => {
       }
 
       // Check for duplicate email across all collections (excluding current user)
-      const existingUser = await Counselor.findOne({ email, _id: { $ne: userId } });
-      const existingGoogleUser = await GoogleUser.findOne({ email, _id: { $ne: userId } });
-      const existingAdmin = await Admin.findOne({ email, _id: { $ne: userId } });
+      const lookup = emailLookupHash(email);
+      const existingUser = await Counselor.findOne({ emailLookup: lookup, _id: { $ne: userId } });
+      const existingGoogleUser = await GoogleUser.findOne({ emailLookup: lookup, _id: { $ne: userId } });
+      const existingAdmin = await Admin.findOne({ emailLookup: lookup, _id: { $ne: userId } });
       
       if (existingUser || existingGoogleUser || existingAdmin) {
         return res.status(400).json({ message: "Email already exists" });
@@ -650,8 +647,8 @@ export const resetUserPassword = async (req, res) => {
     // Google users don't have passwords (they use OAuth)
     if (userType === "google") {
       const googleUser = user;
-      let localUser = await Counselor.findOne({ email: googleUser.email });
-      let localAdmin = await Admin.findOne({ email: googleUser.email });
+      let localUser = await findCounselorByEmail(googleUser.email);
+      let localAdmin = await findAdminByEmail(googleUser.email);
       if (localAdmin) {
         user = localAdmin;
         userType = "admin";

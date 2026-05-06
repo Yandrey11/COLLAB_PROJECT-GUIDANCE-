@@ -7,30 +7,27 @@ export const getAllUsers = async (req, res) => {
     const { page = 1, limit = 10, search = "", role = "all", status = "all" } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Build query for users
+    // Build query for users (name/email are encrypted at rest, so we filter
+    // those in memory after decryption rather than via Mongo $regex).
     const userQuery = {};
-    
-    if (search) {
-      userQuery.$or = [
-        { email: { $regex: search, $options: "i" } },
-        { name: { $regex: search, $options: "i" } },
-      ];
-    }
+    if (role !== "all") userQuery.role = role;
 
-    if (role !== "all") {
-      userQuery.role = role;
-    }
-
-    // Get all users with pagination
-    const users = await Counselor.find(userQuery)
+    let users = await Counselor.find(userQuery)
       .select("-password")
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
       .lean();
 
-    // Get total count
-    const total = await Counselor.countDocuments(userQuery);
+    if (search && typeof search === "string" && search.trim()) {
+      const needle = search.trim().toLowerCase();
+      users = users.filter(
+        (u) =>
+          (u.email || "").toLowerCase().includes(needle) ||
+          (u.name || "").toLowerCase().includes(needle)
+      );
+    }
+
+    const total = users.length;
+    users = users.slice(skip, skip + parseInt(limit));
 
     // Get all active session user IDs
     const activeSessions = await Session.find({ isActive: true }).select("userId").lean();

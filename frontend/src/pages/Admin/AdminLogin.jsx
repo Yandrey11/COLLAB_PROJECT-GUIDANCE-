@@ -66,6 +66,9 @@ export default function AdminLogin() {
 
       localStorage.setItem("adminToken", res.data.token);
       localStorage.setItem("admin", JSON.stringify(res.data.admin));
+      localStorage.setItem("activeRole", "admin");
+      // Clear cached counselor color theme so admin defaults / API values apply
+      localStorage.removeItem("themeColors");
 
       const storedToken = localStorage.getItem("adminToken");
       if (!storedToken) {

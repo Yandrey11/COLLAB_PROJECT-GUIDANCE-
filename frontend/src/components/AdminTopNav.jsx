@@ -27,19 +27,33 @@ export default function AdminTopNav() {
       const res = await axios.get(`${baseUrl}/api/admin/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.data?.success && res.data?.profile) {
-        setAdmin(res.data.profile);
-      } else if (res.data?.admin) {
-        setAdmin(res.data.admin);
+      let profile = null;
+      if (res.data?.success && res.data?.profile) profile = res.data.profile;
+      else if (res.data?.admin) profile = res.data.admin;
+      if (profile) {
+        setAdmin(profile);
+        sessionStorage.setItem("adminProfileCache", JSON.stringify(profile));
       }
     } catch {
-      setAdmin(null);
+      // keep cached admin if any
     }
   }, []);
 
+  // Hydrate from sessionStorage immediately to avoid blank avatar on every nav,
+  // then validate from API only ONCE per session.
   useEffect(() => {
+    const cached = sessionStorage.getItem("adminProfileCache");
+    if (cached) {
+      try {
+        setAdmin(JSON.parse(cached));
+      } catch {
+        // ignore parse errors
+      }
+    }
+    if (sessionStorage.getItem("adminProfileSynced") === "1") return;
+    sessionStorage.setItem("adminProfileSynced", "1");
     fetchAdminProfile();
-  }, [fetchAdminProfile, location.pathname]);
+  }, [fetchAdminProfile]);
 
   useEffect(() => {
     const onClickAway = (event) => {
@@ -56,8 +70,9 @@ export default function AdminTopNav() {
       { label: "Users", path: "/admin/users" },
       { label: "Records", path: "/admin/records" },
       { label: "Reports", path: "/admin/reports" },
+      { label: "Notifications", path: "/admin/notifications" },
+      { label: "Backup", path: "/admin/backups" },
       { label: "Messages", path: "/admin/messages", hasAdminMessagesBadge: true },
-      { label: "Settings", path: "/admin/settings" },
     ],
     []
   );
@@ -80,10 +95,18 @@ export default function AdminTopNav() {
     });
     if (!result.isConfirmed) return;
     localStorage.removeItem("adminToken");
+    sessionStorage.removeItem("adminProfileCache");
+    sessionStorage.removeItem("adminProfileSynced");
     navigate("/", { replace: true });
   }, [navigate]);
 
   const displayName = admin?.name || admin?.email?.split("@")[0] || "Admin";
+
+  // Active link uses the user's chosen primary theme color (CSS variable).
+  const activeNavItemStyle = {
+    backgroundColor: "var(--theme-primary)",
+    color: "var(--theme-primary-contrast, #ffffff)",
+  };
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 h-20 border-b border-gray-200/75 bg-white/95 shadow-[0_1px_0_rgba(0,0,0,0.03),0_8px_30px_rgba(0,0,0,0.06)] backdrop-blur dark:border-gray-700/80 dark:bg-gray-900/95">
@@ -110,9 +133,10 @@ export default function AdminTopNav() {
               to={item.path}
               className={`relative inline-flex items-center rounded-lg px-3.5 py-2 text-sm font-medium transition-colors ${
                 isActive(item.path)
-                  ? "bg-indigo-600 text-white shadow-sm dark:bg-indigo-500"
+                  ? "shadow-sm"
                   : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               }`}
+              style={isActive(item.path) ? activeNavItemStyle : undefined}
             >
               <span className={item.hasAdminMessagesBadge ? "pr-6" : ""}>{item.label}</span>
               {item.hasAdminMessagesBadge ? (
@@ -197,9 +221,10 @@ export default function AdminTopNav() {
                 onClick={() => setMenuOpen(false)}
                 className={`relative rounded-lg px-3 py-2 text-sm font-medium ${
                   isActive(item.path)
-                    ? "bg-indigo-600 text-white dark:bg-indigo-500"
+                    ? ""
                     : "bg-gray-50 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
                 }`}
+                style={isActive(item.path) ? activeNavItemStyle : undefined}
               >
                 <span className={item.hasAdminMessagesBadge ? "pr-6" : ""}>{item.label}</span>
                 {item.hasAdminMessagesBadge ? (

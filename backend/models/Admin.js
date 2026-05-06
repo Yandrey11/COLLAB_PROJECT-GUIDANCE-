@@ -1,10 +1,11 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import encryptedFieldsPlugin from "../utils/encryptedFieldsPlugin.js";
 
 const adminSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    email: { type: String, required: true },
     password: { type: String, required: true },
     role: { type: String, default: "admin" },
     googleId: { type: String, sparse: true }, // For Google OAuth; allows manual login with same email
@@ -36,6 +37,13 @@ const adminSchema = new mongoose.Schema(
         hideProfilePhoto: { type: Boolean, default: false },
         maskNameInNotifications: { type: Boolean, default: false },
       },
+      // Color customization (hex strings #rrggbb). Admin defaults = blue palette.
+      colors: {
+        bg: { type: String, default: "#eff6ff", match: [/^#([0-9a-fA-F]{6})$/, "bg must be a 6-digit hex color"] },
+        primary: { type: String, default: "#2563eb", match: [/^#([0-9a-fA-F]{6})$/, "primary must be a 6-digit hex color"] },
+        accent: { type: String, default: "#60a5fa", match: [/^#([0-9a-fA-F]{6})$/, "accent must be a 6-digit hex color"] },
+        preset: { type: String, enum: ["default", "purple", "blue", "green", "rose", "custom"], default: "blue" },
+      },
     },
     // RBAC Permissions - Admins have all permissions by default
     permissions: {
@@ -48,6 +56,14 @@ const adminSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+adminSchema.plugin(encryptedFieldsPlugin, {
+  fields: ["name", "email", "phoneNumber", "bio", "profilePicture"],
+  lookups: {
+    emailLookup: { from: "email", normalize: "email", unique: true },
+    nameLookup: { from: "name", normalize: "name" },
+  },
+});
 
 // ✅ Hash password before saving (only if not already hashed)
 adminSchema.pre("save", async function (next) {

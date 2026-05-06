@@ -5,6 +5,8 @@ import Counselor from "../../models/Counselor.js";
 import { createNotification } from "./notificationController.js";
 import { createCounselorNotification, createNotificationForAllCounselors } from "../counselorNotificationController.js";
 import { logLockAction } from "./recordLockController.js";
+import { hmac } from "../../utils/fieldCrypto.js";
+import { sanitizeRecordForApi, sanitizeRecordsForApi } from "../../utils/recordApiSanitize.js";
 
 // Helper to get user info from request
 const getUserInfo = (req) => {
@@ -39,58 +41,60 @@ export const getAllRecords = async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const filter = {};
 
-    // Search filter (client name or counselor)
-    if (search) {
-      filter.$or = [
-        { clientName: { $regex: search, $options: "i" } },
-        { counselor: { $regex: search, $options: "i" } },
-      ];
-    }
-
     // Status filter
-    if (status && status !== "all") {
-      filter.status = status;
-    }
+    if (status && status !== "all") filter.status = status;
+    if (sessionType && sessionType !== "all") filter.sessionType = sessionType;
 
-    // Session type filter
-    if (sessionType && sessionType !== "all") {
-      filter.sessionType = sessionType;
-    }
-
-    // Counselor filter
+    // Counselor exact match goes through counselorLookup HMAC.
     if (counselor && counselor !== "all") {
-      filter.counselor = counselor;
+      filter.counselorLookup = hmac(counselor, "name");
     }
 
-    // Date range filter
     if (startDate && endDate) {
-      filter.date = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate),
-      };
+      filter.date = { $gte: new Date(startDate), $lte: new Date(endDate) };
     }
 
-    // Sort options
+    const SAFE_SORT_FIELDS = new Set([
+      "date",
+      "createdAt",
+      "updatedAt",
+      "status",
+      "sessionType",
+      "schoolYear",
+      "yearLevel",
+      "section",
+      "college",
+      "course",
+      "gender",
+    ]);
     const sortOption = {};
-    sortOption[sortBy] = order === "desc" ? -1 : 1;
+    if (SAFE_SORT_FIELDS.has(sortBy)) sortOption[sortBy] = order === "desc" ? -1 : 1;
+    else sortOption.date = order === "desc" ? -1 : 1;
 
     const showArchived = archived === "true" || archived === true;
     const archFrag = showArchived ? isArchivedFilter() : notArchivedFilter();
     const listFilter =
       Object.keys(filter).length === 0 ? archFrag : { $and: [filter, archFrag] };
 
-    // Get records with pagination
-    const records = await Record.find(listFilter)
-      .sort(sortOption)
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
+    // Substring search on encrypted clientName/counselor => decrypt-then-filter.
+    let records = await Record.find(listFilter).sort(sortOption).lean();
+    records = sanitizeRecordsForApi(records);
+    if (search && typeof search === "string" && search.trim()) {
+      const n = search.trim().toLowerCase();
+      records = records.filter(
+        (r) =>
+          (r.clientName || "").toLowerCase().includes(n) ||
+          (r.counselor || "").toLowerCase().includes(n)
+      );
+    }
+    const total = records.length;
+    records = records.slice(skip, skip + parseInt(limit));
 
-    // Get total count
-    const total = await Record.countDocuments(listFilter);
-
-    // Get unique counselors for filter dropdown
-    const counselors = await Record.distinct("counselor");
+    // Counselor dropdown options: small set of distinct (decrypted) counselor strings.
+    const allCounselors = await Record.find({}).select("counselor").lean();
+    const counselors = [
+      ...new Set(sanitizeRecordsForApi(allCounselors).map((r) => r.counselor).filter(Boolean)),
+    ];
 
     res.status(200).json({
       records,
@@ -132,7 +136,7 @@ export const getRecordById = async (req, res) => {
       isActive: true,
     });
 
-    const recordObj = record.toObject();
+    const recordObj = sanitizeRecordForApi(record);
     
     // Add lock metadata
     if (lock && !lock.isExpired()) {
@@ -337,12 +341,10 @@ export const updateRecord = async (req, res) => {
     // Create notification for counselor if record was assigned/reassigned
     if (counselorChanged && newCounselorName && newCounselorName !== oldCounselorName) {
       try {
-        // Find counselor by name or email
+        const lookup = hmac(newCounselorName, "name");
+        const emailLookupHmac = hmac(newCounselorName, "email");
         const counselor = await Counselor.findOne({
-          $or: [
-            { name: newCounselorName },
-            { email: newCounselorName },
-          ],
+          $or: [{ nameLookup: lookup }, { emailLookup: emailLookupHmac }],
           role: "counselor",
         });
 
@@ -368,13 +370,11 @@ export const updateRecord = async (req, res) => {
         console.error("⚠️ Counselor notification creation failed (non-critical):", notificationError);
       }
     } else if (!counselorChanged && newCounselorName) {
-      // Record was updated but counselor didn't change - notify the counselor
       try {
+        const lookup = hmac(newCounselorName, "name");
+        const emailLookupHmac = hmac(newCounselorName, "email");
         const counselor = await Counselor.findOne({
-          $or: [
-            { name: newCounselorName },
-            { email: newCounselorName },
-          ],
+          $or: [{ nameLookup: lookup }, { emailLookup: emailLookupHmac }],
           role: "counselor",
         });
 
@@ -463,7 +463,7 @@ export const patchRecordRecommendation = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "No change",
-        record: record.toObject(),
+        record: sanitizeRecordForApi(record),
       });
     }
 
@@ -507,7 +507,7 @@ export const patchRecordRecommendation = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Recommendation saved",
-      record: record.toObject(),
+      record: sanitizeRecordForApi(record),
     });
   } catch (error) {
     console.error("❌ Error saving recommendation:", error);

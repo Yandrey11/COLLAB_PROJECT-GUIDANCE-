@@ -6,7 +6,6 @@ import Swal from "sweetalert2";
 import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
-import { COUNSELOR_COLLEGES } from "../../constants/counselorColleges";
 
 export default function UserManagement() {
   useDocumentTitle("Admin User Management");
@@ -48,6 +47,7 @@ export default function UserManagement() {
   const [loadingPermissions, setLoadingPermissions] = useState(false);
   const [formErrors, setFormErrors] = useState({});
   const [showActionsColumn, setShowActionsColumn] = useState(true);
+  const [collegeOptions, setCollegeOptions] = useState([]);
 
   useEffect(() => {
     initializeTheme();
@@ -75,6 +75,7 @@ export default function UserManagement() {
 
         // Load initial data - fetch counselors by default
         await fetchUsers(token, 1, "", "counselor", "all");
+        await fetchCollegeOptions(token);
         setLoading(false);
       } catch (err) {
         console.error("❌ Admin verification failed:", err);
@@ -105,6 +106,20 @@ export default function UserManagement() {
       setUsers([]);
       setTotalPages(1);
       setCurrentPage(1);
+    }
+  };
+
+  const fetchCollegeOptions = async (token) => {
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const res = await axios.get(`${baseUrl}/api/admin/master-data`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.data?.success && Array.isArray(res.data.colleges)) {
+        setCollegeOptions(res.data.colleges.map((c) => c.name));
+      }
+    } catch (err) {
+      console.warn("Failed to fetch college options:", err?.response?.data || err.message);
     }
   };
 
@@ -927,7 +942,7 @@ export default function UserManagement() {
                       className={`${selectClass} ${formErrors.college ? "border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-500" : ""}`}
                     >
                       <option value="">Select college</option>
-                      {COUNSELOR_COLLEGES.map((c) => (
+                      {collegeOptions.map((c) => (
                         <option key={c} value={c}>
                           {c}
                         </option>
@@ -1049,7 +1064,7 @@ export default function UserManagement() {
                       className={`${selectClass} ${formErrors.college ? "border-red-500 focus:border-red-500 focus:ring-red-500 dark:border-red-500" : ""}`}
                     >
                       <option value="">Select college</option>
-                      {COUNSELOR_COLLEGES.map((c) => (
+                      {collegeOptions.map((c) => (
                         <option key={c} value={c}>
                           {c}
                         </option>

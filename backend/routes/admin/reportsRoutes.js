@@ -2,6 +2,7 @@ import express from "express";
 import {
   getReportsOverview,
   getFilteredRecords,
+  generateCounselingSummaryPdfAdmin,
   generateReport,
   getAllReports,
   getReportById,
@@ -36,6 +37,9 @@ router.get("/:id/download-pdf", downloadReportPDF);
 
 // Download report (returns Drive link)
 router.get("/:id/download", downloadReport);
+
+// Stream counseling summary table PDF (filters in body; no modal / report name)
+router.post("/summary-pdf", generateCounselingSummaryPdfAdmin);
 
 // Generate new report
 router.post("/generate", generateReport);

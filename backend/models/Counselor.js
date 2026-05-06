@@ -1,11 +1,12 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { COUNSELOR_COLLEGES } from "../utils/counselorColleges.js";
+import encryptedFieldsPlugin from "../utils/encryptedFieldsPlugin.js";
 
 const counselorSchema = new mongoose.Schema(
   {
     name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
+    email: { type: String, required: true },
     password: { type: String, required: true },
     college: {
       type: String,
@@ -41,6 +42,14 @@ const counselorSchema = new mongoose.Schema(
   },
   { timestamps: true, collection: "users" }
 );
+
+counselorSchema.plugin(encryptedFieldsPlugin, {
+  fields: ["name", "email", "phoneNumber", "bio", "profilePicture"],
+  lookups: {
+    emailLookup: { from: "email", normalize: "email", unique: true },
+    nameLookup: { from: "name", normalize: "name" },
+  },
+});
 
 // ✅ Hash password ONLY if modified and not already hashed
 counselorSchema.pre("save", async function (next) {

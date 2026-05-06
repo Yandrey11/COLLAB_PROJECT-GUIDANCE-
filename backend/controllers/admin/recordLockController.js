@@ -5,6 +5,8 @@ import { createNotification } from "./notificationController.js";
 import { createCounselorNotification } from "../counselorNotificationController.js";
 import Admin from "../../models/Admin.js";
 import Counselor from "../../models/Counselor.js";
+import { hmac } from "../../utils/fieldCrypto.js";
+import { sanitizeRecordForApi } from "../../utils/recordApiSanitize.js";
 
 /**
  * Helper to get user info from request
@@ -260,8 +262,7 @@ export const lockRecord = async (req, res) => {
         if (!counselorUser && record.counselor) {
           counselorUser = await Counselor.findOne({ 
             $or: [
-              { name: record.counselor },
-              { email: record.counselor }
+              { nameLookup: hmac(record.counselor, "name") }, { emailLookup: hmac(record.counselor, "email") }
             ],
             role: "counselor"
           });
@@ -422,8 +423,7 @@ export const unlockRecord = async (req, res) => {
         if (!counselorUser && record.counselor) {
           counselorUser = await Counselor.findOne({ 
             $or: [
-              { name: record.counselor },
-              { email: record.counselor }
+              { nameLookup: hmac(record.counselor, "name") }, { emailLookup: hmac(record.counselor, "email") }
             ],
             role: "counselor"
           });
@@ -1010,10 +1010,11 @@ export const getAllLockLogs = async (req, res) => {
           try {
             const record = await Record.findById(log.recordId).select("clientName sessionNumber").lean();
             if (record) {
+              const safe = sanitizeRecordForApi(record);
               recordInfo = {
-                id: record._id,
-                clientName: record.clientName || "Unknown",
-                sessionNumber: record.sessionNumber || "N/A",
+                id: safe._id,
+                clientName: safe.clientName || "Unknown",
+                sessionNumber: safe.sessionNumber || "N/A",
               };
             }
           } catch (err) {

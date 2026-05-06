@@ -20,23 +20,26 @@ export default function CalendarView({ calendarEvents = [], records = [] }) {
     "July", "August", "September", "October", "November", "December"
   ];
 
-  // Helper function to format date as YYYY-MM-DD (handles ISO strings, Date objects, MongoDB $date)
+  // Format date as YYYY-MM-DD using LOCAL time so keys align with calendar cells
+  // built via `new Date(year, month, day)` (which is also local time).
   const formatDateKey = (date) => {
     if (!date) return null;
-    let dateStr = null;
+
+    // Date-only strings (no time, no Z) are stable — return them as-is.
     if (typeof date === "string") {
-      dateStr = /^\d{4}-\d{2}-\d{2}/.test(date) ? date.substring(0, 10) : date;
-    } else if (date && typeof date === "object" && date.$date) {
-      dateStr = date.$date;
+      const dateOnly = /^(\d{4}-\d{2}-\d{2})$/.exec(date);
+      if (dateOnly) return dateOnly[1];
     }
-    if (dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-      return dateStr.substring(0, 10);
-    }
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return null;
-    const y = d.getUTCFullYear();
-    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(d.getUTCDate()).padStart(2, "0");
+
+    let raw = date;
+    if (date && typeof date === "object" && date.$date) raw = date.$date;
+
+    const d = raw instanceof Date ? raw : new Date(raw);
+    if (Number.isNaN(d.getTime())) return null;
+
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
   };
 

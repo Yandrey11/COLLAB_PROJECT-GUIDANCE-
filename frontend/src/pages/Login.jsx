@@ -87,6 +87,8 @@ function Login() {
       localStorage.setItem("authToken", res.data.token);
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user || res.data.result));
+      localStorage.setItem("activeRole", "counselor");
+      localStorage.removeItem("themeColors");
 
       await Swal.fire({
         icon: "success",

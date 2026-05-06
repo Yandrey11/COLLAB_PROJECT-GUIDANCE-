@@ -2,31 +2,21 @@
 import Record from "../models/Record.js";
 import { createNotification } from "./admin/notificationController.js";
 import { notArchivedFilter } from "../config/recordArchive.js";
+import { recordCounselorScopeFilter } from "../utils/userLookup.js";
+import { sanitizeRecordsForApi } from "../utils/recordApiSanitize.js";
 
-/**
- * Counselors only see their own records; admins (role / is_admin) see all.
- * @returns {object|null} Mongo filter fragment to AND with other conditions, or null for no scope.
- */
-const counselorScopeFilter = (req) => {
-  const user = req.user || req.admin;
-  if (!user) return null;
-  if (user.role === "admin" || user.permissions?.is_admin === true) {
-    return null;
-  }
-  const userName = (user.name && String(user.name).trim()) || "";
-  const userEmail = (user.email && String(user.email).trim()) || "";
-  const or = [
-    ...(userName ? [{ counselor: userName }, { "auditTrail.createdBy.userName": userName }] : []),
-    ...(userEmail ? [{ counselor: userEmail }] : []),
-  ];
-  if (or.length === 0) return { _id: { $exists: false } };
-  return { $or: or };
+const counselorScopeFilter = recordCounselorScopeFilter;
+
+const filterByClientNameNeedle = (records, needle) => {
+  if (!needle) return records;
+  const n = String(needle).toLowerCase();
+  return records.filter((r) => (r.clientName || "").toLowerCase().includes(n));
 };
 
 function buildReportsQuery(req, extra = {}) {
-  const { clientName, startDate, endDate } = extra;
+  // clientName is encrypted at rest; we filter on it after decrypt.
+  const { startDate, endDate } = extra;
   const parts = [notArchivedFilter()];
-  if (clientName) parts.push({ clientName: new RegExp(clientName, "i") });
   if (startDate && endDate) {
     parts.push({ date: { $gte: new Date(startDate), $lte: new Date(endDate) } });
   }
@@ -40,9 +30,11 @@ function buildReportsQuery(req, extra = {}) {
 export const getReports = async (req, res) => {
   try {
     const { clientName, startDate, endDate } = req.query;
-    const query = buildReportsQuery(req, { clientName, startDate, endDate });
-    const reports = await Record.find(query).sort({ date: -1 });
-    res.status(200).json(reports);
+    const query = buildReportsQuery(req, { startDate, endDate });
+    const reports = sanitizeRecordsForApi(
+      await Record.find(query).sort({ date: -1 }).lean()
+    );
+    res.status(200).json(filterByClientNameNeedle(reports, clientName));
   } catch (err) {
     console.error("❌ Error fetching reports:", err);
     res.status(500).json({ message: "Failed to fetch reports" });
@@ -64,7 +56,7 @@ export const generateReport = async (req, res) => {
   }
 
   try {
-    const parts = [notArchivedFilter(), { clientName: new RegExp(clientName, "i") }];
+    const parts = [notArchivedFilter()];
     if (startDate && endDate) {
       parts.push({ date: { $gte: new Date(startDate), $lte: new Date(endDate) } });
     }
@@ -72,7 +64,8 @@ export const generateReport = async (req, res) => {
     if (scope) parts.push(scope);
     const query = parts.length === 1 ? parts[0] : { $and: parts };
 
-    const sessions = await Record.find(query);
+    const allSessions = sanitizeRecordsForApi(await Record.find(query).lean());
+    const sessions = filterByClientNameNeedle(allSessions, clientName);
 
     if (!sessions.length) {
       return res.status(404).json({ message: "No sessions found for this client" });
@@ -129,11 +122,12 @@ export const generateReport = async (req, res) => {
 export const getClientReport = async (req, res) => {
   try {
     const { clientName } = req.params;
-    const parts = [notArchivedFilter(), { clientName: new RegExp(clientName, "i") }];
+    const parts = [notArchivedFilter()];
     const scope = counselorScopeFilter(req);
     if (scope) parts.push(scope);
     const query = parts.length === 1 ? parts[0] : { $and: parts };
-    const records = await Record.find(query);
+    const allRecords = sanitizeRecordsForApi(await Record.find(query).lean());
+    const records = filterByClientNameNeedle(allRecords, clientName);
 
     if (!records.length) {
       return res.status(404).json({ message: "No report found for this client" });
