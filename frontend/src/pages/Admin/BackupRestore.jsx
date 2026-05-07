@@ -6,8 +6,9 @@ import { motion } from "framer-motion";
 import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import { API_BASE_URL } from "../../config/apiBaseUrl";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const BASE_URL = API_BASE_URL;
 
 export default function BackupRestore() {
   useDocumentTitle("Backup & Restore");

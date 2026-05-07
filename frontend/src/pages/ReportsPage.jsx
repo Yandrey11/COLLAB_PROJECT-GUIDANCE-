@@ -8,8 +8,9 @@ import CounselorSidebar from "../components/CounselorSidebar";
 import CounselorHeaderProfile from "../components/CounselorHeaderProfile.jsx";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/reports`;
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+import { API_BASE_URL } from "../config/apiBaseUrl";
+const API_URL = `${API_BASE_URL}/api/reports`;
+const BASE_URL = API_BASE_URL;
 const RECORDS_API_URL = `${BASE_URL}/api/records`;
 const GENERATED_REPORTS_STORAGE_KEY = "counselorGeneratedReports";
 
@@ -196,7 +197,7 @@ const ReportsPage = () => {
         return;
       }
       
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.get(`${baseUrl}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -295,7 +296,7 @@ const ReportsPage = () => {
         const token = localStorage.getItem("token");
         if (!token || !user) return;
 
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         const res = await axios.get(`${baseUrl}/api/profile`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -559,7 +560,7 @@ const ReportsPage = () => {
 
     if (result.isConfirmed) {
       const token = localStorage.getItem("authToken") || localStorage.getItem("token");
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
 
       try {
         if (token) {

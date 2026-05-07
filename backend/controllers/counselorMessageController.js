@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import AdminCounselorMessage from "../models/AdminCounselorMessage.js";
 import { createNotification } from "./admin/notificationController.js";
 import { cacheInvalidate } from "../utils/cache.js";
+import { decrypt } from "../utils/fieldCrypto.js";
 
 const MAX_BODY_LEN = 4000;
 
@@ -38,8 +39,8 @@ export const getCounselorMessages = async (req, res) => {
       counselorId: m.counselorId,
       senderRole: m.senderRole,
       senderUserId: m.senderUserId,
-      senderName: m.senderName,
-      body: m.body,
+      senderName: decrypt(m.senderName),
+      body: decrypt(m.body),
       readAt: m.readAt,
       createdAt: m.createdAt,
       updatedAt: m.updatedAt,

@@ -7,6 +7,7 @@ import {
   getCounselorUnreadMessageCount,
 } from "../controllers/counselorMessageController.js";
 import { cacheJSON } from "../utils/cache.js";
+import { sensitiveWriteLimiter } from "../middleware/rateLimitMiddleware.js";
 
 const router = express.Router();
 router.use(protect);
@@ -16,8 +17,8 @@ router.use(protect);
 const messagesCache = cacheJSON({ ttlMs: 15_000, prefix: "messages:" });
 
 router.get("/unread-count", messagesCache, getCounselorUnreadMessageCount);
-router.post("/mark-read", markCounselorMessagesRead);
+router.post("/mark-read", sensitiveWriteLimiter, markCounselorMessagesRead);
 router.get("/", messagesCache, getCounselorMessages);
-router.post("/", postCounselorMessage);
+router.post("/", sensitiveWriteLimiter, postCounselorMessage);
 
 export default router;

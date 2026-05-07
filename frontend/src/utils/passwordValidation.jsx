@@ -105,11 +105,11 @@ export const PASSWORD_RULES = [
   },
   {
     id: "noSpaces",
-    label: "No leading/trailing spaces",
-    hint: "Password cannot contain spaces at the beginning or end.",
+    label: "No spaces",
+    hint: "Password cannot contain spaces.",
     test: (password = "") => {
       if (!password) return true;
-      return password.trim() === password && !password.includes(" ");
+      return !password.includes(" ");
     },
   },
   {
@@ -140,8 +140,7 @@ export function validatePassword(password = "", options = {}) {
     let passed = false;
     
     if (rule.id === "noSpaces") {
-      // Special handling for space check
-      passed = !hasLeadingTrailingSpaces && (trimmedPassword === password || !password.includes(" "));
+      passed = !password.includes(" ");
     } else {
       passed = rule.test(trimmedPassword);
     }
@@ -197,12 +196,11 @@ export function validatePassword(password = "", options = {}) {
     strength = "Weak";
   }
   
-  // Password is valid only if all required rules pass and it's not common
+  // Acceptance policy: reject weak; accept medium/strong with core safeguards.
   const isValid = 
-    errors.length === 0 && 
-    !hasLeadingTrailingSpaces && 
+    strength !== "Weak" &&
     !isCommonPassword(trimmedPassword) && 
-    !hasPersonalInfo &&
+    !password.includes(" ") &&
     trimmedPassword.length >= 8;
 
   return {

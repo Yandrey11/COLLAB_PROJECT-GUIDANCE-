@@ -6,6 +6,7 @@ import buksuLogo from "../assets/buksu-logo.png";
 import sweuLogo from "../assets/SWEU - LOGO.jpeg";
 import { MessagesBadgeBadge, NotificationBadgeBadge } from "./NotificationBadge";
 import { getCounselorCollegeAvatarRingClass } from "../constants/counselorColleges";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
 const defaultAvatarRing =
   "border border-gray-200/90 shadow-[0_0_0_1px_rgba(0,0,0,0.04)] dark:border-gray-600 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06)]";
@@ -44,7 +45,7 @@ export default function CounselorTopNav() {
         setUser(raw ? JSON.parse(raw) : null);
         return;
       }
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.get(`${baseUrl}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -129,7 +130,7 @@ export default function CounselorTopNav() {
 
     const token = localStorage.getItem("authToken") || localStorage.getItem("token");
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       if (token) {
         await fetch(`${baseUrl}/api/auth/logout`, {
           method: "POST",

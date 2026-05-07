@@ -1,5 +1,4 @@
 import express from "express";
-import { adminSignup } from "../../controllers/admin/adminSignupController.js";
 import { adminLogin } from "../../controllers/admin/adminLoginController.js";
 import { getSummary } from "../../controllers/admin/summaryController.js";
 
@@ -7,7 +6,6 @@ import { protectAdmin } from "../../middleware/admin/adminMiddleware.js";
 
 const router = express.Router();
 
-router.post("/signup", adminSignup);
 router.post("/login", adminLogin);
 
 // ✅ Protected example route

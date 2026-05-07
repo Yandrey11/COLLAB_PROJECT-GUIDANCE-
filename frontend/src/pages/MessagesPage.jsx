@@ -7,8 +7,9 @@ import CounselorSidebar from "../components/CounselorSidebar";
 import CounselorHeaderProfile from "../components/CounselorHeaderProfile.jsx";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const BASE_URL = API_BASE_URL;
 const API_URL = `${BASE_URL}/api/counselor/messages`;
 
 const pageStagger = {

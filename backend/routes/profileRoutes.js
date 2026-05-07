@@ -9,6 +9,7 @@ import {
 } from "../controllers/profileController.js";
 import { protect } from "../middleware/authMiddleware.js";
 import { uploadProfilePicture as uploadMiddleware } from "../middleware/uploadMiddleware.js";
+import { sensitiveWriteLimiter, uploadLimiter } from "../middleware/rateLimitMiddleware.js";
 
 const router = express.Router();
 
@@ -27,28 +28,28 @@ router.get("/", protect, getProfile);
  * @desc    Update counselor profile
  * @access  Private (Counselor only)
  */
-router.put("/", protect, updateProfile);
+router.put("/", sensitiveWriteLimiter, protect, updateProfile);
 
 /**
  * @route   POST /api/profile/password
  * @desc    Change password
  * @access  Private (Counselor only)
  */
-router.post("/password", protect, changePassword);
+router.post("/password", sensitiveWriteLimiter, protect, changePassword);
 
 /**
  * @route   POST /api/profile/picture
  * @desc    Upload profile picture
  * @access  Private (Counselor only)
  */
-router.post("/picture", protect, uploadMiddleware, handleProfilePictureUpload);
+router.post("/picture", uploadLimiter, protect, uploadMiddleware, handleProfilePictureUpload);
 
 /**
  * @route   DELETE /api/profile/picture
  * @desc    Remove profile picture
  * @access  Private (Counselor only)
  */
-router.delete("/picture", protect, removeProfilePicture);
+router.delete("/picture", sensitiveWriteLimiter, protect, removeProfilePicture);
 
 /**
  * @route   GET /api/profile/activity

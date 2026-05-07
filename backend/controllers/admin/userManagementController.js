@@ -14,6 +14,8 @@ import {
   emailLookupHash,
 } from "../../utils/userLookup.js";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 const isValidCollege = async (value) => {
   if (!value || typeof value !== "string") return false;
   const collegeCount = await College.countDocuments({ isActive: true });
@@ -580,6 +582,13 @@ export const deleteUser = async (req, res) => {
 // Helper function to send password reset email
 const sendPasswordResetEmail = async (email, name, token) => {
   try {
+    const recipient = typeof email === "string" ? email.trim() : "";
+    if (!recipient || !EMAIL_REGEX.test(recipient)) {
+      const invalidRecipientError = new Error("Missing or invalid recipient email for password reset");
+      invalidRecipientError.code = "INVALID_RECIPIENT";
+      throw invalidRecipientError;
+    }
+
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -588,11 +597,11 @@ const sendPasswordResetEmail = async (email, name, token) => {
       },
     });
 
-    const resetLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
+    const resetLink = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password?token=${token}&email=${encodeURIComponent(recipient)}`;
 
     const mailOptions = {
       from: `"Support Team" <${process.env.EMAIL_USER}>`,
-      to: email,
+      to: recipient,
       subject: "Password Reset Request",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -615,9 +624,12 @@ const sendPasswordResetEmail = async (email, name, token) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`✅ Password reset email sent to: ${email}`);
+    console.log(`✅ Password reset email sent to: ${recipient}`);
   } catch (error) {
-    console.error("❌ Error sending password reset email:", error);
+    console.error("❌ Error sending password reset email:", {
+      message: error.message,
+      code: error.code,
+    });
     throw error;
   }
 };
@@ -680,6 +692,11 @@ export const resetUserPassword = async (req, res) => {
       }
     }
 
+    const recipientEmail = typeof user.email === "string" ? user.email.trim() : "";
+    if (!recipientEmail || !EMAIL_REGEX.test(recipientEmail)) {
+      return res.status(400).json({ message: "User account has no valid email for password reset." });
+    }
+
     // Generate secure token for password reset
     const resetToken = crypto.randomBytes(32).toString("hex");
     const tokenExpires = Date.now() + 5 * 60 * 1000; // 5 minutes
@@ -691,13 +708,16 @@ export const resetUserPassword = async (req, res) => {
 
     // Send password reset email
     try {
-      await sendPasswordResetEmail(user.email, user.name, resetToken);
+      await sendPasswordResetEmail(recipientEmail, user.name, resetToken);
     } catch (emailError) {
       console.error("❌ Failed to send password reset email:", emailError);
       // Clear the token if email fails
       user.resetPasswordCode = null;
       user.resetPasswordExpires = null;
       await user.save();
+      if (emailError.code === "INVALID_RECIPIENT") {
+        return res.status(400).json({ message: "User account has no valid email for password reset." });
+      }
       return res.status(500).json({ message: "Failed to send password reset email. Please try again." });
     }
 

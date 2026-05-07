@@ -6,6 +6,7 @@ import Swal from "sweetalert2";
 import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import { API_BASE_URL } from "../../config/apiBaseUrl";
 
 export default function UserManagement() {
   useDocumentTitle("Admin User Management");
@@ -63,7 +64,7 @@ export default function UserManagement() {
     // Verify admin access
     const verifyAdmin = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         const res = await axios.get(`${baseUrl}/api/admin/dashboard`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -88,7 +89,7 @@ export default function UserManagement() {
 
   const fetchUsers = async (token, page = 1, search = "", role = "all", status = "all") => {
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.get(`${baseUrl}/api/admin/users`, {
         headers: { Authorization: `Bearer ${token}` },
         params: { page, limit: 10, search, role, status },
@@ -111,7 +112,7 @@ export default function UserManagement() {
 
   const fetchCollegeOptions = async (token) => {
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.get(`${baseUrl}/api/admin/master-data`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -157,7 +158,7 @@ export default function UserManagement() {
     try {
       const token = localStorage.getItem("adminToken");
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/users`,
+        `${API_BASE_URL}/api/admin/users`,
         addForm,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -218,7 +219,7 @@ export default function UserManagement() {
     try {
       const token = localStorage.getItem("adminToken");
       const res = await axios.put(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/users/${selectedUser.id}`,
+        `${API_BASE_URL}/api/admin/users/${selectedUser.id}`,
         editForm,
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -260,7 +261,7 @@ export default function UserManagement() {
 
     try {
       const token = localStorage.getItem("adminToken");
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       await axios.delete(`${baseUrl}/api/admin/users/${userId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -297,7 +298,7 @@ export default function UserManagement() {
     
     try {
       const token = localStorage.getItem("adminToken");
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.get(`${baseUrl}/api/admin/users/${user.id}/permissions`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -354,7 +355,7 @@ export default function UserManagement() {
 
     try {
       const token = localStorage.getItem("adminToken");
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       
       const res = await axios.put(
         `${baseUrl}/api/admin/users/${selectedUser.id}/permissions`,
@@ -384,9 +385,19 @@ export default function UserManagement() {
   };
 
   const handleSendResetLink = async (user) => {
+    const recipientEmail = typeof user?.email === "string" ? user.email.trim() : "";
+    if (!recipientEmail || !validateEmail(recipientEmail)) {
+      setMessage({
+        type: "error",
+        text: "Cannot send reset link: user account has no valid email address.",
+      });
+      setTimeout(() => setMessage({ type: "", text: "" }), 5000);
+      return;
+    }
+
     const result = await Swal.fire({
       title: "Send Reset Link?",
-      text: `Send password reset link to ${user.email}?`,
+      text: `Send password reset link to ${recipientEmail}?`,
       icon: "question",
       showCancelButton: true,
       confirmButtonColor: "#4f46e5",
@@ -402,7 +413,7 @@ export default function UserManagement() {
     try {
       const token = localStorage.getItem("adminToken");
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/users/${user.id}/reset-password`,
+        `${API_BASE_URL}/api/admin/users/${user.id}/reset-password`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -788,7 +799,17 @@ export default function UserManagement() {
                                     Permissions
                                   </button>
                                 )}
-                                  <button type="button" onClick={() => handleSendResetLink(user)} className={actionBtn} title="Reset password">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSendResetLink(user)}
+                                    disabled={!validateEmail(typeof user?.email === "string" ? user.email.trim() : "")}
+                                    className={`${actionBtn} disabled:cursor-not-allowed disabled:opacity-50`}
+                                    title={
+                                      validateEmail(typeof user?.email === "string" ? user.email.trim() : "")
+                                        ? "Reset password"
+                                        : "Cannot reset password without a valid email"
+                                    }
+                                  >
                                   Reset
                                 </button>
                                 <button

@@ -4,6 +4,9 @@ import GoogleUser from "../models/GoogleUser.js";
 import Admin from "../models/Admin.js";
 import AuditLog from "../models/AuditLog.js";
 
+const allowLegacyPermissionBypass = () =>
+  String(process.env.ALLOW_LEGACY_PERMISSION_BYPASS || "true").toLowerCase() === "true";
+
 /**
  * Authorization middleware to check if user has required permission
  * @param {string} requiredPermission - The permission to check (e.g., 'can_view_records')
@@ -52,8 +55,15 @@ export const authorize = (requiredPermission) => {
       const hasPermissionKeys = hasPermissionsField && Object.keys(user.permissions).length > 0;
       
       if (!hasPermissionKeys) {
-        console.warn(`⚠️ User ${user.email || user._id} doesn't have permissions set. Allowing access for backwards compatibility. Run migration script to set default permissions.`);
-        return next();
+        if (allowLegacyPermissionBypass()) {
+          console.warn(`⚠️ User ${user.email || user._id} doesn't have permissions set. Allowing access for backwards compatibility. Run migration script to set default permissions.`);
+          return next();
+        }
+        return res.status(403).json({
+          message: "Access denied. Permissions profile is missing for this account.",
+          requiredPermission,
+          code: "MISSING_PERMISSIONS_PROFILE",
+        });
       }
 
       // Check if user has the required permission

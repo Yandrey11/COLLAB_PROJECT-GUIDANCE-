@@ -5,11 +5,12 @@ import Swal from "sweetalert2";
 import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import { API_BASE_URL } from "../../config/apiBaseUrl";
 
 export default function NotificationCenter() {
   useDocumentTitle("Admin Notifications");
   const navigate = useNavigate();
-  const SETTINGS_API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/settings`;
+  const SETTINGS_API_URL = `${API_BASE_URL}/api/admin/settings`;
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -44,7 +45,7 @@ export default function NotificationCenter() {
     // Verify admin access
     const verifyAdmin = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         const res = await axios.get(`${baseUrl}/api/admin/dashboard`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -89,7 +90,7 @@ export default function NotificationCenter() {
         search: search.trim() // Trim whitespace from search
       };
       
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.get(`${baseUrl}/api/admin/notifications`, {
         headers: { Authorization: `Bearer ${token}` },
         params,
@@ -173,7 +174,7 @@ export default function NotificationCenter() {
     try {
       const token = localStorage.getItem("adminToken");
       await axios.put(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/notifications/${notificationId}/read`,
+        `${API_BASE_URL}/api/admin/notifications/${notificationId}/read`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -193,7 +194,7 @@ export default function NotificationCenter() {
     try {
       const token = localStorage.getItem("adminToken");
       await axios.put(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/notifications/${notificationId}/unread`,
+        `${API_BASE_URL}/api/admin/notifications/${notificationId}/unread`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -228,7 +229,7 @@ export default function NotificationCenter() {
     try {
       const token = localStorage.getItem("adminToken");
       await axios.put(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/notifications/read-all`,
+        `${API_BASE_URL}/api/admin/notifications/read-all`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` },
@@ -265,7 +266,7 @@ export default function NotificationCenter() {
 
     try {
       const token = localStorage.getItem("adminToken");
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       await axios.delete(`${baseUrl}/api/admin/notifications/${notificationId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -300,7 +301,7 @@ export default function NotificationCenter() {
 
     try {
       const token = localStorage.getItem("adminToken");
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       await axios.delete(`${baseUrl}/api/admin/notifications/read/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -395,7 +396,7 @@ export default function NotificationCenter() {
   };
 
   return (
-    <div className="page-bg admin-typography min-h-screen w-full px-3 py-3 font-sans text-gray-900 dark:text-gray-100 sm:px-4 md:px-5 md:py-5">
+    <div className="page-bg min-h-screen w-full px-3 py-3 font-sans text-gray-900 dark:text-gray-100 sm:px-4 md:px-5 md:py-5">
       <div className="mx-auto flex w-full max-w-[1800px] flex-col gap-5">
         <section className="rounded-2xl border border-gray-200 bg-white/95 p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800/95 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -405,10 +406,10 @@ export default function NotificationCenter() {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
                   Administration
                 </p>
-                <h1 className="mt-1 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+                <h1 className="mt-1 text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-2xl">
                   Notification Center
                 </h1>
-                <p className="mt-1.5 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
+                <p className="mt-1.5 max-w-2xl text-xs text-gray-600 dark:text-gray-400 sm:text-sm">
                   Monitor alerts, triage unread items quickly, and control notification delivery.
                 </p>
               </div>
@@ -416,13 +417,13 @@ export default function NotificationCenter() {
             <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={handleMarkAllAsRead}
-                className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-indigo-600 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-indigo-300 dark:hover:bg-gray-600"
+                className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-xs font-medium text-indigo-600 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-indigo-300 dark:hover:bg-gray-600 sm:text-sm"
               >
                 Mark All Read
               </button>
               <button
                 onClick={handleDeleteAllRead}
-                className="h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-800/60 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/40"
+                className="h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-xs font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-800/60 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/40 sm:text-sm"
               >
                 Delete Read
               </button>
@@ -434,7 +435,7 @@ export default function NotificationCenter() {
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 Total in current view
               </p>
-              <p className="mt-1 text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+              <p className="mt-1 text-lg font-semibold tabular-nums text-gray-900 dark:text-gray-100 sm:text-xl">
                 {notifications.length}
               </p>
             </article>
@@ -442,7 +443,7 @@ export default function NotificationCenter() {
               <p className="text-xs uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
                 Unread notifications
               </p>
-              <p className="mt-1 text-xl font-semibold tabular-nums text-indigo-700 dark:text-indigo-200">
+              <p className="mt-1 text-lg font-semibold tabular-nums text-indigo-700 dark:text-indigo-200 sm:text-xl">
                 {unreadCount}
               </p>
             </article>
@@ -450,7 +451,7 @@ export default function NotificationCenter() {
               <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 Pagination
               </p>
-              <p className="mt-1 text-xl font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+              <p className="mt-1 text-lg font-semibold tabular-nums text-gray-900 dark:text-gray-100 sm:text-xl">
                 {currentPage} / {totalPages}
               </p>
             </article>
@@ -459,7 +460,7 @@ export default function NotificationCenter() {
 
         {message.text && (
           <div
-            className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+            className={`rounded-xl border px-4 py-3 text-xs font-medium sm:text-sm ${
               message.type === "success"
                 ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300"
                 : "border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300"
@@ -471,8 +472,8 @@ export default function NotificationCenter() {
 
         <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Filters</h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">Filters</h2>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
               Narrow notifications by keyword, status, and category.
             </p>
             <form onSubmit={handleSearch} className="mt-4 flex flex-col gap-3">
@@ -487,7 +488,7 @@ export default function NotificationCenter() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="h-11 rounded-lg border border-gray-200 bg-white px-3.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  className="h-11 rounded-lg border border-gray-200 bg-white px-3.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 sm:text-sm"
                 >
                   <option value="all">All Status</option>
                   <option value="unread">Unread</option>
@@ -496,7 +497,7 @@ export default function NotificationCenter() {
                 <select
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value)}
-                  className="h-11 rounded-lg border border-gray-200 bg-white px-3.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                  className="h-11 rounded-lg border border-gray-200 bg-white px-3.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 sm:text-sm"
                 >
                   <option value="all">All Categories</option>
                   <option value="System Alert">System Alert</option>
@@ -509,7 +510,7 @@ export default function NotificationCenter() {
               <div className="flex flex-wrap gap-2 pt-1">
                 <button
                   type="submit"
-                  className="h-10 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
+                  className="h-10 rounded-lg bg-indigo-600 px-5 text-xs font-medium text-white transition-colors hover:bg-indigo-700 sm:text-sm"
                 >
                   Search
                 </button>
@@ -522,7 +523,7 @@ export default function NotificationCenter() {
                     const token = localStorage.getItem("adminToken");
                     fetchNotifications(token, 1, "all", "all", "");
                   }}
-                  className="h-10 rounded-lg border border-gray-200 bg-white px-5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                  className="h-10 rounded-lg border border-gray-200 bg-white px-5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 sm:text-sm"
                 >
                   Reset
                 </button>
@@ -537,14 +538,14 @@ export default function NotificationCenter() {
               className="flex w-full items-center justify-between gap-3 text-left"
             >
               <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">
                   Notification Settings
                 </h2>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 sm:text-sm">
                   Choose what activity should notify administrators.
                 </p>
               </div>
-              <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+              <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 sm:text-sm">
                 {showNotificationSettings ? "Hide" : "Show"}
               </span>
             </button>
@@ -588,7 +589,7 @@ export default function NotificationCenter() {
                     className="flex items-center justify-between gap-4 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
                   >
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      <p className="text-xs font-medium text-gray-900 dark:text-gray-100 sm:text-sm">
                         {item.label}
                       </p>
                       <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -614,7 +615,7 @@ export default function NotificationCenter() {
                 <button
                   onClick={handleSaveNotificationSettings}
                   disabled={savingSettings}
-                  className="mt-1 h-10 rounded-lg bg-indigo-600 px-5 text-sm font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="mt-1 h-10 rounded-lg bg-indigo-600 px-5 text-xs font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
                 >
                   {savingSettings ? "Saving..." : "Save Notification Settings"}
                 </button>
@@ -625,7 +626,7 @@ export default function NotificationCenter() {
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Notifications</h2>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100 sm:text-lg">Notifications</h2>
           </div>
 
           {loading ? (
@@ -657,9 +658,9 @@ export default function NotificationCenter() {
                       <div className="flex flex-wrap items-start gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm">{category.icon}</span>
+                            <span className="text-xs sm:text-sm">{category.icon}</span>
                             <h3
-                              className={`text-sm ${
+                              className={`text-xs sm:text-sm ${
                                 isUnread
                                   ? "font-semibold text-gray-900 dark:text-gray-100"
                                   : "font-medium text-gray-800 dark:text-gray-200"
@@ -679,7 +680,7 @@ export default function NotificationCenter() {
                               {priority.text}
                             </span>
                           </div>
-                          <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                          <p className="mt-2 text-xs leading-relaxed text-gray-600 dark:text-gray-300 sm:text-sm">
                             {notification.description}
                           </p>
                           <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-3 dark:border-gray-700">
@@ -718,7 +719,7 @@ export default function NotificationCenter() {
               </div>
 
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-xs text-gray-600 dark:text-gray-400 sm:text-sm">
                   Page {currentPage} of {totalPages}
                 </p>
                 <div className="flex items-center gap-2">
@@ -730,7 +731,7 @@ export default function NotificationCenter() {
                       }
                     }}
                     disabled={currentPage <= 1}
-                    className="h-9 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                    className="h-9 rounded-lg border border-gray-200 bg-white px-4 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 sm:text-sm"
                   >
                     Prev
                   </button>
@@ -742,7 +743,7 @@ export default function NotificationCenter() {
                       }
                     }}
                     disabled={currentPage >= totalPages}
-                    className="h-9 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                    className="h-9 rounded-lg border border-gray-200 bg-white px-4 text-xs font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 sm:text-sm"
                   >
                     Next
                   </button>

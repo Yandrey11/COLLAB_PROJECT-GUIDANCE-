@@ -8,6 +8,7 @@ import CounselorHeaderProfile from "../components/CounselorHeaderProfile.jsx";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { useInactivity } from "../hooks/useInactivity";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
 const GENERATED_REPORTS_STORAGE_KEY = "counselorGeneratedReports";
 const DASHBOARD_CARD_PAGE_SIZE = 3;
@@ -87,7 +88,7 @@ export default function Dashboard() {
 
   // Fetch Google Calendar events and auto-sync records to Google Calendar
   useEffect(() => {
-    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+    const baseUrl = API_BASE_URL;
 
     const fetchCalendarEvents = async (token) => {
       const res = await axios.get(`${baseUrl}/auth/dashboard/calendar-events`, {
@@ -187,7 +188,7 @@ export default function Dashboard() {
         }
 
         try {
-          const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+          const baseUrl = API_BASE_URL;
           const res = await fetch(`${baseUrl}/api/auth/me`, {
             method: "GET",
             headers: {
@@ -267,7 +268,7 @@ export default function Dashboard() {
 
   // Fetch records from database — runs on mount and when token is present.
   useEffect(() => {
-    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+    const baseUrl = API_BASE_URL;
 
     const fetchRecords = async () => {
       const token = localStorage.getItem("token") || localStorage.getItem("authToken");
@@ -327,7 +328,7 @@ export default function Dashboard() {
 
       try {
         setAnnouncementLoading(true);
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         const res = await axios.get(`${baseUrl}/api/counselor/notifications/announcements`, {
           headers: {
             "Content-Type": "application/json",
@@ -718,7 +719,7 @@ export default function Dashboard() {
                   type="button"
                   onClick={async () => {
                     const token = localStorage.getItem("token") || localStorage.getItem("authToken");
-                    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+                    const baseUrl = API_BASE_URL;
                     if (!token) return;
                     setRefreshing(true);
                     const headers = { Authorization: `Bearer ${token}` };

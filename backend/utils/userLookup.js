@@ -57,6 +57,7 @@ export function recordCounselorScopeFilter(req) {
     $or: [
       { counselorLookup: { $in: tokens } },
       { auditCreatedByLookup: { $in: tokens } },
+      { sharedWith: user._id },
     ],
   };
 }

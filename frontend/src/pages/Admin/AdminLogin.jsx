@@ -5,7 +5,9 @@ import ReCAPTCHA from "react-google-recaptcha";
 import Swal from "sweetalert2";
 import { motion } from "framer-motion";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import useSingleFlight from "../../hooks/useSingleFlight";
 import { getRecaptchaSiteKey } from "../../config/recaptchaSiteKey.js";
+import { API_BASE_URL } from "../../config/apiBaseUrl";
 import buksuLogo from "../../assets/buksu-logo.png";
 
 const fieldClass =
@@ -24,76 +26,78 @@ export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
+  const { run: runAdminLogin, isRunning: isSubmittingLogin } = useSingleFlight();
 
   const recaptchaSiteKey = getRecaptchaSiteKey();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setMessage("");
+    await runAdminLogin(async () => {
+      setMessage("");
 
-    if (!recaptchaSiteKey) {
-      await Swal.fire({
-        icon: "error",
-        title: "Configuration Required",
-        text: "Set VITE_RECAPTCHA_SITE_KEY in frontend/.env (see .env.example).",
-      });
-      return;
-    }
-
-    if (!captchaToken) {
-      await Swal.fire({
-        icon: "warning",
-        title: "Verification Required",
-        text: "Please complete the reCAPTCHA before signing in.",
-      });
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-      const res = await axios.post(`${baseUrl}/api/admin/login`, {
-        email,
-        password,
-        captchaToken,
-      });
-
-      if (!res.data.token) {
-        setMessage("Login failed: no token received from server.");
+      if (!recaptchaSiteKey) {
+        await Swal.fire({
+          icon: "error",
+          title: "Configuration Required",
+          text: "Set VITE_RECAPTCHA_SITE_KEY in frontend/.env (see .env.example).",
+        });
         return;
       }
 
-      localStorage.setItem("adminToken", res.data.token);
-      localStorage.setItem("admin", JSON.stringify(res.data.admin));
-      localStorage.setItem("activeRole", "admin");
-      // Clear cached counselor color theme so admin defaults / API values apply
-      localStorage.removeItem("themeColors");
-
-      const storedToken = localStorage.getItem("adminToken");
-      if (!storedToken) {
-        setMessage("Could not store session. Please try again.");
+      if (!captchaToken) {
+        await Swal.fire({
+          icon: "warning",
+          title: "Verification Required",
+          text: "Please complete the reCAPTCHA before signing in.",
+        });
         return;
       }
 
-      await Swal.fire({
-        icon: "success",
-        title: "Signed in",
-        text: "Welcome to the admin dashboard.",
-        timer: 2000,
-        showConfirmButton: false,
-      });
-      navigate("/admindashboard", { replace: true });
-    } catch (err) {
-      console.error("Admin login error:", err);
-      setMessage(err.response?.data?.message || "Login failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+      setLoading(true);
+      try {
+        const baseUrl = API_BASE_URL;
+        const res = await axios.post(`${baseUrl}/api/admin/login`, {
+          email,
+          password,
+          captchaToken,
+        });
+
+        if (!res.data.token) {
+          setMessage("Login failed: no token received from server.");
+          return;
+        }
+
+        localStorage.setItem("adminToken", res.data.token);
+        localStorage.setItem("admin", JSON.stringify(res.data.admin));
+        localStorage.setItem("activeRole", "admin");
+        // Clear cached counselor color theme so admin defaults / API values apply
+        localStorage.removeItem("themeColors");
+
+        const storedToken = localStorage.getItem("adminToken");
+        if (!storedToken) {
+          setMessage("Could not store session. Please try again.");
+          return;
+        }
+
+        await Swal.fire({
+          icon: "success",
+          title: "Signed in",
+          text: "Welcome to the admin dashboard.",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+        navigate("/admindashboard", { replace: true });
+      } catch (err) {
+        console.error("Admin login error:", err);
+        setMessage(err.response?.data?.message || "Login failed. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    });
   };
 
   const handleGoogleLogin = () => {
-    const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+    const baseUrl = API_BASE_URL;
     window.location.href = `${baseUrl}/auth/admin/google`;
   };
 
@@ -257,10 +261,10 @@ export default function AdminLogin() {
                   <div className="mt-8 space-y-5 sm:mt-9">
                     <button
                       type="submit"
-                      disabled={loading || !canSubmit}
+                      disabled={loading || isSubmittingLogin || !canSubmit}
                       className="w-full rounded-xl bg-slate-900 py-3.5 text-[15px] font-medium text-white shadow-sm transition-[transform,box-shadow,background-color] hover:bg-slate-800 hover:shadow-md enabled:active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-slate-900 disabled:hover:shadow-sm dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 dark:disabled:opacity-40"
                     >
-                      {loading ? "Signing in…" : "Sign in to dashboard"}
+                      {loading || isSubmittingLogin ? "Signing in…" : "Sign in to dashboard"}
                     </button>
 
                     <div className="relative flex items-center gap-3 py-1">

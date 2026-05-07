@@ -109,12 +109,11 @@ export const PASSWORD_RULES = [
   },
   {
     id: "noSpaces",
-    label: "No leading/trailing spaces",
-    message: "Password cannot contain spaces at the beginning or end.",
+    label: "No spaces",
+    message: "Password cannot contain spaces.",
     test: (password = "") => {
       if (!password || typeof password !== "string") return true;
-      const trimmed = password.trim();
-      return trimmed === password && !password.includes(" ");
+      return !password.includes(" ");
     },
   },
   {
@@ -153,8 +152,7 @@ export function validatePassword(password = "", options = {}) {
     let passed = false;
     
     if (rule.id === "noSpaces") {
-      // Special handling for space check
-      passed = !hasLeadingTrailingSpaces && (trimmedPassword === password || !password.includes(" "));
+      passed = !password.includes(" ");
     } else {
       passed = rule.test(trimmedPassword);
     }
@@ -185,18 +183,35 @@ export function validatePassword(password = "", options = {}) {
     errors.push("Avoid using your name or email in your password.");
   }
   
-  // Password is valid only if all required rules pass
+  // Acceptance policy: reject weak; accept medium/strong with core safeguards.
+  let strengthScore = 0;
+  if (trimmedPassword.length >= 8) strengthScore += 1;
+  if (/[A-Z]/.test(trimmedPassword)) strengthScore += 1;
+  if (/[a-z]/.test(trimmedPassword)) strengthScore += 1;
+  if (/[0-9]/.test(trimmedPassword)) strengthScore += 1;
+  if (/[!@#$%^&*()\-_=+{}[\]\\|:;"'<>,.?/`~]/.test(trimmedPassword)) strengthScore += 1;
+  if (trimmedPassword.length >= 12) strengthScore += 1;
+  if (!isCommonPassword(trimmedPassword)) strengthScore += 1;
+  const passedCount = details.filter((r) => r.passed && r.id !== "noSpaces").length;
+  const strength =
+    strengthScore >= 6 && trimmedPassword.length >= 12 && passedCount >= 5
+      ? "Strong"
+      : strengthScore >= 4 && trimmedPassword.length >= 8 && passedCount >= 4
+        ? "Medium"
+        : "Weak";
+
   const isValid = 
-    errors.length === 0 && 
-    !hasLeadingTrailingSpaces && 
+    strength !== "Weak" &&
     !isCommon && 
-    !hasPersonalInfo &&
+    !password.includes(" ") &&
     trimmedPassword.length >= 8;
 
   return {
     isValid,
     errors,
     details,
+    strength,
+    strengthScore,
     hasPersonalInfo,
     isCommon,
     hasLeadingTrailingSpaces,

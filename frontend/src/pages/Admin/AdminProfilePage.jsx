@@ -6,9 +6,11 @@ import Swal from "sweetalert2";
 import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import useSingleFlight from "../../hooks/useSingleFlight";
+import { API_BASE_URL } from "../../config/apiBaseUrl";
 
-const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/profile`;
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = `${API_BASE_URL}/api/admin/profile`;
+const BASE_URL = API_BASE_URL;
 
 // Helper function to get full image URL from backend
 const getImageUrl = (imagePath) => {
@@ -55,6 +57,7 @@ export default function AdminProfilePage() {
   // File upload state
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const { run: runProfileAction, isRunning: profileActionRunning } = useSingleFlight();
 
   // Initialize theme on mount
   useEffect(() => {
@@ -158,34 +161,37 @@ export default function AdminProfilePage() {
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
-    try {
-      const token = localStorage.getItem("adminToken");
-      const response = await axios.put(API_URL, profileForm, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.data.success) {
-        setProfile(response.data.profile);
-        await Swal.fire({
-          icon: "success",
-          title: "Success!",
-          text: "Profile updated successfully",
-          timer: 2000,
-          showConfirmButton: false,
+    await runProfileAction(async () => {
+      try {
+        const token = localStorage.getItem("adminToken");
+        const response = await axios.put(API_URL, profileForm, {
+          headers: { Authorization: `Bearer ${token}` },
         });
-        fetchProfile(); // Refresh profile data
+
+        if (response.data.success) {
+          setProfile(response.data.profile);
+          await Swal.fire({
+            icon: "success",
+            title: "Success!",
+            text: "Profile updated successfully",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+          fetchProfile(); // Refresh profile data
+        }
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        Swal.fire({
+          icon: "error",
+          title: "Update Failed",
+          text: error.response?.data?.message || "Failed to update profile",
+        });
       }
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Update Failed",
-        text: error.response?.data?.message || "Failed to update profile",
-      });
-    }
+    });
   };
 
   const handleProfilePictureUpload = async (e) => {
+    if (uploadingPicture) return;
     const file = e.target.files[0];
     if (!file) return;
 
@@ -551,9 +557,10 @@ export default function AdminProfilePage() {
                       type="submit"
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className="px-5 py-2.5 rounded-lg font-semibold text-sm text-white bg-gradient-to-r from-indigo-600 to-violet-600 shadow-md shadow-indigo-500/20"
+                      disabled={profileActionRunning}
+                      className="btn-theme-primary px-5 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-50"
                     >
-                      Save changes
+                      {profileActionRunning ? "Saving..." : "Save changes"}
                     </motion.button>
                   </div>
                 </form>

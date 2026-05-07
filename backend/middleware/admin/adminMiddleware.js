@@ -4,6 +4,9 @@ import Counselor from "../../models/Counselor.js";
 import Session from "../../models/Session.js";
 import { decryptToken } from "../../utils/tokenEncryption.js";
 
+const requireActiveSession = () =>
+  String(process.env.REQUIRE_ACTIVE_SESSION || "false").toLowerCase() === "true";
+
 
 export const protectAdmin = async (req, res, next) => {
   try {
@@ -88,6 +91,14 @@ export const protectAdmin = async (req, res, next) => {
       token: token,
       isActive: true 
     });
+
+    if (requireActiveSession() && !session) {
+      return res.status(401).json({
+        success: false,
+        message: "Session is inactive. Please log in again.",
+        code: "SESSION_INACTIVE",
+      });
+    }
 
     if (session) {
       const now = new Date();

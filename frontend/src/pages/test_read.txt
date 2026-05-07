@@ -9,9 +9,10 @@ import { NotificationBadgeBadge } from "../components/NotificationBadge";
 import CounselorSidebar from "../components/CounselorSidebar";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
-const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/records`;
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = `${API_BASE_URL}/api/records`;
+const BASE_URL = API_BASE_URL;
 
 // Helper function to get full image URL from backend
 const getImageUrl = (imagePath) => {

@@ -5,6 +5,7 @@ import { validatePassword } from "../utils/passwordValidation";
 import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { initializeTheme } from "../utils/themeUtils";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
 const labelClass =
   "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500";
@@ -20,6 +21,7 @@ export default function ResetPassword() {
   const loginPath = isAdmin ? "/adminlogin" : "/login";
 
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [token, setToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -35,10 +37,12 @@ export default function ResetPassword() {
   useEffect(() => {
     const tokenParam = searchParams.get("token");
     const emailParam = searchParams.get("email");
+    const nameParam = searchParams.get("name");
 
     if (tokenParam && emailParam) {
       setToken(tokenParam);
       setEmail(emailParam);
+      setName(nameParam || "");
       setUseToken(true);
     }
   }, [searchParams]);
@@ -54,10 +58,10 @@ export default function ResetPassword() {
       return;
     }
 
-    const validation = validatePassword(newPassword, { email });
+    const validation = validatePassword(newPassword, { email, name });
     if (!validation.isValid) {
       setPasswordErrors(validation.errors);
-      setMessage("Password does not meet the security requirements.");
+      setMessage(validation.errors?.[0] || "Password does not meet the security requirements.");
       setLoading(false);
       return;
     }
@@ -65,13 +69,16 @@ export default function ResetPassword() {
     try {
       const payload = useToken ? { email, token, newPassword } : { email, code, newPassword };
 
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.post(`${baseUrl}/api/reset/reset-password`, payload);
 
       setMessage(res.data.message || "Password reset successful!");
       setTimeout(() => navigate(loginPath), 2000);
     } catch (err) {
       console.error("Reset password error:", err);
+      if (Array.isArray(err.response?.data?.errors)) {
+        setPasswordErrors(err.response.data.errors);
+      }
       setMessage(err.response?.data?.message || "Failed to reset password.");
     } finally {
       setLoading(false);
@@ -173,14 +180,14 @@ export default function ResetPassword() {
                 onChange={(e) => {
                   const value = e.target.value;
                   setNewPassword(value);
-                  const result = validatePassword(value, { email });
+                  const result = validatePassword(value, { email, name });
                   setPasswordErrors(result.errors);
                 }}
                 required
                 className={inputClass}
               />
               <div className="mt-2">
-                <PasswordStrengthMeter password={newPassword} email={email} />
+                <PasswordStrengthMeter password={newPassword} email={email} name={name} />
               </div>
               {passwordErrors.length > 0 && (
                 <ul className="mt-2 list-inside list-disc space-y-0.5 text-xs text-red-600 dark:text-red-400">

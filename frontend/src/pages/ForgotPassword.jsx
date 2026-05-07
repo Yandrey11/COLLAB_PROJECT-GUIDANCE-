@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { initializeTheme } from "../utils/themeUtils";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
 const labelClass =
   "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500";
@@ -32,7 +33,7 @@ export default function ForgotPassword() {
     setMessage("");
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.post(`${baseUrl}/api/reset/forgot-password`, { email });
       setMessage(res.data.message || "Reset code sent! Check your email.");
       setTimeout(() => navigate(resetPath), 2000);

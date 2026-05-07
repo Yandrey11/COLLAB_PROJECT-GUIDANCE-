@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
 // Badge-only component (for use inside buttons)
 export function NotificationBadgeBadge() {
@@ -16,7 +17,7 @@ export function NotificationBadgeBadge() {
           return;
         }
 
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         const res = await axios.get(
           `${baseUrl}/api/counselor/notifications/unread-count`,
           {
@@ -65,7 +66,7 @@ export function MessagesBadgeBadge() {
           setLoading(false);
           return;
         }
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         const res = await axios.get(`${baseUrl}/api/counselor/messages/unread-count`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -106,7 +107,7 @@ export function AdminMessagesBadgeBadge() {
           setLoading(false);
           return;
         }
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         const res = await axios.get(`${baseUrl}/api/admin/messages/unread-total`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -149,7 +150,7 @@ export default function NotificationBadge() {
           return;
         }
 
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         const res = await axios.get(
           `${baseUrl}/api/counselor/notifications/unread-count`,
           {

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import { API_BASE_URL } from "../../config/apiBaseUrl";
 
 const AdminSignup = () => {
   useDocumentTitle("Admin Sign Up");
@@ -32,8 +33,12 @@ const AdminSignup = () => {
         setSuccess("");
 
         try {
-            const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-            const res = await axios.post(`${baseUrl}/api/admin/signup`, formData);
+            const baseUrl = API_BASE_URL;
+            const bootstrapSecret = localStorage.getItem("adminBootstrapSecret") || "";
+            const headers = bootstrapSecret
+              ? { "x-admin-bootstrap-secret": bootstrapSecret }
+              : undefined;
+            const res = await axios.post(`${baseUrl}/api/admin/signup`, formData, { headers });
             
             // If token is returned, store it and redirect to dashboard
             if (res.data.token) {
@@ -47,7 +52,13 @@ const AdminSignup = () => {
                 setTimeout(() => navigate("/adminlogin"), 1500);
             }
         } catch (err) {
-            setError(err.response?.data?.message || "Signup failed. Try again.");
+            if (err.response?.status === 403) {
+                setError(
+                    "Admin signup is restricted. Use a bootstrap secret for first setup or sign in as an existing admin."
+                );
+            } else {
+                setError(err.response?.data?.message || "Signup failed. Try again.");
+            }
         } finally {
             setLoading(false);
         }
@@ -157,12 +168,12 @@ const AdminSignup = () => {
                 {/* Login Link */}
                 <p className="text-sm text-center text-gray-600 mt-6 animate-fade-in">
                     Already have an account?{" "}
-                    <a
-                        href="/adminlogin"
+                    <Link
+                        to="/adminlogin"
                         className="text-purple-600 hover:text-pink-600 font-semibold hover:underline transition-colors duration-300"
                     >
                         Login
-                    </a>
+                    </Link>
                 </p>
             </div>
         </div>

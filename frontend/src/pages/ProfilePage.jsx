@@ -6,10 +6,12 @@ import Swal from "sweetalert2";
 import CounselorSidebar from "../components/CounselorSidebar";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import useSingleFlight from "../hooks/useSingleFlight";
 import { COUNSELOR_COLLEGES, getCounselorCollegeAvatarRingClass } from "../constants/counselorColleges";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
-const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/profile`;
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = `${API_BASE_URL}/api/profile`;
+const BASE_URL = API_BASE_URL;
 
 const pageStagger = {
   hidden: { opacity: 0 },
@@ -73,6 +75,7 @@ export default function ProfilePage() {
   // File upload state
   const [uploadingPicture, setUploadingPicture] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const { run: runProfileAction, isRunning: profileActionRunning } = useSingleFlight();
 
   // Initialize theme on mount
   useEffect(() => {
@@ -166,43 +169,46 @@ export default function ProfilePage() {
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault();
-    if (profile && !profileForm.college) {
-      await Swal.fire({
-        icon: "error",
-        title: "College required",
-        text: "Please select the college you counsel for.",
-      });
-      return;
-    }
-    try {
-      const token = localStorage.getItem("token");
-      const response = await axios.put(API_URL, profileForm, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.data.success) {
-        setProfile(response.data.profile);
+    await runProfileAction(async () => {
+      if (profile && !profileForm.college) {
         await Swal.fire({
-          icon: "success",
-          title: "Success!",
-          text: "Profile updated successfully",
-          timer: 2000,
-          showConfirmButton: false,
+          icon: "error",
+          title: "College required",
+          text: "Please select the college you counsel for.",
         });
-        fetchProfile(); // Refresh profile data
+        return;
       }
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      Swal.fire({
-        icon: "error",
-        title: "Update Failed",
-        text: error.response?.data?.message || "Failed to update profile",
-      });
-    }
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.put(API_URL, profileForm, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.data.success) {
+          setProfile(response.data.profile);
+          await Swal.fire({
+            icon: "success",
+            title: "Success!",
+            text: "Profile updated successfully",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+          fetchProfile(); // Refresh profile data
+        }
+      } catch (error) {
+        console.error("Error updating profile:", error);
+        Swal.fire({
+          icon: "error",
+          title: "Update Failed",
+          text: error.response?.data?.message || "Failed to update profile",
+        });
+      }
+    });
   };
 
 
   const handleProfilePictureUpload = async (e) => {
+    if (uploadingPicture) return;
     const file = e.target.files[0];
     if (!file) return;
 
@@ -360,7 +366,7 @@ export default function ProfilePage() {
       const token = localStorage.getItem("token") || localStorage.getItem("authToken");
 
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         if (token) {
           await fetch(`${baseUrl}/api/auth/logout`, {
             method: "POST",
@@ -619,9 +625,10 @@ export default function ProfilePage() {
                     </button>
                     <button
                       type="submit"
-                      className="rounded-xl bg-gray-900 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-white"
+                      disabled={profileActionRunning}
+                      className="btn-theme-primary rounded-xl px-5 py-2.5 text-sm font-medium disabled:opacity-50"
                     >
-                      Save changes
+                      {profileActionRunning ? "Saving..." : "Save changes"}
                     </button>
                   </div>
                 </form>

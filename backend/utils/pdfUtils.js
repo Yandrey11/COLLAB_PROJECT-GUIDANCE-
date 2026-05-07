@@ -10,6 +10,8 @@ const mmToPt = (mm) => (mm / 25.4) * 72;
 const BS_SUMMARY_LOGO_MAX_W_PT = 50;
 const BS_SUMMARY_MARGIN_X_PT = 36;
 const BS_SUMMARY_MARGIN_TOP_PT = 22;
+const BS_HEADER_LOGO_GAP_PT = 14;
+const BS_HEADER_TEXT_TARGET_W_PT = 360;
 
 /**
  * Compact BSU letterhead for Counseling Summary Report (no colored banner).
@@ -58,53 +60,71 @@ export function drawBsCounselingSummaryLetterhead(doc, opts) {
 
   let y = BS_SUMMARY_MARGIN_TOP_PT;
   const logoPath = path.join(process.cwd(), "assets", "buksu-logo.png");
-  let logoBottom = y;
-  if (fs.existsSync(logoPath)) {
+  const hasLogo = fs.existsSync(logoPath);
+  let logoH = 0;
+  if (hasLogo) {
     try {
       const img = doc.openImage(logoPath);
-      const scale = BS_SUMMARY_LOGO_MAX_W_PT / img.width;
-      const imgH = img.height * scale;
-      doc.image(logoPath, BS_SUMMARY_MARGIN_X_PT, y, { width: BS_SUMMARY_LOGO_MAX_W_PT });
-      logoBottom = y + imgH;
+      logoH = img.height * (BS_SUMMARY_LOGO_MAX_W_PT / img.width);
     } catch {
-      logoBottom = y;
+      logoH = 0;
     }
   }
 
-  let yText = y + 1;
+  const logoW = hasLogo && logoH > 0 ? BS_SUMMARY_LOGO_MAX_W_PT : 0;
+  const maxTextW = pageWidth - 2 * BS_SUMMARY_MARGIN_X_PT;
+  const textW = Math.min(BS_HEADER_TEXT_TARGET_W_PT, maxTextW);
+  const textX = (pageWidth - textW) / 2;
+  const logoX = hasLogo && logoW > 0
+    ? Math.max(BS_SUMMARY_MARGIN_X_PT, textX - BS_HEADER_LOGO_GAP_PT - logoW)
+    : BS_SUMMARY_MARGIN_X_PT;
+
+  const addr = "Fortich Street, Malaybalay City, Bukidnon 8700";
+  const tel = "Tel (088) 813-5661 to 5663; Telefax (088) 813-2717";
+  const web = "www.buksu.edu.ph";
+
+  doc.font("Times-Bold").fontSize(10.5);
+  const hUni = doc.heightOfString("BUKIDNON STATE UNIVERSITY", { width: textW, align: "center" });
+  doc.font("Times-Roman").fontSize(8.5);
+  const hAddr = doc.heightOfString(addr, { width: textW, align: "center" });
+  const hTel = doc.heightOfString(tel, { width: textW, align: "center" });
+  const hWeb = doc.heightOfString(web, { width: textW, align: "center", underline: true });
+  const textBlockH = hUni + lineTight + hAddr + lineTight + hTel + lineTight + hWeb;
+  const rowH = Math.max(textBlockH, logoH);
+  const textTop = y + (rowH - textBlockH) / 2;
+  const logoTop = y + (rowH - logoH) / 2;
+
+  if (hasLogo && logoH > 0) {
+    try {
+      doc.image(logoPath, logoX, logoTop, { width: BS_SUMMARY_LOGO_MAX_W_PT });
+    } catch {
+      // Keep rendering text even if logo fails.
+    }
+  }
+
+  let yText = textTop;
   doc.fillColor("#000000");
   doc.font("Times-Bold").fontSize(10.5);
-  doc.text("BUKIDNON STATE UNIVERSITY", 0, yText, { width: pageWidth, align: "center" });
-  yText += doc.currentLineHeight() + lineTight;
+  doc.text("BUKIDNON STATE UNIVERSITY", textX, yText, { width: textW, align: "center" });
+  yText += hUni + lineTight;
 
   doc.font("Times-Roman").fontSize(8.5);
-  const addr = "Fortich Street, Malaybalay City, Bukidnon 8700";
-  doc.text(addr, 0, yText, { width: pageWidth, align: "center" });
-  yText += doc.heightOfString(addr, { width: pageWidth, align: "center" }) + lineTight;
+  doc.text(addr, textX, yText, { width: textW, align: "center" });
+  yText += hAddr + lineTight;
 
-  const tel = "Tel (088) 813-5661 to 5663; Telefax (088) 813-2717";
-  doc.text(tel, 0, yText, { width: pageWidth, align: "center" });
-  yText += doc.heightOfString(tel, { width: pageWidth, align: "center" }) + lineTight;
+  doc.text(tel, textX, yText, { width: textW, align: "center" });
+  yText += hTel + lineTight;
 
   doc.fillColor("#0000EE");
   doc.fontSize(8.5);
-  const web = "www.buksu.edu.ph";
-  doc.text(web, 0, yText, {
-    width: pageWidth,
+  doc.text(web, textX, yText, {
+    width: textW,
     align: "center",
     link: "https://www.buksu.edu.ph/",
     underline: true,
   });
-  yText +=
-    doc.heightOfString(web, {
-      width: pageWidth,
-      align: "center",
-      underline: true,
-    }) +
-    lineTight +
-    mmToPt(2);
 
-  const afterUni = Math.max(yText, logoBottom + mmToPt(2)) + mmToPt(2);
+  const afterUni = y + rowH + mmToPt(4);
 
   y = afterUni;
   doc.fillColor("#000000");
@@ -165,53 +185,71 @@ export function drawBsIndividualCounselingLetterhead(doc, opts = {}) {
 
   let y = BS_SUMMARY_MARGIN_TOP_PT;
   const logoPath = path.join(process.cwd(), "assets", "buksu-logo.png");
-  let logoBottom = y;
-  if (fs.existsSync(logoPath)) {
+  const hasLogo = fs.existsSync(logoPath);
+  let logoH = 0;
+  if (hasLogo) {
     try {
       const img = doc.openImage(logoPath);
-      const scale = BS_SUMMARY_LOGO_MAX_W_PT / img.width;
-      const imgH = img.height * scale;
-      doc.image(logoPath, BS_SUMMARY_MARGIN_X_PT, y, { width: BS_SUMMARY_LOGO_MAX_W_PT });
-      logoBottom = y + imgH;
+      logoH = img.height * (BS_SUMMARY_LOGO_MAX_W_PT / img.width);
     } catch {
-      logoBottom = y;
+      logoH = 0;
     }
   }
 
-  let yText = y + 1;
+  const logoW = hasLogo && logoH > 0 ? BS_SUMMARY_LOGO_MAX_W_PT : 0;
+  const maxTextW = pageWidth - 2 * BS_SUMMARY_MARGIN_X_PT;
+  const textW = Math.min(BS_HEADER_TEXT_TARGET_W_PT, maxTextW);
+  const textX = (pageWidth - textW) / 2;
+  const logoX = hasLogo && logoW > 0
+    ? Math.max(BS_SUMMARY_MARGIN_X_PT, textX - BS_HEADER_LOGO_GAP_PT - logoW)
+    : BS_SUMMARY_MARGIN_X_PT;
+
+  const addr = "Fortich Street, Malaybalay City, Bukidnon 8700";
+  const tel = "Tel (088) 813-5661 to 5663; Telefax (088) 813-2717";
+  const web = "www.buksu.edu.ph";
+
+  doc.font("Times-Bold").fontSize(10.5);
+  const hUni = doc.heightOfString("BUKIDNON STATE UNIVERSITY", { width: textW, align: "center" });
+  doc.font("Times-Roman").fontSize(8.5);
+  const hAddr = doc.heightOfString(addr, { width: textW, align: "center" });
+  const hTel = doc.heightOfString(tel, { width: textW, align: "center" });
+  const hWeb = doc.heightOfString(web, { width: textW, align: "center", underline: true });
+  const textBlockH = hUni + lineTight + hAddr + lineTight + hTel + lineTight + hWeb;
+  const rowH = Math.max(textBlockH, logoH);
+  const textTop = y + (rowH - textBlockH) / 2;
+  const logoTop = y + (rowH - logoH) / 2;
+
+  if (hasLogo && logoH > 0) {
+    try {
+      doc.image(logoPath, logoX, logoTop, { width: BS_SUMMARY_LOGO_MAX_W_PT });
+    } catch {
+      // Keep rendering text even if logo fails.
+    }
+  }
+
+  let yText = textTop;
   doc.fillColor("#000000");
   doc.font("Times-Bold").fontSize(10.5);
-  doc.text("BUKIDNON STATE UNIVERSITY", 0, yText, { width: pageWidth, align: "center" });
-  yText += doc.currentLineHeight() + lineTight;
+  doc.text("BUKIDNON STATE UNIVERSITY", textX, yText, { width: textW, align: "center" });
+  yText += hUni + lineTight;
 
   doc.font("Times-Roman").fontSize(8.5);
-  const addr = "Fortich Street, Malaybalay City, Bukidnon 8700";
-  doc.text(addr, 0, yText, { width: pageWidth, align: "center" });
-  yText += doc.heightOfString(addr, { width: pageWidth, align: "center" }) + lineTight;
+  doc.text(addr, textX, yText, { width: textW, align: "center" });
+  yText += hAddr + lineTight;
 
-  const tel = "Tel (088) 813-5661 to 5663; Telefax (088) 813-2717";
-  doc.text(tel, 0, yText, { width: pageWidth, align: "center" });
-  yText += doc.heightOfString(tel, { width: pageWidth, align: "center" }) + lineTight;
+  doc.text(tel, textX, yText, { width: textW, align: "center" });
+  yText += hTel + lineTight;
 
   doc.fillColor("#0000EE");
   doc.fontSize(8.5);
-  const web = "www.buksu.edu.ph";
-  doc.text(web, 0, yText, {
-    width: pageWidth,
+  doc.text(web, textX, yText, {
+    width: textW,
     align: "center",
     link: "https://www.buksu.edu.ph/",
     underline: true,
   });
-  yText +=
-    doc.heightOfString(web, {
-      width: pageWidth,
-      align: "center",
-      underline: true,
-    }) +
-    lineTight +
-    mmToPt(2);
 
-  const afterUni = Math.max(yText, logoBottom + mmToPt(2)) + mmToPt(2);
+  const afterUni = y + rowH + mmToPt(4);
   return finishTitleBlock(afterUni);
 }
 
@@ -407,7 +445,7 @@ export const addRecordHeaderFooter = (doc, pageNum, totalPages, trackingNumber, 
 
 async function generateLegacyAdminCounselingPdf(recordData, sanitizedCounselorName, options = {}) {
   const trackingNumber = generateTrackingNumber();
-  const headerTitle =
+  const reportTitle =
     options.headerTitle != null && String(options.headerTitle).trim() !== ""
       ? String(options.headerTitle).trim()
       : INDIVIDUAL_COUNSELING_REPORT_TITLE;
@@ -431,16 +469,15 @@ async function generateLegacyAdminCounselingPdf(recordData, sanitizedCounselorNa
   const marginBottom = 72;
   const marginLeft = 54;
   const marginRight = 54;
-  const footerHeight = 92;
+  const footerHeight = 48;
   const contentStartX = marginLeft;
   const contentWidth = pageWidth - marginLeft - marginRight;
-  const contentStartY = 92;
-
-  const reportDate = recordData.date
-    ? new Date(recordData.date).toLocaleDateString()
-    : new Date().toLocaleDateString();
-  const sessionHeaderOpts = { title: headerTitle };
-  addRecordHeaderFooter(doc, 1, 1, trackingNumber, reportDate, sessionHeaderOpts);
+  const schoolYearVal =
+    recordData.schoolYear != null && String(recordData.schoolYear).trim()
+      ? String(recordData.schoolYear).trim()
+      : "—";
+  const letterheadOptsBase = { schoolYear: schoolYearVal, reportTitle };
+  let contentStartY = drawBsIndividualCounselingLetterhead(doc, { ...letterheadOptsBase, firstPage: true });
 
   doc.fillColor(0, 0, 0);
 
@@ -503,7 +540,7 @@ async function generateLegacyAdminCounselingPdf(recordData, sanitizedCounselorNa
   const maxContentY = pageHeight - marginBottom - footerHeight - 80;
   if (finalY + estimatedNotesHeight + 100 > maxContentY) {
     doc.addPage();
-    addRecordHeaderFooter(doc, 2, 2, trackingNumber, reportDate, sessionHeaderOpts);
+    contentStartY = drawBsIndividualCounselingLetterhead(doc, { ...letterheadOptsBase, firstPage: false });
     doc.fillColor(0, 0, 0);
     finalY = contentStartY;
   }
@@ -529,7 +566,7 @@ async function generateLegacyAdminCounselingPdf(recordData, sanitizedCounselorNa
   });
   if (finalY + estimatedOutcomeHeight + 100 > maxContentY) {
     doc.addPage();
-    addRecordHeaderFooter(doc, 2, 2, trackingNumber, reportDate, sessionHeaderOpts);
+    contentStartY = drawBsIndividualCounselingLetterhead(doc, { ...letterheadOptsBase, firstPage: false });
     doc.fillColor(0, 0, 0);
     finalY = contentStartY;
   }
@@ -538,6 +575,13 @@ async function generateLegacyAdminCounselingPdf(recordData, sanitizedCounselorNa
     align: "left",
     lineGap: 5,
   });
+
+  const range = doc.bufferedPageRange();
+  const total = range.count;
+  for (let i = 0; i < total; i++) {
+    doc.switchToPage(range.start + i);
+    drawIndividualFormFooterStrip(doc, i + 1, total);
+  }
 
   doc.end();
 

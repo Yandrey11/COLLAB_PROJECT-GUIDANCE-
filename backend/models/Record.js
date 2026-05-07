@@ -38,6 +38,25 @@ const recordSchema = new mongoose.Schema(
     driveLink: { type: String },
     googleCalendarEventId: { type: String }, // Links record to Google Calendar event
     counselor: { type: String, required: true },
+    sharedWith: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Counselor",
+      },
+    ],
+    sharedHistory: [
+      {
+        counselorId: { type: mongoose.Schema.Types.ObjectId, ref: "Counselor" },
+        counselorName: { type: String },
+        action: { type: String, enum: ["shared", "unshared"], required: true },
+        sharedBy: {
+          userId: { type: mongoose.Schema.Types.ObjectId },
+          userName: { type: String },
+          userRole: { type: String },
+        },
+        timestamp: { type: Date, default: Date.now },
+      },
+    ],
 
     /** Counselor archive: hidden from default lists; purged after `archivePurgeAt`. */
     archivedAt: { type: Date, default: null },

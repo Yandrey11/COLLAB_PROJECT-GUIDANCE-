@@ -2,8 +2,9 @@ import { useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
 import axios from "axios";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const BASE_URL = API_BASE_URL;
 
 // Inactivity timeout: 1 hour (60 minutes = 3600000 milliseconds)
 const INACTIVITY_TIMEOUT_MS = 60 * 60 * 1000;
@@ -47,7 +48,7 @@ export const useInactivity = ({ onLogout, enabled = true } = {}) => {
       const role = localStorage.getItem("adminToken") ? "admin" : "counselor";
       const endpoint = role === "admin" 
         ? `${BASE_URL}/api/admin/dashboard`
-        : `${BASE_URL}/api/user/profile`;
+        : `${BASE_URL}/api/profile`;
 
       const response = await axios.get(endpoint, {
         headers: { Authorization: `Bearer ${token}` },
@@ -100,6 +101,7 @@ export const useInactivity = ({ onLogout, enabled = true } = {}) => {
 
   // Handle logout
   const handleLogout = useCallback((message) => {
+    const wasAdmin = Boolean(localStorage.getItem("adminToken"));
     // Clear warning timeout if exists
     if (warningTimeoutRef.current) {
       clearTimeout(warningTimeoutRef.current);
@@ -124,9 +126,8 @@ export const useInactivity = ({ onLogout, enabled = true } = {}) => {
       if (onLogout) {
         onLogout();
       } else {
-        // Default: redirect to login based on which token exists
-        const adminToken = localStorage.getItem("adminToken");
-        if (adminToken) {
+        // Default: redirect to login based on role before token cleanup
+        if (wasAdmin) {
           navigate("/adminlogin", { replace: true });
         } else {
           navigate("/login", { replace: true });

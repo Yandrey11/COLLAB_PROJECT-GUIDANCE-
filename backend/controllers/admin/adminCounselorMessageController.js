@@ -4,6 +4,7 @@ import Counselor from "../../models/Counselor.js";
 import GoogleUser from "../../models/GoogleUser.js";
 import { createCounselorNotification } from "../counselorNotificationController.js";
 import { cacheInvalidate } from "../../utils/cache.js";
+import { decrypt } from "../../utils/fieldCrypto.js";
 
 const MAX_BODY_LEN = 4000;
 
@@ -100,18 +101,7 @@ export const getAdminMessageThreads = async (req, res) => {
           counselorName: { $ifNull: ["$counselorPerson.name", "Unknown"] },
           counselorEmail: { $ifNull: ["$counselorPerson.email", ""] },
           lastMessageAt: 1,
-          lastBody: {
-            $cond: [
-              { $gt: [{ $strLenCP: { $ifNull: ["$lastBody", ""] } }, 120] },
-              {
-                $concat: [
-                  { $substrCP: [{ $ifNull: ["$lastBody", ""] }, 0, 120] },
-                  "…",
-                ],
-              },
-              { $ifNull: ["$lastBody", ""] },
-            ],
-          },
+          lastBody: { $ifNull: ["$lastBody", ""] },
           lastSenderRole: 1,
           lastSenderName: 1,
           unreadFromCounselor: 1,
@@ -119,7 +109,14 @@ export const getAdminMessageThreads = async (req, res) => {
       },
     ];
 
-    const threads = await AdminCounselorMessage.aggregate(pipeline);
+    const threads = (await AdminCounselorMessage.aggregate(pipeline)).map((t) => {
+      const body = decrypt(t.lastBody || "");
+      const normalized = typeof body === "string" ? body : String(body || "");
+      return {
+        ...t,
+        lastBody: normalized.length > 120 ? `${normalized.slice(0, 120)}…` : normalized,
+      };
+    });
 
     res.json({ success: true, threads });
   } catch (err) {
@@ -159,8 +156,8 @@ export const getAdminMessagesForCounselor = async (req, res) => {
       counselorId: m.counselorId,
       senderRole: m.senderRole,
       senderUserId: m.senderUserId,
-      senderName: m.senderName,
-      body: m.body,
+      senderName: decrypt(m.senderName),
+      body: decrypt(m.body),
       readAt: m.readAt,
       createdAt: m.createdAt,
       updatedAt: m.updatedAt,

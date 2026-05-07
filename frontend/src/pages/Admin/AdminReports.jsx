@@ -6,8 +6,9 @@ import { motion } from "framer-motion";
 import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
+import { API_BASE_URL } from "../../config/apiBaseUrl";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const BASE_URL = API_BASE_URL;
 
 function parseFilenameFromContentDisposition(cd) {
   if (!cd || typeof cd !== "string") return null;
@@ -332,14 +333,14 @@ export default function AdminReports() {
 
   const handleGenerateRecordPDF = async (recordId, clientName) => {
     try {
-      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const token = localStorage.getItem("adminToken");
       if (!token) {
         Swal.fire({
           icon: "error",
           title: "Authentication Error",
           text: "Please log in again.",
         });
-        navigate("/login");
+        navigate("/adminlogin");
         return;
       }
 

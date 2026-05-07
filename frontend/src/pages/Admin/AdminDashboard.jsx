@@ -7,8 +7,9 @@ import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 import { useInactivity } from "../../hooks/useInactivity";
+import { API_BASE_URL } from "../../config/apiBaseUrl";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const BASE_URL = API_BASE_URL;
 
 // Helper function to get full image URL from backend
 const getImageUrl = (imagePath) => {
@@ -133,7 +134,7 @@ export default function AdminDashboard() {
       try {
         // main verification (do not change endpoint)
         console.log("📤 Sending request to /api/admin/dashboard");
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         const res = await axios.get(`${baseUrl}/api/admin/dashboard`, {
           headers: token ? { 
             Authorization: `Bearer ${token}`,
@@ -195,7 +196,7 @@ export default function AdminDashboard() {
   // Fetch overview/summary (uses a dedicated endpoint if available)
   const fetchSummary = async (token) => {
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.get(`${baseUrl}/api/admin/summary`, {
         headers: token ? { 
           Authorization: `Bearer ${token}`,
@@ -217,7 +218,7 @@ export default function AdminDashboard() {
   const startNotificationsPolling = (token) => {
     const poll = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         const res = await axios.get(`${baseUrl}/api/admin/notifications`, {
           headers: token ? { 
             Authorization: `Bearer ${token}`,

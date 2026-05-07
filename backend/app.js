@@ -3,6 +3,7 @@
 import express from "express";
 import dotenv from "dotenv";
 import cors from "cors";
+import helmet from "helmet";
 import session from "express-session";
 import passport from "passport";
 import cookieParser from "cookie-parser"; // ✅ Keep only ONE
@@ -11,6 +12,8 @@ import { fileURLToPath } from "url";
 import connectDB from "./config/db.js";
 import { purgeExpiredArchivedRecords } from "./controllers/recordController.js";
 import { backfillAnnouncementNotifications } from "./controllers/counselorNotificationController.js";
+import { globalApiLimiter } from "./middleware/rateLimitMiddleware.js";
+import { cleanupTempFiles } from "./utils/tempCleanup.js";
 
 // ES6 module dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -46,12 +49,59 @@ setTimeout(() => {
 
 // ✅ Initialize Express
 const app = express();
+const isProd = process.env.NODE_ENV === "production";
+if (process.env.TRUST_PROXY === "true" || isProd) {
+  app.set("trust proxy", 1);
+}
+const enableHelmet = String(process.env.ENABLE_HELMET || "true").toLowerCase() === "true";
+const jsonBodyLimit = process.env.JSON_BODY_LIMIT || "1mb";
+const urlencodedBodyLimit = process.env.URLENCODED_BODY_LIMIT || "1mb";
+const uploadsAccessMode = String(process.env.UPLOADS_ACCESS_MODE || "hardened").toLowerCase();
+const tempCleanupEnabled = String(process.env.TEMP_CLEANUP_ENABLED || "true").toLowerCase() === "true";
+const tempFileTtlHours = Number(process.env.TEMP_FILE_TTL_HOURS || 24);
+
+if (tempCleanupEnabled) {
+  setTimeout(() => {
+    cleanupTempFiles({ ttlHours: tempFileTtlHours })
+      .then(({ deleted }) => {
+        if (deleted > 0) console.log(`[temp-cleanup] initial run removed ${deleted} file(s)`);
+      })
+      .catch((e) => console.error("[temp-cleanup] initial run:", e));
+  }, 30_000);
+
+  setInterval(() => {
+    cleanupTempFiles({ ttlHours: tempFileTtlHours })
+      .then(({ deleted }) => {
+        if (deleted > 0) console.log(`[temp-cleanup] scheduled run removed ${deleted} file(s)`);
+      })
+      .catch((e) => console.error("[temp-cleanup] scheduled run:", e));
+  }, ARCHIVE_PURGE_INTERVAL_MS);
+}
+
+// Session cookie sameSite policy:
+// - default: "lax" (safe and works for most same-site flows)
+// - override with SESSION_COOKIE_SAMESITE=none for cross-site deployments
+const rawSameSite = String(process.env.SESSION_COOKIE_SAMESITE || "lax").toLowerCase();
+const sessionSameSite = ["lax", "strict", "none"].includes(rawSameSite) ? rawSameSite : "lax";
+
+// `SameSite=None` requires Secure in modern browsers.
+const sessionCookieSecure = isProd || sessionSameSite === "none";
 
 // ✅ Passport configurations (must come before routes)
 import "./config/passport.js";              // user auth (Google/local)
 import "./config/adminPassport.js";         // admin Google/local auth
 
 // ✅ Core middlewares
+if (enableHelmet) {
+  app.use(
+    helmet({
+      // Keep CSP off initially to avoid breaking OAuth + existing frontend/CDN assets.
+      contentSecurityPolicy: false,
+      // Keep compatible with current cross-origin image usage.
+      crossOriginResourcePolicy: { policy: "cross-origin" },
+    })
+  );
+}
 app.use(
   cors({
     origin: process.env.CLIENT_URL || "http://localhost:5173",
@@ -59,23 +109,27 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: jsonBodyLimit }));
+app.use(express.urlencoded({ extended: true, limit: urlencodedBodyLimit }));
 app.use(cookieParser());
+app.use("/api", globalApiLimiter);
 
 // Serve static files from uploads directory
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+if (uploadsAccessMode === "public") {
+  app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+}
 
 // ✅ Session configuration (for OAuths)
 app.use(
   session({
     secret: process.env.SESSION_SECRET,
-    resave: true, // Changed to true to ensure session is saved
-    saveUninitialized: true, // Changed to true to save uninitialized sessions (required for OAuth)
+    // Reduce unnecessary session rewrites and session creation surface.
+    resave: false,
+    saveUninitialized: false,
     cookie: {
-      secure: false, // set true if using https
+      secure: sessionCookieSecure,
       httpOnly: true,
-      sameSite: 'lax', // Allow cross-site cookies for OAuth redirects
+      sameSite: sessionSameSite,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     },
     name: 'sessionId', // Explicit session name
@@ -99,9 +153,6 @@ import resetRoutes from "./routes/resetRoutes.js";
 import adminRoutes from "./routes/admin/adminRoutes.js";
 import adminGoogleAuthRoutes from "./routes/admin/adminGoogleAuthRoutes.js";
 import adminRefreshRoutes from "./routes/admin/adminRefreshRoutes.js";
-import adminSignupRoutes from "./routes/admin/adminSignupRoutes.js";
-import adminLoginRoutes from "./routes/admin/adminLoginRoutes.js";
-import configRoutes from "./routes/configRoutes.js";
 
 import recordRoutes from "./routes/recordRoutes.js";
 import googleDriveRoutes from "./routes/googleDriveRoutes.js";
@@ -125,9 +176,9 @@ import counselorMessageRoutes from "./routes/counselorMessageRoutes.js";
 import adminMessageRoutes from "./routes/admin/adminMessageRoutes.js";
 import profileRoutes from "./routes/profileRoutes.js";
 import counselorSettingsRoutes from "./routes/counselorSettingsRoutes.js";
+import uploadAccessRoutes from "./routes/uploadAccessRoutes.js";
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin", adminRefreshRoutes);
-app.use("/api/admin", adminSignupRoutes);
 app.use("/api/admin", adminTokenRoutes);
 app.use("/api/admin", sessionRoutes);
 app.use("/api/admin", notificationRoutes);
@@ -146,6 +197,7 @@ app.use("/api/counselor/notifications", counselorNotificationRoutes);
 app.use("/api/counselor/messages", counselorMessageRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/counselor/settings", counselorSettingsRoutes);
+app.use("/api/uploads", uploadAccessRoutes);
 
 // ✅ Register routes AFTER middleware
 app.use("/api/auth", authRoutes);
@@ -153,8 +205,6 @@ app.use("/auth", googleAuthRoutes);
 app.use("/auth", googleCalendarRoutes);
 app.use("/auth/admin", adminGoogleAuthRoutes);
 
-app.use("/api/reset", resetRoutes);
-app.use("/auth/admin", adminGoogleAuthRoutes);
 app.use("/api/reset", resetRoutes);
 app.use("/api/records", recordRoutes);
 app.use("/auth", googleDriveRoutes);

@@ -5,6 +5,7 @@ import Swal from "sweetalert2";
 import buksuLogo from "../assets/buksu-logo.png";
 import sweuLogo from "../assets/SWEU - LOGO.jpeg";
 import { AdminMessagesBadgeBadge } from "./NotificationBadge";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
 export default function AdminTopNav() {
   const navigate = useNavigate();
@@ -23,7 +24,7 @@ export default function AdminTopNav() {
         setAdmin(null);
         return;
       }
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.get(`${baseUrl}/api/admin/profile`, {
         headers: { Authorization: `Bearer ${token}` },
       });

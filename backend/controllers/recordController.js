@@ -441,6 +441,8 @@ const getUserInfo = (req) => {
   };
 };
 
+const isAdminRequest = (req) => req.user?.role === "admin" || req.admin?.role === "admin";
+
 // 📋 1️⃣ Fetch all records (with query filters)
 export const getRecords = async (req, res) => {
   try {
@@ -473,6 +475,171 @@ export const getRecords = async (req, res) => {
     res.json(records);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch records", error: err.message });
+  }
+};
+
+export const getShareTargets = async (req, res) => {
+  try {
+    const userInfo = getUserInfo(req);
+    const record = await Record.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: "Record not found" });
+    }
+
+    if (!recordOwnedByRequestUser(record, req, userInfo) && !isAdminRequest(req)) {
+      return res.status(403).json({ message: "You don't have permission to manage sharing for this record." });
+    }
+
+    const sharedIds = Array.isArray(record.sharedWith)
+      ? record.sharedWith.map((id) => String(id))
+      : [];
+
+    const [counselors, googleCounselors, sharedCounselors, sharedGoogleCounselors] = await Promise.all([
+      Counselor.find({ role: { $ne: "admin" } })
+        .select("_id name email")
+        .lean(),
+      GoogleUser.find({ role: { $ne: "admin" } })
+        .select("_id name email role")
+        .lean(),
+      Counselor.find({ _id: { $in: sharedIds } }).select("_id name email").lean(),
+      GoogleUser.find({ _id: { $in: sharedIds } }).select("_id name email role").lean(),
+    ]);
+
+    const currentUserId = String(req.user?._id || req.user?.id || req.admin?._id || "");
+    const allCandidates = [
+      ...counselors.map((u) => ({ id: String(u._id), name: u.name || u.email, email: u.email || "" })),
+      ...googleCounselors
+        .filter((u) => (u.role || "counselor") !== "admin")
+        .map((u) => ({ id: String(u._id), name: u.name || u.email, email: u.email || "" })),
+    ];
+
+    const seen = new Set();
+    const targets = [];
+    for (const c of allCandidates) {
+      if (!c.id || seen.has(c.id) || c.id === currentUserId) continue;
+      seen.add(c.id);
+      if (!sharedIds.includes(c.id)) {
+        targets.push(c);
+      }
+    }
+
+    const shared = [...sharedCounselors, ...sharedGoogleCounselors].map((u) => ({
+      id: String(u._id),
+      name: u.name || u.email,
+      email: u.email || "",
+    }));
+
+    return res.json({ success: true, targets, shared });
+  } catch (err) {
+    console.error("❌ Get share targets error:", err);
+    return res.status(500).json({ message: "Failed to load sharing targets", error: err.message });
+  }
+};
+
+export const shareRecordWithCounselor = async (req, res) => {
+  try {
+    const { counselorId } = req.body || {};
+    if (!counselorId) {
+      return res.status(400).json({ message: "counselorId is required" });
+    }
+
+    const userInfo = getUserInfo(req);
+    const record = await Record.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: "Record not found" });
+    }
+
+    if (!recordOwnedByRequestUser(record, req, userInfo) && !isAdminRequest(req)) {
+      return res.status(403).json({ message: "You don't have permission to share this record." });
+    }
+
+    const targetCounselor =
+      (await Counselor.findById(counselorId).select("_id name email role").lean()) ||
+      (await GoogleUser.findById(counselorId).select("_id name email role").lean());
+    if (!targetCounselor || (targetCounselor.role || "counselor") === "admin") {
+      return res.status(404).json({ message: "Counselor target not found" });
+    }
+
+    const targetId = String(targetCounselor._id);
+    if (String(req.user?._id || req.user?.id || "") === targetId) {
+      return res.status(400).json({ message: "You cannot share a record with yourself." });
+    }
+
+    if (!Array.isArray(record.sharedWith)) {
+      record.sharedWith = [];
+    }
+
+    if (!record.sharedWith.some((id) => String(id) === targetId)) {
+      record.sharedWith.push(targetCounselor._id);
+      record.sharedHistory = Array.isArray(record.sharedHistory) ? record.sharedHistory : [];
+      record.sharedHistory.push({
+        counselorId: targetCounselor._id,
+        counselorName: targetCounselor.name || targetCounselor.email,
+        action: "shared",
+        sharedBy: {
+          userId: userInfo.userId,
+          userName: userInfo.userName,
+          userRole: userInfo.userRole,
+        },
+        timestamp: new Date(),
+      });
+      await record.save();
+    }
+
+    return res.json({
+      success: true,
+      message: "Record shared successfully.",
+      record: sanitizeRecordForApi(record),
+    });
+  } catch (err) {
+    console.error("❌ Share record error:", err);
+    return res.status(500).json({ message: "Failed to share record", error: err.message });
+  }
+};
+
+export const unshareRecordWithCounselor = async (req, res) => {
+  try {
+    const { counselorId } = req.body || {};
+    if (!counselorId) {
+      return res.status(400).json({ message: "counselorId is required" });
+    }
+
+    const userInfo = getUserInfo(req);
+    const record = await Record.findById(req.params.id);
+    if (!record) {
+      return res.status(404).json({ message: "Record not found" });
+    }
+
+    if (!recordOwnedByRequestUser(record, req, userInfo) && !isAdminRequest(req)) {
+      return res.status(403).json({ message: "You don't have permission to unshare this record." });
+    }
+
+    const before = Array.isArray(record.sharedWith) ? record.sharedWith : [];
+    record.sharedWith = before.filter((id) => String(id) !== String(counselorId));
+
+    if (before.length !== record.sharedWith.length) {
+      record.sharedHistory = Array.isArray(record.sharedHistory) ? record.sharedHistory : [];
+      record.sharedHistory.push({
+        counselorId,
+        action: "unshared",
+        sharedBy: {
+          userId: userInfo.userId,
+          userName: userInfo.userName,
+          userRole: userInfo.userRole,
+        },
+        timestamp: new Date(),
+      });
+      await record.save();
+    }
+
+    return res.json({
+      success: true,
+      message: "Record unshared successfully.",
+      record: sanitizeRecordForApi(record),
+    });
+  } catch (err) {
+    console.error("❌ Unshare record error:", err);
+    return res.status(500).json({ message: "Failed to unshare record", error: err.message });
   }
 };
 
@@ -563,6 +730,9 @@ export const updateRecord = async (req, res) => {
     
     if (!record) {
       return res.status(404).json({ message: "Record not found" });
+    }
+    if (!assertRecordAccess(record, req, userInfo)) {
+      return res.status(403).json({ message: "You don't have permission to update this record." });
     }
 
     // STRICT 2PL: Additional lock ownership validation (defense in depth)
@@ -968,9 +1138,13 @@ export const createRecord = async (req, res) => {
 
 export const uploadToDrive = async (req, res) => {
   try {
+    const userInfo = getUserInfo(req);
     const record = await Record.findById(req.params.id);
     if (!record) {
       return res.status(404).json({ error: "Record not found" });
+    }
+    if (!assertRecordAccess(record, req, userInfo)) {
+      return res.status(403).json({ error: "You don't have permission to access this record." });
     }
 
     const drive = await getDriveClientFromUser(req.user);
@@ -1044,9 +1218,13 @@ export const generateRecordPDF = async (req, res) => {
       return res.status(400).json({ error: "Record ID is required" });
     }
 
+    const userInfo = getUserInfo(req);
     const record = await Record.findById(req.params.id);
     if (!record) {
       return res.status(404).json({ error: "Record not found" });
+    }
+    if (!assertRecordAccess(record, req, userInfo)) {
+      return res.status(403).json({ error: "You don't have permission to access this record." });
     }
 
     const recordData = buildRecordPdfPayload(record);
@@ -1187,6 +1365,11 @@ const recordOwnedByRequestUser = (record, req, userInfo) => {
     (req.user?.email && record.counselor === req.user.email) ||
     (req.user?.name && record.counselor === req.user.name)
   );
+};
+
+const assertRecordAccess = (record, req, userInfo) => {
+  if (req.user?.role === "admin" || req.admin?.role === "admin") return true;
+  return recordOwnedByRequestUser(record, req, userInfo);
 };
 
 export const archiveRecord = async (req, res) => {

@@ -15,8 +15,9 @@ import {
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 import { validatePassword } from "../../utils/passwordValidation";
 import PasswordStrengthMeter from "../../components/PasswordStrengthMeter.jsx";
+import { API_BASE_URL } from "../../config/apiBaseUrl";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const BASE_URL = API_BASE_URL;
 const SETTINGS_API_URL = `${BASE_URL}/api/admin/settings`;
 const PROFILE_API_URL = `${BASE_URL}/api/admin/profile`;
 
@@ -245,6 +246,7 @@ export default function AdminSettingsPage() {
 
   // Save settings to backend
   const saveSettings = async (category = null) => {
+    if (saving) return;
     try {
       setSaving(true);
       const token = localStorage.getItem("adminToken");
@@ -312,6 +314,7 @@ export default function AdminSettingsPage() {
 
   // Save admin color theme
   const saveColors = async (colors) => {
+    if (saving) return;
     try {
       setSaving(true);
       const token = localStorage.getItem("adminToken");
@@ -356,6 +359,7 @@ export default function AdminSettingsPage() {
 
   // Reset admin color theme to defaults (server + local)
   const resetColorsOnly = async () => {
+    if (saving) return;
     const def = { ...COLOR_DEFAULTS.admin };
     setSettings((prev) => ({ ...prev, colors: def }));
     applyColorTheme(def);
@@ -376,6 +380,7 @@ export default function AdminSettingsPage() {
   // Handle password change
   const handlePasswordChange = async (e) => {
     e.preventDefault();
+    if (saving) return;
 
     // Validation
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {

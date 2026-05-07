@@ -159,7 +159,7 @@ export const resetPassword = async (req, res) => {
     }
 
     // Enhanced password validation with email
-    const validation = validatePassword(newPassword, { email: user.email || email, name: user.name || "" });
+    const validation = validatePassword(newPassword, { email: user.email || email });
     if (!validation.isValid) {
       return res.status(400).json({
         message: "Password does not meet the security requirements.",
@@ -213,7 +213,7 @@ export const setPasswordWithToken = async (req, res) => {
     }
 
     // Enhanced password validation with email
-    const validation = validatePassword(newPassword, { email: user.email || email, name: user.name || "" });
+    const validation = validatePassword(newPassword, { email: user.email || email });
     if (!validation.isValid) {
       return res.status(400).json({
         message: "Password does not meet the security requirements.",

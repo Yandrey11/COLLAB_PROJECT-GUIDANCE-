@@ -8,6 +8,7 @@ import {
   persistColorTheme,
   resetColorThemeToDefault,
 } from "../utils/themeUtils";
+import useSingleFlight from "../hooks/useSingleFlight";
 
 /**
  * Theme / Appearance — color customization UI.
@@ -39,6 +40,7 @@ export default function ColorThemeSection({
     accent: initialColors?.accent || defaults.accent,
     preset: initialColors?.preset || defaults.preset,
   }));
+  const { run: runAction, isRunning: actionRunning } = useSingleFlight();
 
   // Sync down when parent loads from API
   const isFirstSyncRef = useRef(true);
@@ -79,22 +81,26 @@ export default function ColorThemeSection({
   };
 
   const handleSave = async () => {
-    if (!onSave) return;
-    const safe = {
-      bg: isValidHex(colors.bg) ? colors.bg : defaults.bg,
-      primary: isValidHex(colors.primary) ? colors.primary : defaults.primary,
-      accent: isValidHex(colors.accent) ? colors.accent : defaults.accent,
-      preset: colors.preset || "custom",
-    };
-    persistColorTheme(safe);
-    applyColorTheme(safe);
-    await onSave(safe);
+    await runAction(async () => {
+      if (!onSave) return;
+      const safe = {
+        bg: isValidHex(colors.bg) ? colors.bg : defaults.bg,
+        primary: isValidHex(colors.primary) ? colors.primary : defaults.primary,
+        accent: isValidHex(colors.accent) ? colors.accent : defaults.accent,
+        preset: colors.preset || "custom",
+      };
+      persistColorTheme(safe);
+      applyColorTheme(safe);
+      await onSave(safe);
+    });
   };
 
   const handleReset = async () => {
-    const def = resetColorThemeToDefault(role);
-    setColors({ ...def, preset: defaults.preset });
-    if (onReset) await onReset();
+    await runAction(async () => {
+      const def = resetColorThemeToDefault(role);
+      setColors({ ...def, preset: defaults.preset });
+      if (onReset) await onReset();
+    });
   };
 
   const allValid = ["bg", "primary", "accent"].every((k) => isValidHex(colors[k]));
@@ -242,7 +248,7 @@ export default function ColorThemeSection({
         <button
           type="button"
           onClick={handleReset}
-          disabled={saving}
+          disabled={saving || actionRunning}
           className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-800 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700/80"
         >
           Reset to default
@@ -250,10 +256,10 @@ export default function ColorThemeSection({
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving || !allValid}
+          disabled={saving || actionRunning || !allValid}
           className="btn-theme-primary rounded-xl px-5 py-2.5 text-sm font-medium"
         >
-          {saving ? "Saving…" : "Save changes"}
+          {saving || actionRunning ? "Saving…" : "Save changes"}
         </button>
       </div>
     </motion.div>

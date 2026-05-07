@@ -44,7 +44,6 @@ export const getActiveSessions = async (req, res) => {
       lastActivity: session.lastActivity,
       ipAddress: session.ipAddress,
       userAgent: session.userAgent,
-      token: session.token, // Include for force logout
     }));
 
     res.status(200).json({

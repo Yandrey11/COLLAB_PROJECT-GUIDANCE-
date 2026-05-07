@@ -5,6 +5,7 @@ import { validatePassword } from "../utils/passwordValidation";
 import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { initializeTheme } from "../utils/themeUtils";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
 const labelClass =
   "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500";
@@ -21,6 +22,7 @@ export default function SetPassword() {
   const [loading, setLoading] = useState(false);
   const [token, setToken] = useState("");
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [passwordErrors, setPasswordErrors] = useState([]);
 
   useEffect(() => {
@@ -30,6 +32,7 @@ export default function SetPassword() {
   useEffect(() => {
     const tokenParam = searchParams.get("token");
     const emailParam = searchParams.get("email");
+    const nameParam = searchParams.get("name");
 
     if (!tokenParam || !emailParam) {
       setMessage("Invalid link. Please contact support.");
@@ -38,6 +41,7 @@ export default function SetPassword() {
 
     setToken(tokenParam);
     setEmail(emailParam);
+    setName(nameParam || "");
   }, [searchParams]);
 
   const handleSubmit = async (e) => {
@@ -51,10 +55,10 @@ export default function SetPassword() {
       return;
     }
 
-    const validation = validatePassword(newPassword, { email });
+    const validation = validatePassword(newPassword, { email, name });
     if (!validation.isValid) {
       setPasswordErrors(validation.errors);
-      setMessage("Password does not meet the security requirements.");
+      setMessage(validation.errors?.[0] || "Password does not meet the security requirements.");
       setLoading(false);
       return;
     }
@@ -72,7 +76,7 @@ export default function SetPassword() {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.post(`${baseUrl}/api/reset/set-password`, {
         token,
         email,
@@ -83,6 +87,9 @@ export default function SetPassword() {
       setTimeout(() => navigate("/login"), 2000);
     } catch (err) {
       console.error("Set password error:", err);
+      if (Array.isArray(err.response?.data?.errors)) {
+        setPasswordErrors(err.response.data.errors);
+      }
       setMessage(err.response?.data?.message || "Failed to set password. The link may have expired.");
     } finally {
       setLoading(false);
@@ -135,7 +142,7 @@ export default function SetPassword() {
                 onChange={(e) => {
                   const value = e.target.value;
                   setNewPassword(value);
-                  const result = validatePassword(value, { email });
+                  const result = validatePassword(value, { email, name });
                   setPasswordErrors(result.errors);
                 }}
                 placeholder="Enter a strong password"
@@ -144,7 +151,7 @@ export default function SetPassword() {
                 className={inputClass}
               />
               <div className="mt-2">
-                <PasswordStrengthMeter password={newPassword} email={email} />
+                <PasswordStrengthMeter password={newPassword} email={email} name={name} />
               </div>
               {passwordErrors.length > 0 && (
                 <ul className="mt-2 list-inside list-disc space-y-0.5 text-xs text-red-600 dark:text-red-400">

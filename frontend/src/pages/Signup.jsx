@@ -7,6 +7,7 @@ import { validatePassword } from "../utils/passwordValidation";
 import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { COUNSELOR_COLLEGES } from "../constants/counselorColleges";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 import buksuLogo from "../assets/buksu-logo.png";
 
 const fieldClass =
@@ -69,7 +70,7 @@ function Signup() {
     }
     try {
       const res = await axios.post(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/auth/signup`,
+        `${API_BASE_URL}/api/auth/signup`,
         signupData,
         { headers: { "Content-Type": "application/json" } }
       );

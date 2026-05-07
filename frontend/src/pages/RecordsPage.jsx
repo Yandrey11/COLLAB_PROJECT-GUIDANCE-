@@ -8,11 +8,13 @@ import CounselorSidebar from "../components/CounselorSidebar";
 import CounselorHeaderProfile from "../components/CounselorHeaderProfile.jsx";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import useSingleFlight from "../hooks/useSingleFlight";
 import { problemsPresentedFieldValue } from "../constants/problemsPresented";
 import ProblemsPresentedCheckboxes from "../components/ProblemsPresentedCheckboxes";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
-const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/records`;
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const API_URL = `${API_BASE_URL}/api/records`;
+const BASE_URL = API_BASE_URL;
 
 function parseFilenameFromContentDisposition(cd) {
   if (!cd || typeof cd !== "string") return null;
@@ -101,6 +103,7 @@ export default function RecordsPage({ archivedView = false }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [records, setRecords] = useState([]);
+  const { run: runRecordWrite, isRunning: isRecordWriteRunning } = useSingleFlight();
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [newRecord, setNewRecord] = useState({
     clientName: "",
@@ -145,6 +148,12 @@ export default function RecordsPage({ archivedView = false }) {
     courses: [],
     yearLevels: [],
   });
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareRecord, setShareRecord] = useState(null);
+  const [shareTargets, setShareTargets] = useState([]);
+  const [sharedCounselors, setSharedCounselors] = useState([]);
+  const [selectedShareTarget, setSelectedShareTarget] = useState("");
+  const [shareLoading, setShareLoading] = useState(false);
 
   const generateTrackingNumber = () => {
     const timestamp = Date.now();
@@ -225,7 +234,7 @@ export default function RecordsPage({ archivedView = false }) {
         const token = localStorage.getItem("token");
         if (!token || !user) return;
 
-        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+        const baseUrl = API_BASE_URL;
         const res = await axios.get(`${baseUrl}/api/profile`, {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -254,7 +263,7 @@ export default function RecordsPage({ archivedView = false }) {
         return;
       }
       
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const res = await axios.get(`${baseUrl}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -650,29 +659,30 @@ export default function RecordsPage({ archivedView = false }) {
   // Auto-hide message after 5 seconds
 
   const handleCreateRecord = async () => {
-    if (!newRecord.clientName || !newRecord.sessionType) {
-      Swal.fire({
-        icon: "warning",
-        title: "Missing Information",
-        text: "Please fill out client name and session type.",
-      });
-      return;
-    }
+    await runRecordWrite(async () => {
+      if (!newRecord.clientName || !newRecord.sessionType) {
+        Swal.fire({
+          icon: "warning",
+          title: "Missing Information",
+          text: "Please fill out client name and session type.",
+        });
+        return;
+      }
 
-    // Check if user is logged in
-    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
-    if (!token) {
-      Swal.fire({
-        icon: "warning",
-        title: "Login Required",
-        text: "Please log in to create records",
-      });
-      navigate("/login");
-      return;
-    }
+      // Check if user is logged in
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      if (!token) {
+        Swal.fire({
+          icon: "warning",
+          title: "Login Required",
+          text: "Please log in to create records",
+        });
+        navigate("/login");
+        return;
+      }
 
-    try {
-      setLoading(true);
+      try {
+        setLoading(true);
       
       // Ensure we have fresh user info
       let currentUser = user;
@@ -742,16 +752,17 @@ export default function RecordsPage({ archivedView = false }) {
         driveLink: "",
       });
       setShowForm(false);
-    } catch (err) {
-      console.error("Error creating record:", err);
-      Swal.fire({
-        icon: "error",
-        title: "Error",
-        text: "Failed to create record",
-      });
-    } finally {
-      setLoading(false);
-    }
+      } catch (err) {
+        console.error("Error creating record:", err);
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Failed to create record",
+        });
+      } finally {
+        setLoading(false);
+      }
+    });
   };
 
   // Handle Edit button click - Auto-lock when clicking Edit
@@ -810,8 +821,9 @@ export default function RecordsPage({ archivedView = false }) {
   };
 
   const handleSave = async () => {
-    try {
-      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+    await runRecordWrite(async () => {
+      try {
+        const token = localStorage.getItem("token") || localStorage.getItem("authToken");
 
       // Counselors must not overwrite admin-only recommendation
       const counselorUpdatePayload = { ...selectedRecord };
@@ -832,10 +844,10 @@ export default function RecordsPage({ archivedView = false }) {
         timer: 2000,
         showConfirmButton: false,
       });
-      setSelectedRecord(null);
-      fetchRecords();
-    } catch (err) {
-      console.error("Error updating record:", err);
+        setSelectedRecord(null);
+        fetchRecords();
+      } catch (err) {
+        console.error("Error updating record:", err);
       
       // Handle 423 Locked status
       if (err.response?.status === 423) {
@@ -845,14 +857,15 @@ export default function RecordsPage({ archivedView = false }) {
           text: err.response?.data?.message || "This record is locked by another user. You cannot edit it.",
         });
         await fetchLockStatus(selectedRecord._id);
-      } else {
-        Swal.fire({
-          icon: "error",
-          title: "Error",
-          text: err.response?.data?.message || "Failed to update record",
-        });
+        } else {
+          Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: err.response?.data?.message || "Failed to update record",
+          });
+        }
       }
-    }
+    });
   };
 
   const handleDelete = async (record) => {
@@ -891,6 +904,91 @@ export default function RecordsPage({ archivedView = false }) {
           text: err.response?.data?.message || "Failed to delete record",
         });
       }
+    }
+  };
+
+  const loadShareState = async (recordId) => {
+    const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+    if (!token) return;
+    const res = await axios.get(`${API_URL}/${recordId}/share-targets`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setShareTargets(Array.isArray(res.data?.targets) ? res.data.targets : []);
+    setSharedCounselors(Array.isArray(res.data?.shared) ? res.data.shared : []);
+  };
+
+  const openShareModal = async (record) => {
+    try {
+      setShareLoading(true);
+      setShareRecord(record);
+      setSelectedShareTarget("");
+      await loadShareState(record._id);
+      setShowShareModal(true);
+    } catch (err) {
+      console.error("Error loading share targets:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.message || "Failed to load sharing options.",
+      });
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const handleShareRecord = async () => {
+    if (!shareRecord?._id || !selectedShareTarget) return;
+    try {
+      setShareLoading(true);
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      await axios.post(
+        `${API_URL}/${shareRecord._id}/share`,
+        { counselorId: selectedShareTarget },
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      await loadShareState(shareRecord._id);
+      await fetchRecords();
+      setSelectedShareTarget("");
+      await Swal.fire({
+        icon: "success",
+        title: "Shared",
+        text: "Record shared successfully.",
+        timer: 1600,
+        showConfirmButton: false,
+      });
+    } catch (err) {
+      console.error("Error sharing record:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.message || "Failed to share record.",
+      });
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const handleUnshareRecord = async (counselorId) => {
+    if (!shareRecord?._id || !counselorId) return;
+    try {
+      setShareLoading(true);
+      const token = localStorage.getItem("token") || localStorage.getItem("authToken");
+      await axios.post(
+        `${API_URL}/${shareRecord._id}/unshare`,
+        { counselorId },
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+      );
+      await loadShareState(shareRecord._id);
+      await fetchRecords();
+    } catch (err) {
+      console.error("Error unsharing record:", err);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: err.response?.data?.message || "Failed to unshare record.",
+      });
+    } finally {
+      setShareLoading(false);
     }
   };
 
@@ -1045,7 +1143,7 @@ export default function RecordsPage({ archivedView = false }) {
 
     if (result.isConfirmed) {
       const token = localStorage.getItem("authToken") || localStorage.getItem("token");
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
 
       try {
         if (token) {
@@ -1579,19 +1677,21 @@ export default function RecordsPage({ archivedView = false }) {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={handleCreateRecord}
+                    disabled={isRecordWriteRunning}
                     style={{
                       background: "linear-gradient(90deg, #06b6d4, #3b82f6)",
                       color: "white",
                       padding: "10px 20px",
                       borderRadius: 10,
                       border: "none",
-                      cursor: "pointer",
+                      cursor: isRecordWriteRunning ? "not-allowed" : "pointer",
                       fontWeight: 600,
                       fontSize: 14,
                       boxShadow: "0 4px 12px rgba(6, 182, 212, 0.3)",
+                      opacity: isRecordWriteRunning ? 0.6 : 1,
                     }}
                   >
-                    Save Record
+                    {isRecordWriteRunning ? "Saving..." : "Save Record"}
                   </motion.button>
                 </div>
               </div>
@@ -1757,6 +1857,11 @@ export default function RecordsPage({ archivedView = false }) {
                             {record.counselor && record.counselor !== "Unknown User" && record.counselor !== "Unknown Counselor"
                               ? record.counselor
                               : user?.name || user?.email || record.counselor || "—"}
+                            {Array.isArray(record.sharedWith) && record.sharedWith.length > 0 && (
+                              <span className="ml-2 inline-block rounded-md bg-cyan-100 px-2 py-0.5 text-[10px] font-semibold text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300">
+                                Shared
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-3">
                             {(() => {
@@ -1890,6 +1995,27 @@ export default function RecordsPage({ archivedView = false }) {
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
                                         type="button"
+                                        onClick={() => openShareModal(record)}
+                                        style={{
+                                          background: "#0ea5e9",
+                                          color: "white",
+                                          padding: "6px 12px",
+                                          borderRadius: 8,
+                                          border: "none",
+                                          cursor: "pointer",
+                                          fontSize: 13,
+                                          fontWeight: 600,
+                                        }}
+                                        title="Share with counselor"
+                                      >
+                                        Share
+                                      </motion.button>
+                                    )}
+                                    {owner && (
+                                      <motion.button
+                                        whileHover={{ scale: 1.05 }}
+                                        whileTap={{ scale: 0.95 }}
+                                        type="button"
                                         onClick={() => handleArchiveRow(record)}
                                         style={{
                                           background: "#6366f1",
@@ -1990,6 +2116,11 @@ export default function RecordsPage({ archivedView = false }) {
                           >
                             {record.status}
                           </span>
+                          {Array.isArray(record.sharedWith) && record.sharedWith.length > 0 && (
+                            <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-cyan-100 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300">
+                              Shared
+                            </span>
+                          )}
                           {(() => {
                             const lockStatus = lockStatuses[record._id];
                             if (lockStatus?.locked) {
@@ -2104,6 +2235,28 @@ export default function RecordsPage({ archivedView = false }) {
                                   Edit
                                 </motion.button>
                               ) : null}
+                              {owner && (
+                                <motion.button
+                                  whileHover={{ scale: 1.02 }}
+                                  whileTap={{ scale: 0.98 }}
+                                  type="button"
+                                  onClick={() => openShareModal(record)}
+                                  style={{
+                                    flex: 1,
+                                    background: "#0ea5e9",
+                                    color: "white",
+                                    padding: "10px",
+                                    borderRadius: 8,
+                                    border: "none",
+                                    cursor: "pointer",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                  }}
+                                  title="Share"
+                                >
+                                  Share
+                                </motion.button>
+                              )}
                               {owner && (
                                 <motion.button
                                   whileHover={{ scale: 1.02 }}
@@ -2427,6 +2580,105 @@ export default function RecordsPage({ archivedView = false }) {
             </AnimatePresence>
             </div>
         </motion.section>
+
+        {/* Share Modal */}
+        <AnimatePresence>
+          {showShareModal && shareRecord && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+              onClick={() => {
+                if (!shareLoading) {
+                  setShowShareModal(false);
+                  setShareRecord(null);
+                }
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                transition={{ type: "spring", damping: 22 }}
+                className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-5 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="mb-4">
+                  <h3 className="m-0 text-lg font-semibold text-gray-900 dark:text-gray-100">Share record</h3>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    Grant view-only access for <strong>{shareRecord.clientName}</strong>.
+                  </p>
+                </div>
+
+                <div className="mb-4 flex gap-2">
+                  <select
+                    value={selectedShareTarget}
+                    onChange={(e) => setSelectedShareTarget(e.target.value)}
+                    className="h-10 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                    disabled={shareLoading || shareTargets.length === 0}
+                  >
+                    <option value="">Select counselor to share with</option>
+                    {shareTargets.map((target) => (
+                      <option key={target.id} value={target.id}>
+                        {target.name} {target.email ? `(${target.email})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleShareRecord}
+                    disabled={shareLoading || !selectedShareTarget}
+                    className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-cyan-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {shareLoading ? "Saving..." : "Share"}
+                  </button>
+                </div>
+
+                <div className="mb-4 max-h-52 overflow-y-auto rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Currently shared with
+                  </p>
+                  {sharedCounselors.length === 0 ? (
+                    <p className="m-0 text-sm text-gray-500 dark:text-gray-400">No shared counselors yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {sharedCounselors.map((c) => (
+                        <div key={c.id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 px-3 py-2 dark:border-gray-700">
+                          <div className="min-w-0">
+                            <p className="m-0 truncate text-sm font-medium text-gray-900 dark:text-gray-100">{c.name}</p>
+                            <p className="m-0 truncate text-xs text-gray-500 dark:text-gray-400">{c.email}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleUnshareRecord(c.id)}
+                            disabled={shareLoading}
+                            className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300"
+                          >
+                            Unshare
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowShareModal(false);
+                      setShareRecord(null);
+                    }}
+                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-800 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600"
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Edit Modal */}
         <AnimatePresence>
@@ -2977,16 +3229,16 @@ export default function RecordsPage({ archivedView = false }) {
                       whileHover={{ scale: isReadOnly ? 1 : 1.02 }}
                       whileTap={{ scale: isReadOnly ? 1 : 0.98 }}
                       onClick={handleSave}
-                      disabled={isReadOnly}
+                      disabled={isReadOnly || isRecordWriteRunning}
                       style={{
-                        background: isReadOnly 
+                        background: isReadOnly || isRecordWriteRunning
                           ? "#cbd5e0" 
                           : "linear-gradient(90deg, #06b6d4, #3b82f6)",
                         color: "white",
                         padding: "10px 20px",
                         borderRadius: 10,
                         border: "none",
-                        cursor: isReadOnly ? "not-allowed" : "pointer",
+                        cursor: isReadOnly || isRecordWriteRunning ? "not-allowed" : "pointer",
                         fontWeight: 600,
                         fontSize: 14,
                         boxShadow: isReadOnly 
@@ -2996,7 +3248,7 @@ export default function RecordsPage({ archivedView = false }) {
                       }}
                       title={isReadOnly ? "Record is locked. Please unlock it first." : ""}
                     >
-                      Save Changes
+                      {isRecordWriteRunning ? "Saving..." : "Save Changes"}
                     </motion.button>
                   </div>
                 </div>

@@ -9,6 +9,7 @@ import {
 } from "../../controllers/admin/adminSettingsController.js";
 import { protectAdmin } from "../../middleware/admin/adminMiddleware.js";
 import { cacheJSON } from "../../utils/cache.js";
+import { sensitiveWriteLimiter } from "../../middleware/rateLimitMiddleware.js";
 
 const router = express.Router();
 
@@ -30,35 +31,35 @@ router.get("/", settingsCache, getSettings);
  * @desc    Update display & interface settings
  * @access  Private (Admin only)
  */
-router.put("/display", updateDisplaySettings);
+router.put("/display", sensitiveWriteLimiter, updateDisplaySettings);
 
 /**
  * @route   PUT /api/admin/settings/notifications
  * @desc    Update notification settings
  * @access  Private (Admin only)
  */
-router.put("/notifications", updateNotificationSettings);
+router.put("/notifications", sensitiveWriteLimiter, updateNotificationSettings);
 
 /**
  * @route   PUT /api/admin/settings/privacy
  * @desc    Update privacy settings
  * @access  Private (Admin only)
  */
-router.put("/privacy", updatePrivacySettings);
+router.put("/privacy", sensitiveWriteLimiter, updatePrivacySettings);
 
 /**
  * @route   PUT /api/admin/settings/colors
  * @desc    Update theme color customization
  * @access  Private (Admin only)
  */
-router.put("/colors", updateColorSettings);
+router.put("/colors", sensitiveWriteLimiter, updateColorSettings);
 
 /**
  * @route   POST /api/admin/settings/colors/reset
  * @desc    Reset theme color customization to defaults
  * @access  Private (Admin only)
  */
-router.post("/colors/reset", resetColorSettings);
+router.post("/colors/reset", sensitiveWriteLimiter, resetColorSettings);
 
 export default router;
 

@@ -5,7 +5,9 @@ import ReCAPTCHA from "react-google-recaptcha";
 import Swal from "sweetalert2";
 import { motion } from "framer-motion";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import useSingleFlight from "../hooks/useSingleFlight";
 import { getRecaptchaSiteKey } from "../config/recaptchaSiteKey.js";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 import buksuLogo from "../assets/buksu-logo.png";
 
 const fieldClass =
@@ -22,6 +24,7 @@ function Login() {
   const [password, setPassword] = useState("");
   const [recaptchaToken, setRecaptchaToken] = useState(null);
   const navigate = useNavigate();
+  const { run: runLogin, isRunning: isLoggingIn } = useSingleFlight();
 
   const recaptchaSiteKey = getRecaptchaSiteKey();
 
@@ -57,55 +60,56 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    await runLogin(async () => {
+      if (!recaptchaSiteKey) {
+        Swal.fire({
+          icon: "error",
+          title: "Configuration Required",
+          text: "Set VITE_RECAPTCHA_SITE_KEY in frontend/.env (see .env.example).",
+        });
+        return;
+      }
 
-    if (!recaptchaSiteKey) {
-      Swal.fire({
-        icon: "error",
-        title: "Configuration Required",
-        text: "Set VITE_RECAPTCHA_SITE_KEY in frontend/.env (see .env.example).",
-      });
-      return;
-    }
+      if (!recaptchaToken) {
+        Swal.fire({
+          icon: "warning",
+          title: "Verification Required",
+          text: "Please complete the reCAPTCHA before logging in.",
+        });
+        return;
+      }
 
-    if (!recaptchaToken) {
-      Swal.fire({
-        icon: "warning",
-        title: "Verification Required",
-        text: "Please complete the reCAPTCHA before logging in.",
-      });
-      return;
-    }
+      try {
+        const baseUrl = API_BASE_URL;
+        const res = await axios.post(`${baseUrl}/api/auth/login`, {
+          email,
+          password,
+          recaptchaToken,
+        });
 
-    try {
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
-      const res = await axios.post(`${baseUrl}/api/auth/login`, {
-        email,
-        password,
-        recaptchaToken,
-      });
+        localStorage.setItem("authToken", res.data.token);
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("user", JSON.stringify(res.data.user || res.data.result));
+        localStorage.setItem("activeRole", "counselor");
+        localStorage.removeItem("themeColors");
 
-      localStorage.setItem("authToken", res.data.token);
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("user", JSON.stringify(res.data.user || res.data.result));
-      localStorage.setItem("activeRole", "counselor");
-      localStorage.removeItem("themeColors");
-
-      await Swal.fire({
-        icon: "success",
-        title: "Login Successful!",
-        text: "Welcome back!",
-        timer: 2000,
-        showConfirmButton: false,
-      });
-      navigate("/dashboard", { replace: true });
-    } catch (err) {
-      console.error(err);
-      Swal.fire({
-        icon: "error",
-        title: "Login Failed",
-        text: err.response?.data?.message || "Invalid email or password",
-      });
-    }
+        await Swal.fire({
+          icon: "success",
+          title: "Login Successful!",
+          text: "Welcome back!",
+          timer: 2000,
+          showConfirmButton: false,
+        });
+        navigate("/dashboard", { replace: true });
+      } catch (err) {
+        console.error(err);
+        Swal.fire({
+          icon: "error",
+          title: "Login Failed",
+          text: err.response?.data?.message || "Invalid email or password",
+        });
+      }
+    });
   };
 
   const canSubmit = Boolean(recaptchaSiteKey && recaptchaToken);
@@ -259,10 +263,10 @@ function Login() {
                   <div className="mt-10 space-y-5 sm:mt-11">
                     <button
                       type="submit"
-                      disabled={!canSubmit}
+                      disabled={!canSubmit || isLoggingIn}
                       className="w-full rounded-xl bg-slate-900 py-3.5 text-[15px] font-medium text-white shadow-sm transition-[transform,box-shadow,background-color] hover:bg-slate-800 hover:shadow-md enabled:active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-slate-900 disabled:hover:shadow-sm dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 dark:disabled:opacity-40"
                     >
-                      Sign in
+                      {isLoggingIn ? "Signing in..." : "Sign in"}
                     </button>
 
                     <div className="relative flex items-center gap-3 py-1">
@@ -277,7 +281,7 @@ function Login() {
                       type="button"
                       className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200/90 bg-white py-3 text-sm font-semibold text-slate-800 shadow-sm transition-[border-color,background-color] hover:border-slate-300 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900/40 dark:text-slate-100 dark:hover:border-slate-500 dark:hover:bg-slate-800/60"
                       onClick={() => {
-                        const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+                        const baseUrl = API_BASE_URL;
                         window.location.href = `${baseUrl}/auth/google`;
                       }}
                       aria-label="Sign in with Google"

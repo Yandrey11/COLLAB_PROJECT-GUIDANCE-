@@ -7,8 +7,9 @@ import AdminSidebar from "../../components/AdminSidebar";
 import { initializeTheme } from "../../utils/themeUtils";
 import { useDocumentTitle } from "../../hooks/useDocumentTitle";
 import { formatProblemsPresentedDisplay } from "../../constants/problemsPresented";
+import { API_BASE_URL } from "../../config/apiBaseUrl";
 
-const API_URL = `${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/records`;
+const API_URL = `${API_BASE_URL}/api/admin/records`;
 
 export default function AdminRecordManagement() {
   useDocumentTitle("Admin Record Management");
@@ -88,7 +89,7 @@ export default function AdminRecordManagement() {
 
     // Verify admin access
     axios
-      .get(`${import.meta.env.VITE_API_URL || "http://localhost:5000"}/api/admin/dashboard`, {
+      .get(`${API_BASE_URL}/api/admin/dashboard`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       .then((res) => {
@@ -189,7 +190,7 @@ export default function AdminRecordManagement() {
   const fetchAllLockLogs = async () => {
     try {
       const token = localStorage.getItem("adminToken");
-      const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+      const baseUrl = API_BASE_URL;
       const params = { limit: 50 }; // Get more logs to allow filtering
       if (lockLogFilter !== "all") {
         params.action = lockLogFilter;

@@ -8,6 +8,7 @@ import {
   getAdminUnreadMessageTotal,
 } from "../../controllers/admin/adminCounselorMessageController.js";
 import { cacheJSON } from "../../utils/cache.js";
+import { sensitiveWriteLimiter } from "../../middleware/rateLimitMiddleware.js";
 
 const router = express.Router();
 router.use(protectAdmin);
@@ -18,7 +19,7 @@ const messagesCache = cacheJSON({ ttlMs: 15_000, prefix: "messages:" });
 router.get("/messages/unread-total", messagesCache, getAdminUnreadMessageTotal);
 router.get("/messages/threads", messagesCache, getAdminMessageThreads);
 router.get("/messages/counselor/:counselorId", messagesCache, getAdminMessagesForCounselor);
-router.post("/messages/counselor/:counselorId/mark-read", markAdminThreadRead);
-router.post("/messages/counselor/:counselorId", postAdminMessageToCounselor);
+router.post("/messages/counselor/:counselorId/mark-read", sensitiveWriteLimiter, markAdminThreadRead);
+router.post("/messages/counselor/:counselorId", sensitiveWriteLimiter, postAdminMessageToCounselor);
 
 export default router;

@@ -17,8 +17,9 @@ import {
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
 import { validatePassword } from "../utils/passwordValidation";
 import PasswordStrengthMeter from "../components/PasswordStrengthMeter.jsx";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const BASE_URL = API_BASE_URL;
 const SETTINGS_API_URL = `${BASE_URL}/api/counselor/settings`;
 const PROFILE_API_URL = `${BASE_URL}/api/profile`;
 
@@ -300,6 +301,7 @@ export default function SettingsPage() {
 
   // Save settings to backend
   const saveSettings = async (category = null) => {
+    if (saving) return;
     try {
       setSaving(true);
       const token = localStorage.getItem("token");
@@ -355,6 +357,7 @@ export default function SettingsPage() {
 
   // Save color theme to backend
   const saveColors = async (colors) => {
+    if (saving) return;
     try {
       setSaving(true);
       const token = localStorage.getItem("token");
@@ -399,6 +402,7 @@ export default function SettingsPage() {
 
   // Reset just the color theme (without resetting other settings)
   const resetColorsOnly = async () => {
+    if (saving) return;
     const def = { ...COLOR_DEFAULTS.counselor };
     setSettings((prev) => ({ ...prev, colors: def }));
     applyColorTheme(def);
@@ -419,6 +423,7 @@ export default function SettingsPage() {
   // Handle password change
   const handlePasswordChange = async (e) => {
     e.preventDefault();
+    if (saving) return;
 
     // Validation
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
@@ -492,6 +497,7 @@ export default function SettingsPage() {
 
   // Reset settings to defaults
   const resetSettings = async () => {
+    if (saving) return;
     const result = await Swal.fire({
       title: "Reset Settings?",
       text: "Are you sure you want to reset all settings to defaults?",

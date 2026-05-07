@@ -8,8 +8,9 @@ import CounselorSidebar from "../components/CounselorSidebar";
 import CounselorHeaderProfile from "../components/CounselorHeaderProfile.jsx";
 import { initializeTheme } from "../utils/themeUtils";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { API_BASE_URL } from "../config/apiBaseUrl";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+const BASE_URL = API_BASE_URL;
 
 const pageStagger = {
   hidden: { opacity: 0 },
@@ -44,7 +45,7 @@ const getImageUrl = (imagePath) => {
 export default function NotificationCenter() {
   useDocumentTitle("Notifications");
   const navigate = useNavigate();
-  const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  const baseUrl = API_BASE_URL;
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
